@@ -3,7 +3,12 @@
 
 mod account;
 mod api;
+mod password;
+mod rules;
 mod service;
+mod setup;
+mod store;
+mod token;
 
 pub use account::{Account, AccountStatus, AuthenticatedAccount, ChatLanguage, Role};
 pub use api::{AdminAccount, CurrentAccount, IdentityState, router};

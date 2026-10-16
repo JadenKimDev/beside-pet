@@ -20,7 +20,7 @@ pub struct Services {
     pub accounts: SharedAccountService,
     pub authenticator: SharedAuthenticator,
     pub support: SharedSupportService,
-    /// 아직 부르는 기능이 없다. 대화 기능이 `support` 의 구현에 넘긴다.
+    /// 아직 부르는 기능이 없다. 대화 기능이 `support` 의 구현에 넘긴다(위기 판정은 `safety::assess_risk`).
     pub text_model: SharedTextModel,
 }
 
@@ -32,6 +32,21 @@ impl Services {
             authenticator: Arc::new(identity::Unimplemented),
             support: Arc::new(support::Unimplemented),
             text_model: Arc::new(llm::Unimplemented),
+        }
+    }
+
+    /// 서버가 쓰는 조립: 모델은 설정의 기본 모델로 고르는 라우터(사용량은 메모리 싱크), 나머지는 아직 `unimplemented`.
+    pub fn for_config(config: &Config) -> Services {
+        let settings = llm::ModelSettings::from_config(config);
+        tracing::info!(
+            provider = settings.default_model.provider.as_str(),
+            model = %settings.default_model.model,
+            "default model"
+        );
+        let usage: llm::SharedUsageSink = Arc::new(llm::InMemoryUsageSink::default());
+        Services {
+            text_model: Arc::new(llm::ModelRouter::from_settings(&settings, usage)),
+            ..Services::unimplemented()
         }
     }
 }
@@ -49,10 +64,11 @@ impl AppState {
     /// DB 에 붙고 마이그레이션까지 마친 상태. 서버가 쓰는 trait 구현을 여기서 끼운다.
     pub async fn connect(config: Arc<Config>) -> Result<AppState, sqlx::Error> {
         let db = connect(&config).await?;
+        let services = Services::for_config(&config);
         Ok(AppState {
             config,
             db,
-            services: Services::unimplemented(),
+            services,
         })
     }
 

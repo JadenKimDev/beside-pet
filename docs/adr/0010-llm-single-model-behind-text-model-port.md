@@ -1,7 +1,7 @@
 ---
 id: ADR-0010
 date: 2026-10-16
-status: accepted
+status: superseded
 tags: [llm, provider, cost, architecture]
 related: [ADR-0004, ADR-0005, ADR-0011, DEV-2026-03-02-counselor-model-ab-test, DEV-2026-03-15-user-simulator-flips-ranking, DEV-2026-03-16-model-specific-prompts]
 ---

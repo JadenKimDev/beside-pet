@@ -169,3 +169,98 @@ fn visit(dir: &std::path::Path, f: &mut dyn FnMut(&std::path::Path, &str)) {
         }
     }
 }
+
+const DB: (&str, &str) = ("DATABASE_URL", "postgres://u:p@h/db");
+
+#[test]
+fn 모델_값을_읽어_다듬는다() {
+    let config = Config::from_lookup(lookup(&[
+        DB,
+        ("LLM_PROVIDER", " ollama "),
+        ("LLM_MODEL", "gemma4"),
+        ("CLAUDE_MODEL", "  "),
+        ("ANTHROPIC_API_KEY", "sk-test-fake"),
+        ("ANTHROPIC_BASE_URL", "http://127.0.0.1:9"),
+        ("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+        ("OLLAMA_THINK", "true"),
+    ]))
+    .unwrap();
+    assert_eq!(config.model.provider.as_deref(), Some("ollama"));
+    assert_eq!(config.model.model.as_deref(), Some("gemma4"));
+    assert_eq!(config.model.claude_model, None);
+    assert_eq!(
+        config.model.anthropic_api_key.as_deref(),
+        Some("sk-test-fake")
+    );
+    assert_eq!(
+        config.model.anthropic_base_url.as_deref(),
+        Some("http://127.0.0.1:9")
+    );
+    assert_eq!(
+        config.model.ollama_base_url.as_deref(),
+        Some("http://127.0.0.1:11434")
+    );
+    assert!(config.model.ollama_think);
+}
+
+#[test]
+fn ollama_think_은_정확히_true_일_때만_켠다() {
+    for value in ["TRUE", "1", "yes", "false", ""] {
+        let config = Config::from_lookup(lookup(&[DB, ("OLLAMA_THINK", value)])).unwrap();
+        assert!(!config.model.ollama_think, "{value}");
+    }
+}
+
+#[test]
+fn 모르는_llm_provider_는_이름만_적고_실패한다() {
+    let err = Config::from_lookup(lookup(&[DB, ("LLM_PROVIDER", "secret-vendor")])).unwrap_err();
+    assert!(err.to_string().contains("LLM_PROVIDER"), "{err}");
+    assert!(!err.to_string().contains("secret"), "{err}");
+}
+
+#[test]
+fn 기본_공급자가_anthropic_이면_키가_있어야_기동한다() {
+    for pairs in [
+        vec![DB],
+        vec![DB, ("LLM_PROVIDER", "anthropic")],
+        vec![DB, ("ANTHROPIC_API_KEY", "  ")],
+    ] {
+        let config = Config::from_lookup(lookup(&pairs)).unwrap();
+        let err = config.require_default_model().unwrap_err();
+        assert!(err.to_string().contains("ANTHROPIC_API_KEY"), "{err}");
+    }
+    let config = Config::from_lookup(lookup(&[DB, ("ANTHROPIC_API_KEY", "sk-test-fake")])).unwrap();
+    assert!(config.require_default_model().is_ok());
+}
+
+#[test]
+fn 기본_공급자가_ollama_면_llm_model_만_있으면_기동한다() {
+    let missing = [
+        vec![DB, ("LLM_PROVIDER", "ollama")],
+        vec![
+            DB,
+            ("LLM_PROVIDER", "ollama"),
+            ("CLAUDE_MODEL", "claude-haiku-4-5"),
+        ],
+    ];
+    for pairs in missing {
+        let config = Config::from_lookup(lookup(&pairs)).unwrap();
+        let err = config.require_default_model().unwrap_err();
+        assert!(err.to_string().contains("LLM_MODEL"), "{err}");
+    }
+    let config = Config::from_lookup(lookup(&[
+        DB,
+        ("LLM_PROVIDER", "ollama"),
+        ("LLM_MODEL", "gemma4"),
+    ]))
+    .unwrap();
+    assert!(config.require_default_model().is_ok());
+}
+
+#[test]
+fn debug_에_키를_싣지_않는다() {
+    let config = Config::from_lookup(lookup(&[DB, ("ANTHROPIC_API_KEY", "sk-test-fake")])).unwrap();
+    let debug = format!("{config:?}");
+    assert!(!debug.contains("sk-test-fake"), "{debug}");
+    assert!(debug.contains("<hidden>"), "{debug}");
+}

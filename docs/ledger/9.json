@@ -39,6 +39,9 @@
         "apps/server/src/llm/pricing.rs",
         "apps/server/src/llm/usage.rs",
         "apps/server/src/llm/settings.rs",
+        "apps/server/src/llm/pricing/",
+        "apps/server/src/llm/usage/",
+        "apps/server/src/llm/settings/",
         "apps/server/src/llm/mod.rs",
         "apps/server/src/safety/risk.rs",
         "apps/server/src/safety/risk/",
@@ -53,17 +56,17 @@
         "S1"
       ],
       "verify": [
-        "dev-tools/scripts/cargo.sh clippy --all-targets -- -D warnings && dev-tools/scripts/cargo.sh test -p beside-pet-server llm:: safety::"
+        "dev-tools/scripts/cargo.sh clippy --all-targets -- -D warnings && dev-tools/scripts/cargo.sh test -p beside-pet-server -- llm:: safety::"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-16T09:46:02.147Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-16T09:39:07.934Z",
+      "finished_at": "2026-10-16T09:47:39.344Z",
+      "active_ms": 511410,
+      "verify_ms": 1127
     }
   ]
 }

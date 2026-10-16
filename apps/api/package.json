@@ -11,7 +11,8 @@
     "lint": "biome check --write src",
     "format": "biome format --write src",
     "typecheck": "tsc --noEmit",
-    "dev": "NODE_ENV=development nest start --watch"
+    "dev": "NODE_ENV=development nest start --watch",
+    "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
@@ -42,6 +43,7 @@
     "@types/luxon": "^3.7.2",
     "@types/node": "^20.14.0",
     "ts-node": "^10.9.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^5.0.5"
   }
 }

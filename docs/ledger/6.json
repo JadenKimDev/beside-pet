@@ -1,0 +1,33 @@
+{
+  "issue": 6,
+  "title": "원장 러너가 검증을 돌린 뒤 원장을 다시 읽고 판정만 더해, 동시에 돌린 다른 작업의 판정을 덮지 않게 한다",
+  "prd": "docs/prd/6-ledger-verify-lock.md",
+  "depends_on": [],
+  "created_at": "2026-10-16T08:42:08.540Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "원장 파일 잠금과 \"읽고 고치고 쓰기\" 도우미, `verify` 가 검증 뒤 다시 읽어 판정만 더한다, `work`·`red`·`finish` 도 같은 도우미를 쓴다, 잠금 파일 gitignore",
+      "scope": [
+        "dev-tools/src/lib/repo.ts",
+        "dev-tools/src/lib/ledger.ts",
+        "dev-tools/src/lib/ledger.test.ts",
+        "dev-tools/src/cli.ts",
+        ".gitignore"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools typecheck && pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

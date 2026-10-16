@@ -1,0 +1,88 @@
+{
+  "issue": 8,
+  "title": "Rust 서버의 계정과 인증(identity)을 채운다 — 계정 상태 전이, 비밀번호 해시, 토큰, 첫 관리자 setup, 가드",
+  "prd": "docs/prd/8-rust-identity.md",
+  "depends_on": [
+    7
+  ],
+  "created_at": "2026-10-16T08:42:09.099Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "계정 규칙과 저장: 애그리게이트(발급, 신청, 승인, 정지, 소프트 삭제, 재개, 만료 설정과 판정, 대화 언어, 마지막 로그인), accounts SQL(저장, id·아이디로 찾기, 목록, 삭제)",
+      "scope": [
+        "apps/server/src/identity/rules.rs",
+        "apps/server/src/identity/rules/",
+        "apps/server/src/identity/store.rs",
+        "apps/server/src/identity/store/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server identity::rules identity::store"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "비밀번호 해시, 로그인 토큰 발급·검증, setup 토큰 게이트(기동 로그, 상수 시간 비교, 1회 교환) — \"방식\"의 선택대로",
+      "scope": [
+        "apps/server/src/identity/password.rs",
+        "apps/server/src/identity/password/",
+        "apps/server/src/identity/token.rs",
+        "apps/server/src/identity/token/",
+        "apps/server/src/identity/setup.rs",
+        "apps/server/src/identity/setup/",
+        "apps/server/Cargo.toml",
+        "Cargo.lock"
+      ],
+      "depends_on": [],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server identity::password identity::token identity::setup"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "`AccountService` 와 `Authenticator` 구현, `app.rs` 연결, 흐름 통합 테스트(setup → 로그인 → me → 승인·정지 → 401); 선택한 방식의 ADR",
+      "scope": [
+        "apps/server/src/identity/service.rs",
+        "apps/server/src/identity/service/",
+        "apps/server/src/identity/mod.rs",
+        "apps/server/src/app.rs",
+        "docs/adr/"
+      ],
+      "depends_on": [
+        "S1",
+        "S2"
+      ],
+      "verify": [
+        "dev-tools/scripts/cargo.sh clippy --all-targets -- -D warnings && dev-tools/scripts/cargo.sh test -p beside-pet-server identity::"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

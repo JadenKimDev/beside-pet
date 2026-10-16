@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" font-family="-apple-system, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif">
+  <rect x="0" y="0" width="960" height="540" rx="12" fill="#FFFFFF"/>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8A897F"/>
+    </marker>
+  </defs>
+
+  <text x="120" y="42" text-anchor="middle" font-size="15" font-weight="600" fill="#2C2C2A">프론트 — Next.js</text>
+  <text x="490" y="42" text-anchor="middle" font-size="15" font-weight="600" fill="#2C2C2A">백엔드 — NestJS</text>
+  <text x="835" y="42" text-anchor="middle" font-size="15" font-weight="600" fill="#2C2C2A">외부 · 데이터</text>
+
+  <rect x="30" y="62" width="180" height="112" rx="10" fill="#F6F5F1" stroke="#C9C7BE"/>
+  <text x="120" y="92" text-anchor="middle" font-size="13" fill="#2C2C2A">채팅 UI · 진행도</text>
+  <text x="120" y="114" text-anchor="middle" font-size="13" fill="#2C2C2A">세션 허브 · 마음 리포트</text>
+  <text x="120" y="136" text-anchor="middle" font-size="13" fill="#2C2C2A">설정 · 온보딩</text>
+  <text x="120" y="160" text-anchor="middle" font-size="11.5" fill="#807F76">API 키 없음</text>
+
+  <line x1="210" y1="104" x2="298" y2="104" stroke="#8A897F" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="254" y="92" text-anchor="middle" font-size="11.5" fill="#5F5E5A">REST / SSE</text>
+
+  <rect x="300" y="62" width="380" height="58" rx="10" fill="#F6F5F1" stroke="#C9C7BE"/>
+  <text x="490" y="87" text-anchor="middle" font-size="13" font-weight="600" fill="#2C2C2A">Controllers — /v1</text>
+  <text x="490" y="107" text-anchor="middle" font-size="11.5" fill="#5F5E5A">JWT httpOnly 쿠키 · OpenAPI /docs</text>
+
+  <line x1="490" y1="120" x2="490" y2="148" stroke="#8A897F" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="300" y="150" width="380" height="172" rx="10" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text x="490" y="176" text-anchor="middle" font-size="13.5" font-weight="600" fill="#2C2C2A">SupportOrchestrator — 턴 파이프라인</text>
+
+  <rect x="314" y="192" width="106" height="30" rx="8" fill="#FFFFFF" stroke="#C9C7BE"/>
+  <text x="367" y="211" text-anchor="middle" font-size="12" fill="#2C2C2A">안전 확인</text>
+  <text x="430" y="211" text-anchor="middle" font-size="12" fill="#8A897F">→</text>
+  <rect x="440" y="192" width="106" height="30" rx="8" fill="#FFFFFF" stroke="#C9C7BE"/>
+  <text x="493" y="211" text-anchor="middle" font-size="12" fill="#2C2C2A">단계 전이</text>
+  <text x="556" y="211" text-anchor="middle" font-size="12" fill="#8A897F">→</text>
+  <rect x="566" y="192" width="100" height="30" rx="8" fill="#FFFFFF" stroke="#C9C7BE"/>
+  <text x="616" y="211" text-anchor="middle" font-size="12" fill="#2C2C2A">지식 검색</text>
+
+  <rect x="314" y="234" width="106" height="30" rx="8" fill="#FFFFFF" stroke="#C9C7BE"/>
+  <text x="367" y="253" text-anchor="middle" font-size="12" fill="#2C2C2A">공감 발화</text>
+  <text x="430" y="253" text-anchor="middle" font-size="12" fill="#8A897F">→</text>
+  <rect x="440" y="234" width="106" height="30" rx="8" fill="#FFFFFF" stroke="#C9C7BE"/>
+  <text x="493" y="253" text-anchor="middle" font-size="12" fill="#2C2C2A">턴 분석</text>
+  <text x="556" y="253" text-anchor="middle" font-size="12" fill="#8A897F">→</text>
+  <rect x="566" y="234" width="100" height="30" rx="8" fill="#FFFFFF" stroke="#C9C7BE"/>
+  <text x="616" y="253" text-anchor="middle" font-size="12" fill="#2C2C2A">영속화</text>
+
+  <text x="490" y="292" text-anchor="middle" font-size="11.5" fill="#5F5E5A">깊이 게이트(3·2·5)로 맴돌이를 구조적으로 차단 · 지식은 KnowledgePort 뒤</text>
+  <text x="490" y="310" text-anchor="middle" font-size="11.5" fill="#5F5E5A">Planner · Supervisor · Summarizer가 턴 밖에서 분석 레이어를 더함</text>
+
+  <line x1="680" y1="205" x2="738" y2="150" stroke="#8A897F" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="740" y="70" width="190" height="104" rx="10" fill="#E1F5EE" stroke="#0F6E56"/>
+  <text x="835" y="98" text-anchor="middle" font-size="13" font-weight="600" fill="#085041">Claude API — Haiku</text>
+  <text x="835" y="120" text-anchor="middle" font-size="11.5" fill="#0F6E56">키는 서버 전용 · 라이브 전용</text>
+  <text x="835" y="140" text-anchor="middle" font-size="11.5" fill="#0F6E56">TextModelPort 단일 관문</text>
+  <text x="835" y="158" text-anchor="middle" font-size="11.5" fill="#0F6E56">호출별 ModelRef · 사용량 기록</text>
+
+  <line x1="490" y1="322" x2="490" y2="352" stroke="#8A897F" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="300" y="354" width="380" height="72" rx="10" fill="#F6F5F1" stroke="#C9C7BE"/>
+  <text x="490" y="382" text-anchor="middle" font-size="13" font-weight="600" fill="#2C2C2A">Session 애그리게이트</text>
+  <text x="490" y="404" text-anchor="middle" font-size="11.5" fill="#5F5E5A">task · supportLevel · closed · griefProfile · history · plan · summary</text>
+
+  <line x1="680" y1="390" x2="738" y2="390" stroke="#8A897F" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <rect x="740" y="340" width="190" height="112" rx="10" fill="#E6F1FB" stroke="#185FA5"/>
+  <text x="835" y="368" text-anchor="middle" font-size="13" font-weight="600" fill="#0C447C">PostgreSQL (필수)</text>
+  <text x="835" y="390" text-anchor="middle" font-size="11.5" fill="#185FA5">TypeORM · 자동 마이그레이션</text>
+  <text x="835" y="412" text-anchor="middle" font-size="11.5" fill="#185FA5">accounts · sessions</text>
+  <text x="835" y="430" text-anchor="middle" font-size="11.5" fill="#185FA5">turn_analyses (집계 컬럼)</text>
+
+  <line x1="30" y1="480" x2="930" y2="480" stroke="#E5E4DE"/>
+  <text x="480" y="510" text-anchor="middle" font-size="12.5" fill="#5F5E5A">흐름은 코드가, 발화는 모델이 — 구조(단계·진행도·안전)는 결정론적 도메인이 정하고, 모델은 각 단계 안에서 발화만 채운다.</text>
+</svg>

@@ -1,0 +1,31 @@
+node_modules/
+dist/
+.turbo/
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# 로컬 상태와 생성물
+/data/
+/outputs/
+
+# polydeukes 판정 로그
+/.polydeukes/
+
+# PRD 캐시. 정본은 GitHub 이슈이고 `pnpm prd:pull` 이 여기에 받아 온다.
+/docs/prd/
+
+# 조사와 실측 보고서. 이 머신에만 두고 커밋하지 않는다.
+/docs/research/
+
+# 결정 기록의 검색 색인. 정본은 docs/adr, docs/devlog 의 마크다운이고 pnpm docs:index 가 다시 만든다.
+/docs/docs.db
+
+# 앱 빌드 산출물
+.next/
+out/
+next-env.d.ts
+.pulumi/
+infra/bin/
+*.pem

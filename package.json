@@ -1,0 +1,40 @@
+{
+  "name": "beside-pet",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@polydeukes/adapter-claude-code": "0.18.0",
+    "@polydeukes/core": "0.18.0",
+    "polydeukes": "0.18.0"
+  },
+  "scripts": {
+    "test": "pnpm -s lint && pnpm -r typecheck && pnpm -r --if-present test && pnpm -s test:stack",
+    "test:stack": "echo '스택 테스트 없음: API 를 Rust 로 옮길 때 cargo test 를 넣는다'",
+    "lint": "biome check .",
+    "dev": "pnpm -r --parallel --filter './apps/*' dev",
+    "browser:tab": "dev-tools/scripts/browser-tab.sh",
+    "prd:push": "node dev-tools/src/cli.ts prd:push",
+    "prd:pull": "node dev-tools/src/cli.ts prd:pull",
+    "prd:pane": "dev-tools/scripts/prd-pane.sh",
+    "wt:create": "dev-tools/scripts/wt.sh create",
+    "wt:pane": "dev-tools/scripts/wt.sh pane",
+    "wt:finish": "dev-tools/scripts/wt.sh finish",
+    "wt:remove": "dev-tools/scripts/wt.sh remove",
+    "wt:status": "dev-tools/scripts/wt.sh status",
+    "ledger:new": "node dev-tools/src/cli.ts ledger:new",
+    "work": "node dev-tools/src/cli.ts work",
+    "ledger:red": "node dev-tools/src/cli.ts ledger:red",
+    "ledger:verify": "node dev-tools/src/cli.ts ledger:verify",
+    "finish": "node dev-tools/src/cli.ts finish",
+    "ledger:status": "node dev-tools/src/cli.ts ledger:status",
+    "ledger:outcomes": "node dev-tools/src/cli.ts ledger:outcomes",
+    "docs:index": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:index",
+    "docs:search": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:search",
+    "docs:list": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:list",
+    "docs:neighbors": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:neighbors"
+  }
+}

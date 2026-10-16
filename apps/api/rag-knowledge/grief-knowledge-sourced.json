@@ -1,0 +1,100 @@
+{
+  "_meta": {
+    "purpose": "CC BY 오픈액세스 논문에서 추출한 출처 기반 RAG 청크. 검증용 영어 인용(quote) 포함.",
+    "note": "원문 통째 복사가 아니라 개념 재서술. 상세 서지/라이선스/인용은 SOURCES.md 참조.",
+    "schema": "{ source, citation, license, task_id, tags[], content, quote }",
+    "version": "0.1"
+  },
+  "chunks": [
+    {
+      "source": "Testoni et al. (2019), Animals 9(2):67",
+      "citation": "doi:10.3390/ani9020067",
+      "license": "CC BY 4.0",
+      "task_id": 0,
+      "tags": ["검증", "박탈된슬픔"],
+      "content": "반려동물은 애착 대상이므로 그 죽음은 가족을 잃은 것에 준하는 비탄을 일으킨다. 또한 사회가 이 슬픔을 정당하다고 인정하지 않는 '박탈된 비탄'이라, 보호자는 충분한 지지를 받기 어렵다.",
+      "quote": "companion animals are attachment figures whose loss elicits a significant grief response, one similar to the mourning caused by the death of relatives"
+    },
+    {
+      "source": "Testoni et al. (2019), Animals 9(2):67",
+      "citation": "doi:10.3390/ani9020067",
+      "license": "CC BY 4.0",
+      "task_id": null,
+      "tags": ["안전", "우울", "지지"],
+      "content": "사회적 지지가 없으면 보호자는 관계망에서 위축되고 무력감·죄책감을 느끼며, 해소되지 않은 비탄이 우울로 발전할 수 있다. 지지와 인정이 회복의 보호 요인이다.",
+      "quote": "people withdraw from their networks, feeling helpless... grief can remain unresolved, thereby leading to depression"
+    },
+    {
+      "source": "Testoni et al. (2019), Animals 9(2):67",
+      "citation": "doi:10.3390/ani9020067",
+      "license": "CC BY 4.0",
+      "task_id": 2,
+      "tags": ["감정표현", "죄책감"],
+      "content": "비탄·죄책감·분노·침습적 사고·후회는 서로 강하게 얽혀 있어 한 감정이 커지면 다른 감정도 함께 커진다. 특정 감정만 떼어 다루기보다 전체를 함께 보는 것이 좋다.",
+      "quote": "negative dimensions of bereavement (grief, guilt, anger, intrusive thoughts and decisional regrets) are strictly linked to each other"
+    },
+    {
+      "source": "Testoni et al. (2019), Animals 9(2):67",
+      "citation": "doi:10.3390/ani9020067",
+      "license": "CC BY 4.0",
+      "task_id": 2,
+      "tags": ["공감", "공유의사결정", "안락사"],
+      "content": "상대가 공감적으로 대하고 돌봄·임종 결정을 함께 공유한다고 느낄 때 보호자의 비탄 고통과 후회('그때 ~했더라면')가 줄어든다.",
+      "quote": "when the veterinarian is perceived as empathic and the decision making is shared the owners' pet bereavement distress and regrets are reduced"
+    },
+    {
+      "source": "Testoni et al. (2019), Animals 9(2):67",
+      "citation": "doi:10.3390/ani9020067",
+      "license": "CC BY 4.0",
+      "task_id": 3,
+      "tags": ["적응", "정상화"],
+      "content": "대부분의 사람은 시간이 지나면서 상실에 적응해 간다. 회복에는 시간이 걸리며, 그 속도는 사람마다 다르다.",
+      "quote": "most people are able to adjust to loss over time"
+    },
+    {
+      "source": "Wu & Song (2025), Behavioral Sciences 15(4):431",
+      "citation": "doi:10.3390/bs15040431",
+      "license": "CC BY",
+      "task_id": 0,
+      "tags": ["정상화", "검증"],
+      "content": "반려인의 약 30%가 상실 후 강한 비탄을 경험한다. 깊은 슬픔은 비정상이 아니라 흔하고 정상적인 반응이다.",
+      "quote": "Approximately 30% of pet owners experience intense grief following pet loss."
+    },
+    {
+      "source": "Wu & Song (2025), Behavioral Sciences 15(4):431",
+      "citation": "doi:10.3390/bs15040431",
+      "license": "CC BY",
+      "task_id": 1,
+      "tags": ["애착", "심리교육"],
+      "content": "반려동물과의 애착이 강할수록 상실의 비탄도 강하다. 더 많은 시간과 무조건적 정서 지지를 나눈 관계일수록 상실의 충격이 크다.",
+      "quote": "Pet owners with stronger attachment to their pets tend to experience more intense grief following their loss."
+    },
+    {
+      "source": "Wu & Song (2025), Behavioral Sciences 15(4):431",
+      "citation": "doi:10.3390/bs15040431",
+      "license": "CC BY",
+      "task_id": 2,
+      "tags": ["반추", "회복지향"],
+      "content": "무의식적으로 부정 정서에 매몰되는 침투적 반추는 비탄을 장기화하지만, 사건을 의식적으로 재평가하는 의도적 반추는 회복에 도움이 될 수 있다. 둘을 구분해 의도적 재평가로 이끄는 것이 중요하다.",
+      "quote": "deliberate rumination refers to the intentional and goal-directed cognitive process through which individuals actively revisit and re-evaluate the event"
+    },
+    {
+      "source": "Wu & Song (2025), Behavioral Sciences 15(4):431",
+      "citation": "doi:10.3390/bs15040431",
+      "license": "CC BY",
+      "task_id": 4,
+      "tags": ["지속적유대", "ritual"],
+      "content": "지속적 유대(장례 의식, 유품 보관, 추억 회상 등 떠난 반려동물과 정서적 연결을 잇는 행동)는 단기적으로 그리움을 키울 수 있으나 장기적으로 건강한 작별을 돕는다.",
+      "quote": "It includes activities such as conducting funeral ceremonies, preserving mementos, and engaging in reminiscence."
+    },
+    {
+      "source": "Wu & Song (2025), Behavioral Sciences 15(4):431",
+      "citation": "doi:10.3390/bs15040431",
+      "license": "CC BY",
+      "task_id": null,
+      "tags": ["지지", "안전"],
+      "content": "지지적 환경에 있는 보호자는 죄책감·우울 수준이 낮고 복합 비탄으로 발전할 가능성이 적다. 핫라인, 상호지지 커뮤니티, 인간적인 장례 서비스가 도움이 된다.",
+      "quote": "When pet owners are in a supportive environment, they experience lower levels of guilt and depression"
+    }
+  ]
+}

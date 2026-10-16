@@ -1,0 +1,4 @@
+config:
+  beside-pet:awsWebOwnership: external
+  beside-pet:awsRegion: ap-northeast-2
+  beside-pet:landingUrl: https://besidepet.com

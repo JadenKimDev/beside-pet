@@ -1,0 +1,68 @@
+// 레포 검사(`../code-rules.test.ts`)가 `@beside-pet/dev-checks/code-rules` 의 규칙을 부르는 조립. 순수 함수만 둔다.
+// 경로는 레포 루트 기준으로 받고 돌려준다. 파일을 읽는 부분은 `repo.ts` 의 `readTrackedSources` 다.
+// 검사하는 소스 자리는 `project.config.json` 의 `codeRoots` 다.
+
+import {
+  duplicateBodies,
+  genericTypeViolations,
+  languageOf,
+  largeFiles,
+  type SourceFile,
+} from "@beside-pet/dev-checks/code-rules";
+
+import { DEFAULT_CODE_ROOTS } from "./config.ts";
+
+/** 발견 하나. `line` 이 없으면 파일 전체에 대한 것이다. */
+export type Finding = { file: string; line?: number; note: string };
+
+/**
+ * 검사할 소스 파일인가: `roots` 아래의 코드 파일이고, 선언 파일(`.d.ts`)도 생성된 파일(`generated/` 아래)도 아니다.
+ * 생성된 파일은 손으로 고치지 않으므로 규칙을 들이대지 않는다.
+ */
+export function isCodeFile(path: string, roots: readonly string[] = DEFAULT_CODE_ROOTS): boolean {
+  if (!roots.some((root) => path.startsWith(root))) return false;
+  if (path.endsWith(".d.ts")) return false;
+  if (/(^|\/)generated\//.test(path)) return false;
+  return languageOf(path) !== null;
+}
+
+function lineCount(source: string): number {
+  if (source === "") return 0;
+  const lines = source.split("\n").length;
+  return source.endsWith("\n") ? lines - 1 : lines;
+}
+
+/** 600줄을 넘는 제품 파일. */
+export function largeFileFindings(files: SourceFile[]): Finding[] {
+  const lengths = files.map((file) => ({ path: file.path, lines: lineCount(file.source) }));
+  return largeFiles(lengths).map((file) => ({ file: file.path, note: `${file.lines}줄` }));
+}
+
+/** 다른 이름의 같은 몸체 함수 묶음 수와, 묶음마다 머리 한 줄과 위치들. */
+export function duplicateBodyReport(files: SourceFile[]): { groups: number; lines: string[] } {
+  const groups = duplicateBodies(files);
+  const lines: string[] = [];
+  groups.forEach((group, index) => {
+    lines.push(`묶음 ${index + 1} (${group.hash})`);
+    for (const fn of group.functions) lines.push(`  ${findingLine({ file: fn.file, line: fn.line, note: fn.name })}`);
+  });
+  return { groups: groups.length, lines };
+}
+
+/** 범용 타입을 쓴 줄. */
+export function genericTypeFindings(files: SourceFile[]): Finding[] {
+  return files.flatMap((file) =>
+    genericTypeViolations(file).map((v) => ({ file: v.file, line: v.line, note: `${v.rule}: ${v.text}` })),
+  );
+}
+
+/** `파일:줄  설명`, 줄이 없으면 `파일  설명`. */
+export function findingLine(finding: Finding): string {
+  const at = finding.line === undefined ? finding.file : `${finding.file}:${finding.line}`;
+  return `${at}  ${finding.note}`;
+}
+
+/** 머리에 건수를 둔 출력. */
+export function report(title: string, count: number, lines: string[]): string {
+  return [`${title}: ${count}건`, ...lines].join("\n");
+}

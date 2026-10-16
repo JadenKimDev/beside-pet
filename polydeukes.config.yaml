@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=node_modules/polydeukes/dist/schema/polydeukes.schema.json
+# Polydeukes 규율 선언. 이 파일은 데이터이고, 판정은 설치된 `pdks` 가 한다.
+#
+# 초기 단계 방침 (CLAUDE.md "초기 단계의 승인 방식"):
+#   - 세션 훅은 연결하지 않는다. 세션 표면에서는 이 설정 파일 자체가 항상 보호되어
+#     witness 토큰 없이는 고칠 수 없기 때문이다.
+#   - protectedPaths 와 witness 를 두지 않는다.
+#   - 규율은 변경 집합 표면(`git diff | pdks covenant check --diff`)에서 권고로만 판정한다.
+#
+# 프로젝트가 자리를 잡으면 `pnpm exec pdks-claude-code init` 으로 세션 훅을 연결하고
+# protectedPaths 와 witness 를 되살린다.
+#
+# [TODO] 스택이 정해지면 언어마다 제품 코드의 자리와 테스트 명령을 고친다.
+
+languages:
+  typescript:
+    productionGlob: "{apps/*,packages/*,dev-tools}/src/**/*.{ts,tsx}"
+    testCmd: "pnpm -F {scope} test"
+
+disciplines: []

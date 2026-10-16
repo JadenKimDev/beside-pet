@@ -1,0 +1,6 @@
+name: beside-pet
+runtime:
+  name: nodejs
+  options:
+    packagemanager: pnpm
+description: Beside Pet infrastructure and existing deployment references

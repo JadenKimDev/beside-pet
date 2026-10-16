@@ -1,0 +1,8 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "dev-tools"
+  - "infra"
+
+onlyBuiltDependencies:
+  - sharp

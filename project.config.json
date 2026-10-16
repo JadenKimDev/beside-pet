@@ -1,0 +1,8 @@
+{
+  "name": "beside-pet",
+  "repo": "HCN-335/beside-pet",
+  "ghUser": "HCN-335",
+  "boardNumber": null,
+  "tddAreas": ["apps"],
+  "codeRoots": ["apps/", "packages/", "dev-tools/src/"]
+}

@@ -1,0 +1,43 @@
+# Local development: run only the DB in Docker and the app on the host (hot reload):
+#   docker compose up -d db
+#   DATABASE_URL=postgres://beside:beside@localhost:5432/besidepet pnpm start:dev
+# Full stack in containers (rehearses the deployed shape):
+#   ANTHROPIC_API_KEY=sk-... docker compose --profile full up --build
+services:
+  # PostgreSQL + pgvector: relational + JSONB now, vectors (RAG) later.
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: beside
+      POSTGRES_PASSWORD: beside
+      POSTGRES_DB: besidepet
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beside -d besidepet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # API: the production image (Dockerfile). Not started in dev; only with --profile full.
+  api:
+    profiles: ["full"]
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://beside:beside@db:5432/besidepet
+      JWT_SECRET: dev-insecure-secret-change-me
+      # Live-only: the server refuses to boot without a real key.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY is required — the model runs live only}
+      # The first admin account is created at first run via the one-time setup
+      # token printed in the boot log (POST /v1/auth/setup).
+    ports:
+      - "3000:3000"
+
+volumes:
+  dbdata:

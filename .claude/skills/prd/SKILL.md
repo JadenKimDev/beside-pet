@@ -9,7 +9,7 @@ Beside Pet 의 작업 하나를 한국어 PRD 로 쓰고, 승인받아 GitHub �
 
 ## PRD 가 사는 곳
 
-정본은 `HCN-335/beside-pet` 의 GitHub 이슈다. `docs/prd/` 는 gitignore 된 캐시이고 커밋하지 않는다.
+정본은 `JadenKimDev/beside-pet` 의 GitHub 이슈다. `docs/prd/` 는 gitignore 된 캐시이고 커밋하지 않는다.
 
 - 작업의 이름은 이슈 번호다. 따로 만든 티켓 번호는 쓰지 않는다.
 - 이슈 제목은 머리말의 `title` 그대로다.

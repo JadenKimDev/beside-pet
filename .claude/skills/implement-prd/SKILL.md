@@ -131,7 +131,7 @@ echo "${HARNESS_IMPL:-}"
 ```bash
 git status -sb                                   # 변경 없음
 git -C "$(git rev-parse --git-common-dir)/.." status -sb   # 본 체크아웃의 main: origin/main 보다 앞서지 않음
-GH_TOKEN=$(gh auth token --user HCN-335) gh issue view <이슈> -R HCN-335/beside-pet --json state -q .state
+GH_TOKEN=$(gh auth token --user JadenKimDev) gh issue view <이슈> -R JadenKimDev/beside-pet --json state -q .state
 ```
 
 `git status` 는 `??` 만이 아니라 모든 줄을 읽는다. 수정(`M`) 한 줄이 남아 있어도 끝난 것이 아니다.

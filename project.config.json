@@ -1,7 +1,7 @@
 {
   "name": "beside-pet",
-  "repo": "HCN-335/beside-pet",
-  "ghUser": "HCN-335",
+  "repo": "JadenKimDev/beside-pet",
+  "ghUser": "JadenKimDev",
   "boardNumber": null,
   "tddAreas": ["apps"],
   "codeRoots": ["apps/", "packages/", "dev-tools/src/"]

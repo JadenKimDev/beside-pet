@@ -66,7 +66,7 @@ Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원
 
 ## 계정
 
-이 레포의 원격은 `HCN-335/beside-pet` 이고, 레포 고유의 값(레포, `gh` 계정, 보드 번호, 테스트를 먼저 쓰는 영역, 검사할 소스 자리)은 `project.config.json` 한 곳에 둔다. 로컬 git 설정(`credential.https://github.com.helper`)이 `HCN-335` 토큰으로 인증하므로 `git push` 는 그대로 쓴다. `gh` 명령은 머신의 활성 계정을 따르므로 `GH_TOKEN=$(gh auth token --user HCN-335)` 을 앞에 붙인다. 작업 대장 CLI(`pnpm prd:push` 등)는 이것을 스스로 한다.
+이 레포의 원격은 `JadenKimDev/beside-pet` 이고, 레포 고유의 값(레포, `gh` 계정, 보드 번호, 테스트를 먼저 쓰는 영역, 검사할 소스 자리)은 `project.config.json` 한 곳에 둔다. 로컬 git 설정(`credential.https://github.com.helper`)이 `JadenKimDev` 토큰으로 인증하므로 `git push` 는 그대로 쓴다. `gh` 명령은 머신의 활성 계정을 따르므로 `GH_TOKEN=$(gh auth token --user JadenKimDev)` 을 앞에 붙인다. 작업 대장 CLI(`pnpm prd:push` 등)는 이것을 스스로 한다.
 
 ## 명령
 
@@ -142,7 +142,7 @@ herdr 는 선택이다. 없으면 워크트리는 git worktree 로만 만들고,
 | 웹 화면을 띄워 보거나 확인한다 | `.claude/skills/open-web/SKILL.md` |
 | 결정의 이유를 찾거나 적는다 | `docs/adr/README.md` (`pnpm docs:search`) |
 
-- PRD 의 정본은 `HCN-335/beside-pet` 의 GitHub 이슈다.
+- PRD 의 정본은 `JadenKimDev/beside-pet` 의 GitHub 이슈다.
 - 작업의 이름은 이슈 번호다. 따로 만든 티켓 번호는 쓰지 않는다. PRD 안의 작업은 `S1`, `S2` 로 부른다.
 - 이슈는 프로젝트 보드(`project.config.json` 의 `boardNumber`)에서 본다. `prd:push` 가 이슈를 보드에 올리고, 첫 작업을 집으면 러너가 In progress 로 옮긴다. 닫힌 이슈를 Done 으로 옮기는 것은 보드의 자동화다. 보드는 창이고 판정의 정본은 원장이라, 보드 번호가 없거나 보드에 닿지 못해도 러너는 멈추지 않는다.
 - 원장의 판정 칸(`status`, `passes`, `retries`, `red_at`, 시각)은 `pnpm work`, `pnpm ledger:red`, `pnpm ledger:verify`, `pnpm finish` 만 쓴다. 작업이 끝났는지는 검증 명령의 종료 코드가 정한다.

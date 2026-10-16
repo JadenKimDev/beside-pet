@@ -4,8 +4,10 @@
 // 검사하는 소스 자리는 `project.config.json` 의 `codeRoots` 다.
 
 import {
+  colorLiteralViolations,
   duplicateBodies,
   genericTypeViolations,
+  hangulLiteralViolations,
   internalUseViolations,
   isTestPath,
   languageOf,
@@ -91,6 +93,20 @@ export function duplicateBodyReport(files: SourceFile[]): { groups: number; line
 export function genericTypeFindings(files: SourceFile[]): Finding[] {
   return files.flatMap((file) =>
     genericTypeViolations(file).map((v) => ({ file: v.file, line: v.line, note: `${v.rule}: ${v.text}` })),
+  );
+}
+
+/** 대화 웹에서 hex 색과 `rgb()`·`hsl()` 을 쓴 줄. `theme/` 아래와 테스트는 규칙이 뺀다. */
+export function colorLiteralFindings(files: SourceFile[]): Finding[] {
+  return files.flatMap((file) =>
+    colorLiteralViolations(file).map((v) => ({ file: v.file, line: v.line, note: `${v.rule}: ${v.text}` })),
+  );
+}
+
+/** 대화 웹의 `.tsx` 에서 한글 글자를 쓴 줄. `i18n/` 아래와 테스트는 규칙이 뺀다. */
+export function hangulLiteralFindings(files: SourceFile[]): Finding[] {
+  return files.flatMap((file) =>
+    hangulLiteralViolations(file).map((v) => ({ file: v.file, line: v.line, note: `${v.rule}: ${v.text}` })),
   );
 }
 

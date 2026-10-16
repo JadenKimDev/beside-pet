@@ -32,3 +32,6 @@ infra/bin/
 
 # 원장 러너의 잠금 파일. 러너가 원장을 읽고 쓰는 동안에만 생긴다.
 /docs/ledger/*.lock
+
+# Rust 빌드 산출물(Cargo 워크스페이스)
+/target/

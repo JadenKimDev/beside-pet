@@ -13,9 +13,12 @@
   },
   "scripts": {
     "test": "pnpm -s lint && pnpm -r typecheck && pnpm -r --if-present test && pnpm -s test:stack",
-    "test:stack": "echo '스택 테스트 없음: API 를 Rust 로 옮길 때 cargo test 를 넣는다'",
+    "test:stack": "dev-tools/scripts/cargo.sh clippy --all-targets -- -D warnings && dev-tools/scripts/cargo.sh test",
     "lint": "biome check .",
     "dev": "pnpm -r --parallel --filter './apps/*' dev",
+    "db:up": "dev-tools/scripts/db.sh up",
+    "db:down": "dev-tools/scripts/db.sh down",
+    "db:status": "dev-tools/scripts/db.sh status",
     "browser:tab": "dev-tools/scripts/browser-tab.sh",
     "prd:push": "node dev-tools/src/cli.ts prd:push",
     "prd:pull": "node dev-tools/src/cli.ts prd:pull",

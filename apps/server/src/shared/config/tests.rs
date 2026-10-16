@@ -1,0 +1,171 @@
+use std::collections::HashMap;
+
+use super::{Config, ENV_NAMES, env_file_name};
+
+fn lookup(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
+    let map: HashMap<String, String> = pairs
+        .iter()
+        .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+        .collect();
+    move |name| map.get(name).cloned()
+}
+
+#[test]
+fn database_url_가_없으면_이유를_적고_실패한다() {
+    let err = Config::from_lookup(lookup(&[("PORT", "3000")])).unwrap_err();
+    assert!(err.to_string().contains("DATABASE_URL"), "{err}");
+}
+
+#[test]
+fn 빈_database_url_도_없는_것으로_본다() {
+    let err = Config::from_lookup(lookup(&[("DATABASE_URL", "  ")])).unwrap_err();
+    assert!(err.to_string().contains("DATABASE_URL"), "{err}");
+}
+
+#[test]
+fn 기본값은_3000_포트와_tls_없음이다() {
+    let config = Config::from_lookup(lookup(&[("DATABASE_URL", "postgres://u:p@h/db")])).unwrap();
+    assert_eq!(config.port, 3000);
+    assert!(!config.database_ssl);
+    assert_eq!(config.database_url, "postgres://u:p@h/db");
+    assert!(!config.is_production());
+}
+
+#[test]
+fn 값을_읽는다() {
+    let config = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("PORT", "4100"),
+        ("DATABASE_SSL", "true"),
+        ("NODE_ENV", "production"),
+    ]))
+    .unwrap();
+    assert_eq!(config.port, 4100);
+    assert!(config.database_ssl);
+    assert!(config.is_production());
+}
+
+#[test]
+fn 개발에서는_루프백에만_연다() {
+    let dev = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("PORT", "4100"),
+    ]))
+    .unwrap();
+    assert_eq!(dev.listen_address().to_string(), "127.0.0.1:4100");
+    let prod = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("NODE_ENV", "production"),
+    ]))
+    .unwrap();
+    assert_eq!(prod.listen_address().to_string(), "0.0.0.0:3000");
+}
+
+#[test]
+fn database_ssl_은_정확히_true_일_때만_켠다() {
+    for value in ["TRUE", "1", "yes", "false", ""] {
+        let config = Config::from_lookup(lookup(&[
+            ("DATABASE_URL", "postgres://u:p@h/db"),
+            ("DATABASE_SSL", value),
+        ]))
+        .unwrap();
+        assert!(!config.database_ssl, "{value}");
+    }
+}
+
+#[test]
+fn 포트가_숫자가_아니면_실패한다() {
+    let err = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("PORT", "abc"),
+    ]))
+    .unwrap_err();
+    assert!(err.to_string().contains("PORT"), "{err}");
+}
+
+#[test]
+fn 오류_문구에_값을_싣지_않는다() {
+    let err = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:secret@h/db"),
+        ("PORT", "secret-port"),
+    ]))
+    .unwrap_err();
+    assert!(!err.to_string().contains("secret"), "{err}");
+}
+
+#[test]
+fn node_env_가_env_파일을_고른다() {
+    assert_eq!(env_file_name(Some("development")), ".env.development");
+    assert_eq!(env_file_name(Some("production")), ".env");
+    assert_eq!(env_file_name(None), ".env");
+}
+
+#[test]
+fn 읽는_이름은_모두_env_example_에_있다() {
+    let example = include_str!("../../../.env.example");
+    let declared: Vec<&str> = example
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.starts_with('#'))
+        .filter_map(|line| line.split_once('=').map(|(name, _)| name.trim()))
+        .collect();
+    for name in ENV_NAMES {
+        assert!(
+            declared.contains(&name),
+            "{name} 이 apps/server/.env.example 에 없다"
+        );
+    }
+}
+
+#[test]
+fn config_rs_가_읽는_이름은_모두_env_names_에_있다() {
+    let source = include_str!("../config.rs");
+    let pattern = regex::Regex::new(r#"lookup\("([A-Z_]+)"\)|var\("([A-Z_]+)"\)"#).unwrap();
+    let mut seen = 0;
+    for caps in pattern.captures_iter(source) {
+        let name = caps.get(1).or_else(|| caps.get(2)).unwrap().as_str();
+        assert!(
+            ENV_NAMES.contains(&name),
+            "config.rs 가 {name} 을 읽지만 ENV_NAMES 에 없다"
+        );
+        seen += 1;
+    }
+    assert!(seen >= 4, "config.rs 에서 읽는 이름을 찾지 못했다");
+}
+
+#[test]
+fn 환경_변수는_config_rs_만_읽는다() {
+    let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut offenders = Vec::new();
+    visit(&src, &mut |path, text| {
+        let rel = path
+            .strip_prefix(&src)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        if rel == "shared/config.rs" || rel.starts_with("shared/config/") {
+            return;
+        }
+        for needle in ["env::var", "env::vars", "dotenvy", "var_os("] {
+            if text.contains(needle) {
+                offenders.push(format!("{rel}: {needle}"));
+            }
+        }
+    });
+    assert!(
+        offenders.is_empty(),
+        "환경 변수는 shared/config.rs 만 읽는다: {offenders:?}"
+    );
+}
+
+fn visit(dir: &std::path::Path, f: &mut dyn FnMut(&std::path::Path, &str)) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            visit(&path, f);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            let text = std::fs::read_to_string(&path).unwrap();
+            f(&path, &text);
+        }
+    }
+}

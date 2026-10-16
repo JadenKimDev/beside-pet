@@ -7,8 +7,8 @@ dist/
 .DS_Store
 
 # 로컬 상태와 생성물
-/data/
-/outputs/
+/data
+/outputs
 
 # polydeukes 판정 로그
 /.polydeukes/

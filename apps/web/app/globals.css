@@ -1,34 +1,326 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens (design proposal §3.4, §4.1, §5). Colour values live only in
+ * this file; components use the token classes (bg-surface, text-fg-muted, …).
+ * Each theme block holds its light values and, nested inside, its dark values;
+ * light/dark follows the OS. The layout sets <html data-theme> from the
+ * `beside-pet.theme` cookie (theme/config.ts). theme/contrast.test.ts reads
+ * these blocks and checks the §3.4 contrast pairs.
+ *
+ * hanji dark = the "hanji-night" mix: night-sky navy grounds with a lightened
+ * indigo accent, so accent (indigo), crisis (gardenia gold) and danger (red)
+ * keep the same meaning in both modes.
+ * night dark keeps its candle-gold accent (the theme's identity); its own
+ * crisis line #7A5A36 sits ΔE 38 from it. The contrast test keeps accent and
+ * crisis line ≥ 30 apart in every theme.
+ */
+
+:root,
+html[data-theme="hanji"] {
+  --bg: #F7F3EA;
+  --bg-sunk: #EEE8DB;
+  --surface: #FFFDF8;
+  --surface-raised: #FFFFFF;
+  --fg: #1E1D1B;
+  --fg-muted: #5F5A52;
+  --border: #E3DCCD;
+  --border-strong: #8A8273;
+  --accent: #24405C;
+  --accent-fg: #FFFFFF;
+  --accent-hover: #1C3349;
+  --accent-ink: #24405C;
+  --accent-soft: #E3E8EE;
+  --warm: #E6C77E;
+  --dusk: #D6DAD9;
+  --danger: #A33A2A;
+  --danger-fg: #FFFFFF;
+  --danger-soft: #F6E2DC;
+  --crisis-bg: #FAF0D6;
+  --crisis-border: #DABE73;
+  --crisis-fg: #553D0B;
+  --crisis-ink: #6E5212;
+  --overlay: rgb(30 29 27 / 0.48);
+  --sh-2: 0 8px 20px -12px rgb(30 29 27 / 0.18);
+  --sh-3: 0 20px 40px -16px rgb(30 29 27 / 0.26);
+  color-scheme: light;
+
+  @media (prefers-color-scheme: dark) {
+    --bg: #0E1320;
+    --bg-sunk: #131929;
+    --surface: #161D2E;
+    --surface-raised: #1D2538;
+    --fg: #ECE6D8;
+    --fg-muted: #A3A6AF;
+    --border: #2A3245;
+    --border-strong: #6C7385;
+    --accent: #A9BEDC;
+    --accent-fg: #0D1626;
+    --accent-hover: #BACBE4;
+    --accent-ink: #B7C9E2;
+    --accent-soft: #24304A;
+    --warm: #6B5426;
+    --dusk: #2A3045;
+    --danger: #E8877F;
+    --danger-fg: #1C0C0A;
+    --danger-soft: #3A1E20;
+    --crisis-bg: #2D2715;
+    --crisis-border: #6B5A27;
+    --crisis-fg: #F0DFA8;
+    --crisis-ink: #F0DFA8;
+    --overlay: rgb(0 0 0 / 0.62);
+    --sh-2: 0 10px 24px -12px rgb(0 0 0 / 0.6);
+    --sh-3: 0 24px 48px -16px rgb(0 0 0 / 0.7);
+    color-scheme: dark;
+  }
+}
+
+html[data-theme="night"] {
+  --bg: #F6F5F1;
+  --bg-sunk: #ECEAE3;
+  --surface: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --fg: #1A2030;
+  --fg-muted: #5A5F6C;
+  --border: #DEDCD4;
+  --border-strong: #858A95;
+  --accent: #1F2C47;
+  --accent-fg: #FFFFFF;
+  --accent-hover: #17223A;
+  --accent-ink: #23345A;
+  --accent-soft: #E6E8EE;
+  --warm: #E3C98F;
+  --dusk: #D5D9E3;
+  --danger: #A3322E;
+  --danger-fg: #FFFFFF;
+  --danger-soft: #F7E4E2;
+  --crisis-bg: #FBF1DC;
+  --crisis-border: #DDBF7F;
+  --crisis-fg: #553B0C;
+  --crisis-ink: #6F4F14;
+  --overlay: rgb(26 32 48 / 0.48);
+  --sh-2: 0 8px 20px -12px rgb(26 32 48 / 0.18);
+  --sh-3: 0 20px 40px -16px rgb(26 32 48 / 0.26);
+  color-scheme: light;
+
+  @media (prefers-color-scheme: dark) {
+    --bg: #0E1320;
+    --bg-sunk: #131929;
+    --surface: #161D2E;
+    --surface-raised: #1D2538;
+    --fg: #ECE6D8;
+    --fg-muted: #A3A6AF;
+    --border: #2A3245;
+    --border-strong: #6C7385;
+    --accent: #D8B66E;
+    --accent-fg: #1A1406;
+    --accent-hover: #E2C383;
+    --accent-ink: #E3C88E;
+    --accent-soft: #252C3D;
+    --warm: #6B5426;
+    --dusk: #2A3045;
+    --danger: #E8877F;
+    --danger-fg: #1C0C0A;
+    --danger-soft: #3A1E20;
+    --crisis-bg: #33251A;
+    --crisis-border: #7A5A36;
+    --crisis-fg: #F2D6B4;
+    --crisis-ink: #F2D6B4;
+    --overlay: rgb(0 0 0 / 0.62);
+    --sh-2: 0 10px 24px -12px rgb(0 0 0 / 0.6);
+    --sh-3: 0 24px 48px -16px rgb(0 0 0 / 0.7);
+    color-scheme: dark;
+  }
+}
+
+html[data-theme="ink"] {
+  --bg: #FAFAF8;
+  --bg-sunk: #F1F1EE;
+  --surface: #FFFFFF;
+  --surface-raised: #FFFFFF;
+  --fg: #141414;
+  --fg-muted: #5C5C5A;
+  --border: #E4E4E0;
+  --border-strong: #8A8A86;
+  --accent: #1A1A1A;
+  --accent-fg: #FFFFFF;
+  --accent-hover: #333333;
+  --accent-ink: #A0412C;
+  --accent-soft: #EFEFEC;
+  --warm: #E8C3B5;
+  --dusk: #DADAD6;
+  --danger: #A12622;
+  --danger-fg: #FFFFFF;
+  --danger-soft: #F7E3E1;
+  --crisis-bg: #FBF2E0;
+  --crisis-border: #DCC08A;
+  --crisis-fg: #5A4010;
+  --crisis-ink: #765617;
+  --overlay: rgb(20 20 20 / 0.48);
+  --sh-2: 0 8px 20px -12px rgb(20 20 20 / 0.18);
+  --sh-3: 0 20px 40px -16px rgb(20 20 20 / 0.26);
+  color-scheme: light;
+
+  @media (prefers-color-scheme: dark) {
+    --bg: #121212;
+    --bg-sunk: #181818;
+    --surface: #1C1C1C;
+    --surface-raised: #242424;
+    --fg: #EDEDEA;
+    --fg-muted: #A3A3A0;
+    --border: #2E2E2E;
+    --border-strong: #727270;
+    --accent: #EDEDEA;
+    --accent-fg: #141414;
+    --accent-hover: #FFFFFF;
+    --accent-ink: #F0A48E;
+    --accent-soft: #2A2A2A;
+    --warm: #5A3A30;
+    --dusk: #333333;
+    --danger: #F08A80;
+    --danger-fg: #1A0B0A;
+    --danger-soft: #3A1C1A;
+    --crisis-bg: #2D2617;
+    --crisis-border: #6A5728;
+    --crisis-fg: #EFDDB0;
+    --crisis-ink: #EFDDB0;
+    --overlay: rgb(0 0 0 / 0.62);
+    --sh-2: 0 10px 24px -12px rgb(0 0 0 / 0.6);
+    --sh-3: 0 24px 48px -16px rgb(0 0 0 / 0.7);
+    color-scheme: dark;
+  }
+}
+
+/* Theme-independent tokens: shape (tidy set), spacing, type scale, motion. */
 :root {
-  --background: #faf8f5;
-  --foreground: #2b2724;
-  --surface: #ffffff;
-  --muted: #8a817a;
-  --accent: #5b8a7a;
-  --accent-foreground: #ffffff;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 10px;
+  --r-xl: 14px;
+  --r-pill: 8px;
+  --r-bubble: 12px;
+  --r-composer: 12px;
+  --sh-1: none;
+  --focus-ring: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent);
+  --img-fade: linear-gradient(180deg, transparent 40%, var(--bg) 100%);
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 96px;
+
+  --fs-display: 48px;
+  --fs-display-s: 34px;
+  --fs-h1: 28px;
+  --fs-h2: 21px;
+  --fs-h3: 17px;
+  --fs-question: 30px;
+  --fs-lead: 18px;
+  --fs-body-l: 17px;
+  --fs-body: 15px;
+  --fs-small: 13px;
+  --fs-caption: 12px;
+  --fs-eyebrow: 12px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 160ms;
+  --t-base: 240ms;
+  --t-slow: 420ms;
+
+  @media (max-width: 640px) {
+    --fs-display: 34px;
+    --fs-display-s: 28px;
+    --fs-h1: 24px;
+    --fs-question: 23px;
+    --fs-lead: 16px;
+    --fs-body-l: 16px;
+  }
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-bg-sunk: var(--bg-sunk);
   --color-surface: var(--surface);
-  --color-muted: var(--muted);
+  --color-surface-raised: var(--surface-raised);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-warm: var(--warm);
+  --color-dusk: var(--dusk);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-soft: var(--danger-soft);
+  --color-crisis-bg: var(--crisis-bg);
+  --color-crisis-border: var(--crisis-border);
+  --color-crisis-fg: var(--crisis-fg);
+  --color-crisis-ink: var(--crisis-ink);
+  --color-overlay: var(--overlay);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #1a1816;
-    --foreground: #ece7e1;
-    --surface: #262320;
-    --muted: #9a918a;
-    --accent: #6fa292;
-    --accent-foreground: #11150f;
-  }
+  /* Old names still used by the current screens; the next two PRDs replace them. */
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-accent-foreground: var(--accent-fg);
+
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+  --radius-pill: var(--r-pill);
+  --radius-bubble: var(--r-bubble);
+  --radius-composer: var(--r-composer);
+
+  --shadow-1: var(--sh-1);
+  --shadow-2: var(--sh-2);
+  --shadow-3: var(--sh-3);
+  --shadow-focus: var(--focus-ring);
+
+  --container-read: 680px;
+  --container-wide: 1120px;
+
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-serif: var(--font-gowun-batang), "Nanum Myeongjo", Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --text-display: var(--fs-display);
+  --text-display--line-height: 1.28;
+  --text-display-s: var(--fs-display-s);
+  --text-display-s--line-height: 1.32;
+  --text-h1: var(--fs-h1);
+  --text-h1--line-height: 1.36;
+  --text-h2: var(--fs-h2);
+  --text-h2--line-height: 1.42;
+  --text-h3: var(--fs-h3);
+  --text-h3--line-height: 1.5;
+  --text-question: var(--fs-question);
+  --text-question--line-height: 1.5;
+  --text-lead: var(--fs-lead);
+  --text-lead--line-height: 1.75;
+  --text-body-l: var(--fs-body-l);
+  --text-body-l--line-height: 1.8;
+  --text-body: var(--fs-body);
+  --text-body--line-height: 1.65;
+  --text-small: var(--fs-small);
+  --text-small--line-height: 1.55;
+  --text-caption: var(--fs-caption);
+  --text-caption--line-height: 1.4;
+  --text-caption--letter-spacing: 0.04em;
+  --text-eyebrow: var(--fs-eyebrow);
+  --text-eyebrow--line-height: 1.4;
+  --text-eyebrow--letter-spacing: 0.12em;
+
+  --ease-soft: var(--ease);
 }
 
 /* Scrolls without showing the bar — used by the chat composer, which grows
@@ -41,7 +333,23 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.65;
+  /* Korean: never break inside a word; still wrap long latin ids. */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }

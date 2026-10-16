@@ -1,0 +1,163 @@
+{
+  "issue": 12,
+  "title": "웹 재디자인 바탕 — 세 테마의 디자인 토큰과 글꼴, 공용 컴포넌트, 머리·바닥·도움 화면, 위기 카드, 문구 정비, 삽화 자산",
+  "prd": "docs/prd/12-web-redesign-foundation.md",
+  "depends_on": [],
+  "created_at": "2026-10-16T13:00:21.580Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "토큰·글꼴·테마 기구: `globals.css` 의 세 테마 토큰(라이트·다크)과 모양·간격·글자 단계·움직임, Pretendard·Gowun Batang, `theme/`(쿠키 이름·값 해석·저장)와 테스트, `layout.tsx` 의 `data-theme`, 대비 테스트",
+      "scope": [
+        "apps/web/app/globals.css",
+        "apps/web/app/layout.tsx",
+        "apps/web/theme/",
+        "apps/web/package.json",
+        "pnpm-lock.yaml"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "공용 컴포넌트 `components/ui/` 17종과 아이콘·로고. 논리가 있는 것만 테스트(Button busy·disabled, Segmented aria, Modal 포커스 복귀, Journey 계산, Toast 오류 머묾)",
+      "scope": [
+        "apps/web/components/ui/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "문구 정비: §8.1 바꿀 것, §8.2 새 키, 조사 도우미, 데이터 검사 셋(금지어, 자리 표시자, 조사)",
+      "scope": [
+        "apps/web/i18n/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "삽화 자산: 밤하늘·종이와 먹 판 12장 생성, 세 테마 WebP 두 크기 36장을 `public/illustrations/<테마>/` 에, 삽화 틀 그라데이션 유틸",
+      "scope": [
+        "apps/web/public/illustrations/",
+        "apps/web/components/ui/illustration-frame.css"
+      ],
+      "depends_on": [],
+      "verify": [
+        "test $(ls apps/web/public/illustrations/*/*.webp | wc -l) -ge 36 && ! find apps/web/public/illustrations -name '*.webp' -size +300k | grep -q ."
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S5",
+      "title": "머리·바닥·도움 알약, 공개 화면 `/help`(112·119 줄 포함), 위기 카드 재작성, 번호 일치 테스트, 지금 화면들에 머리·바닥 끼우기",
+      "scope": [
+        "apps/web/components/layout/",
+        "apps/web/app/help/",
+        "apps/web/features/safety/",
+        "apps/web/app/layout.tsx"
+      ],
+      "depends_on": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S6",
+      "title": "레포 검사 둘(hex 색 리터럴, 컴포넌트의 한글 리터럴)을 경고로 켠다",
+      "scope": [
+        "packages/dev-checks/src/",
+        "dev-tools/src/lib/code-rules.ts",
+        "dev-tools/src/code-rules.test.ts"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-checks test && pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S7",
+      "title": "`apps/web/CLAUDE.md`: 색은 토큰으로만, 글자는 i18n 에만, 테스트 방침, 금지어와 예외, 삽화 자산의 자리",
+      "scope": [
+        "apps/web/CLAUDE.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "test -f apps/web/CLAUDE.md && pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

@@ -82,10 +82,10 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-16T16:15:49.246Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -108,14 +108,14 @@
         "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-16T16:18:38.042Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-16T16:15:49.529Z",
+      "finished_at": "2026-10-16T16:22:23.618Z",
+      "active_ms": 394089,
+      "verify_ms": 1708
     },
     {
       "id": "S6",

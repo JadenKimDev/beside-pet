@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Gowun_Batang } from 'next/font/google';
 import { cookies, headers } from 'next/headers';
+import { SiteChrome } from '@/components/layout/SiteChrome';
 import { LOCALE_COOKIE, resolveAcceptLanguage, resolveLocale } from '@/i18n/config';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import { resolveTheme, THEME_COOKIE } from '@/theme/config';
@@ -44,7 +45,9 @@ export default async function RootLayout({
       className={`${gowunBatang.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
-        <I18nProvider initialLocale={initialLocale}>{children}</I18nProvider>
+        <I18nProvider initialLocale={initialLocale}>
+          <SiteChrome>{children}</SiteChrome>
+        </I18nProvider>
       </body>
     </html>
   );

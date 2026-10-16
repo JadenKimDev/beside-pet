@@ -97,7 +97,7 @@ async fn 마이그레이션이_초기_스키마를_만든다() {
     let names: Vec<&str> = tables.iter().map(|(n,)| n.as_str()).collect();
     assert_eq!(
         names,
-        ["_sqlx_migrations", "accounts", "sessions", "turn_analyses"]
+        ["_sqlx_migrations", "accounts", "messages", "sessions", "turn_analyses"]
     );
 
     let indexes: Vec<(String,)> = sqlx::query_as(
@@ -111,6 +111,7 @@ async fn 마이그레이션이_초기_스키마를_만든다() {
     assert_eq!(
         names,
         [
+            "idx_messages_session",
             "idx_sessions_owner",
             "idx_turn_analyses_risk",
             "idx_turn_analyses_session",

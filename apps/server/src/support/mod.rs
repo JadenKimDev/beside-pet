@@ -10,6 +10,7 @@ mod rules;
 mod service;
 mod session;
 mod sse;
+mod store;
 
 pub use api::router;
 pub use request::{

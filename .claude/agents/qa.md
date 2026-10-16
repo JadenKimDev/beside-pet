@@ -8,12 +8,10 @@ model: opus
 
 ## 이 프로젝트의 QA 설정
 
-[TODO] 프로젝트마다 채운다. 채우기 전에는 `qa` 를 띄우지 않고, 팀장이 사용자에게 "사람이 할 일"을 직접 해 달라고 묻는다.
-
-- **QA 계정**: [TODO] 계정 이름과 만드는 법(시드 스크립트, 가입 절차). 접속 정보는 이 문서에 적지 않고 gitignore 된 `data/qa/` 아래에 둔다.
-- **제품 주소**: [TODO] 개발 서버의 화면과 API 주소(루프백).
-- **상태를 맞추는 법**: [TODO] 항목이 요구하는 상태(데이터, 권한, 단계)를 만드는 방법과 되돌리는 방법. 예: 시드 스크립트, 관리 API, 개발 DB 에 넣는 SQL.
-- **건드리지 않는 것**: [TODO] 실제 사용자와 고객의 계정, 결제처럼 바깥에 닿는 동작.
+- **QA 계정**: 관리자 `qa-admin` 과 일반(viewer) `qa-viewer` 둘이다. 접속 정보는 gitignore 된 `data/qa/account.json` 에 있고 이 문서에는 적지 않는다. 관리자는 빈 DB 로 서버를 띄웠을 때 로그에 찍히는 1회용 setup 토큰으로 `POST /v1/auth/setup`(또는 웹의 첫 화면)에서 만들고, viewer 는 관리자로 로그인해 `/admin` 에서 발급한다. 두 계정 모두 지어낸 값이고 실제 사용자가 아니다.
+- **제품 주소**: 대화 웹 `http://127.0.0.1:3001`, API `http://127.0.0.1:3000`(경로는 `/v1` 아래). 서버는 Rust(`dev-tools/scripts/cargo.sh run -p beside-pet-server`, 작업 디렉터리 `apps/server`)이고 웹은 `pnpm -F @beside-pet/web dev` 다. 이 머신의 5432 는 다른 프로젝트의 Postgres 라 개발 DB 는 `DB_PORT=5433 pnpm db:up` 으로 띄우고 `DATABASE_URL` 도 5433 을 쓴다.
+- **상태를 맞추는 법**: 개발 DB 에는 지어낸 데이터만 있으므로 상태는 SQL 로 맞춘다. 비우기: `TRUNCATE turn_analyses, sessions, accounts` (그 뒤 서버를 다시 띄우면 setup 토큰이 다시 찍힌다). 세션 상태(단계, 닫힘)는 제품 API 로 만들고, 행 수 확인은 `SELECT count(*)` 로만 하며 본문 칸은 읽지 않는다(루트 `CLAUDE.md` "읽지 않는 것").
+- **건드리지 않는 것**: 운영 환경은 없다(2026-10-16 내림). 개발 DB 밖의 어떤 DB 에도 붙지 않고, 실제 모델 호출은 항목이 요구할 때만 한다(비용). 메일, 결제, 바깥 서비스는 없다.
 
 ## 쓰는 것
 

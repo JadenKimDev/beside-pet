@@ -9,9 +9,9 @@ mod telemetry;
 mod time;
 mod validation;
 
-pub use config::{Config, ConfigError, ENV_NAMES};
 #[cfg(test)]
 pub use config::test_database_url;
+pub use config::{Config, ConfigError, ENV_NAMES};
 pub use db::{MIGRATOR, connect, connect_lazy};
 pub use error::{ApiError, Message};
 pub use http::{JsonBody, cors_layer, route_not_found};

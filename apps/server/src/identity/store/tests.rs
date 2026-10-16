@@ -53,7 +53,10 @@ impl AccountsSchema {
     async fn close(self) {
         self.pool.close().await;
         self.admin
-            .execute(AssertSqlSafe(format!("DROP SCHEMA \"{}\" CASCADE", self.name)))
+            .execute(AssertSqlSafe(format!(
+                "DROP SCHEMA \"{}\" CASCADE",
+                self.name
+            )))
             .await
             .unwrap();
     }
@@ -92,7 +95,10 @@ async fn 저장한_계정을_id_와_아이디로_찾는다() {
     let record = admin_record("acc-1", "maple", 1);
     store.save(&record).await.unwrap();
 
-    assert_eq!(store.find_by_id("acc-1").await.unwrap(), Some(record.clone()));
+    assert_eq!(
+        store.find_by_id("acc-1").await.unwrap(),
+        Some(record.clone())
+    );
     assert_eq!(store.find_by_username("maple").await.unwrap(), Some(record));
     assert_eq!(store.find_by_id("nobody").await.unwrap(), None);
     assert_eq!(store.find_by_username("nobody").await.unwrap(), None);
@@ -119,7 +125,10 @@ async fn 다시_저장하면_바뀐_칸을_덮어쓴다() {
 
     record.set_expiry(None);
     store.save(&record).await.unwrap();
-    assert_eq!(store.find_by_id("acc-2").await.unwrap().unwrap().expires_at, None);
+    assert_eq!(
+        store.find_by_id("acc-2").await.unwrap().unwrap().expires_at,
+        None
+    );
     db.close().await;
 }
 
@@ -141,7 +150,10 @@ async fn 목록은_만든_순서다() {
 async fn 지우면_찾을_수_없다() {
     let db = AccountsSchema::open().await;
     let store = db.store();
-    store.save(&admin_record("acc-1", "maple", 1)).await.unwrap();
+    store
+        .save(&admin_record("acc-1", "maple", 1))
+        .await
+        .unwrap();
     store.save(&applicant("acc-2", "willow", 2)).await.unwrap();
 
     store.delete("acc-1").await.unwrap();
@@ -156,7 +168,10 @@ async fn 지우면_찾을_수_없다() {
 async fn 같은_아이디의_다른_계정은_저장되지_않는다() {
     let db = AccountsSchema::open().await;
     let store = db.store();
-    store.save(&admin_record("acc-1", "maple", 1)).await.unwrap();
+    store
+        .save(&admin_record("acc-1", "maple", 1))
+        .await
+        .unwrap();
     assert!(store.save(&applicant("acc-2", "maple", 2)).await.is_err());
     db.close().await;
 }

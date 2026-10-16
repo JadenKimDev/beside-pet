@@ -1,6 +1,6 @@
 # Beside Pet repository guide
 
-Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 상담 웹서비스다. 사용자 본인의 제품이고, 같은 레포에서 실제 제품과 포트폴리오용 구현을 함께 관리한다. 모바일 앱은 접었고 웹으로만 운영한다.
+Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원(emotional support) 웹서비스다. 사용자에게 보이는 글에서는 상담, 치료라고 부르지 않는다(ADR-0003). 사용자 본인의 제품이고, 같은 레포에서 실제 제품과 포트폴리오용 구현을 함께 관리한다. 모바일 앱은 접었고 웹으로만 운영한다.
 
 모노레포다(pnpm 워크스페이스, Node.js 24). 상담 웹(`apps/web`)과 소개 사이트(`apps/landing`)는 Next.js, 상담 API(`apps/api`)는 NestJS 와 PostgreSQL 이다. API 는 같은 동작을 유지한 채 Rust 로 옮길 예정이다. 운영 화면(backoffice)과 포트폴리오용 구현(`showcase/`)은 앞으로 만든다.
 

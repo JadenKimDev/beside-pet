@@ -80,7 +80,8 @@ link_shared() {
   mkdir -p "$(dirname "$exclude")"
   for item in "${SHARED_LOCAL[@]}"; do
     src="$REPO_ROOT/$item"; dst="$wt/$item"
-    [ -e "$src" ] || continue
+    # 디렉터리는 본 체크아웃에 아직 없어도 만들어 두고 링크한다. 없으면 워크트리가 제 것을 만들어 결과(QA 보고서 등)가 흩어진다.
+    case "$item" in .env) [ -e "$src" ] || continue ;; *) mkdir -p "$src" ;; esac
     grep -qx "/$item" "$exclude" 2>/dev/null || echo "/$item" >> "$exclude"
     [ -e "$dst" ] || [ -L "$dst" ] && continue
     mkdir -p "$(dirname "$dst")"

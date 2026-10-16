@@ -1,0 +1,80 @@
+// 마음 리포트(ADR-0008): 닫혔고 과제 2 이상일 때만, 처음 요청 때 한 번 쓰고 다음부터는 저장된 것을 돌려준다.
+
+use super::doubles::{DUNNO, Harness, SESSION_ID, owner};
+use crate::shared::ApiError;
+use crate::support::{ReportSectionKey, SupportService};
+
+fn unavailable() -> ApiError {
+    ApiError::Conflict("The report is not available for this session yet.".to_owned())
+}
+
+#[tokio::test]
+async fn 열린_세션의_리포트는_409_다() {
+    let h = Harness::new();
+    h.onboard().await;
+    h.say(DUNNO).await;
+    h.say(DUNNO).await; // 과제 2, 열림
+
+    assert_eq!(
+        h.flow.report(&owner(), SESSION_ID).await.err(),
+        Some(unavailable())
+    );
+    assert_eq!(h.model.report_calls(), 0);
+}
+
+#[tokio::test]
+async fn 과제_1_에서_닫힌_세션의_리포트는_409_다() {
+    let h = Harness::new();
+    h.onboard().await;
+    h.flow.close(&owner(), SESSION_ID).await.unwrap();
+
+    assert_eq!(
+        h.flow.report(&owner(), SESSION_ID).await.err(),
+        Some(unavailable())
+    );
+    assert_eq!(h.model.report_calls(), 0);
+}
+
+#[tokio::test]
+async fn 리포트는_한_번_쓰고_다음엔_저장된_것을_돌려준다() {
+    let h = Harness::new();
+    h.onboard().await;
+    h.say(DUNNO).await;
+    h.say(DUNNO).await;
+    h.flow.close(&owner(), SESSION_ID).await.unwrap();
+
+    let first = h.flow.report(&owner(), SESSION_ID).await.unwrap();
+    let second = h.flow.report(&owner(), SESSION_ID).await.unwrap();
+
+    assert_eq!(first, second);
+    assert_eq!(h.model.report_calls(), 1);
+    let keys: Vec<ReportSectionKey> = first.sections.iter().map(|s| s.key).collect();
+    assert_eq!(
+        keys,
+        vec![
+            ReportSectionKey::Journey,
+            ReportSectionKey::Emotions,
+            ReportSectionKey::Keepsake,
+            ReportSectionKey::Encouragement,
+        ]
+    );
+    assert_eq!(first.sections[0].body, "You walked far today.");
+    assert_eq!(first.sections[3].body, "Be gentle with yourself.");
+    assert_eq!((first.reached_task, first.progress), (2, 0.25));
+    assert_eq!(first.pet_name, "Biscuit");
+    assert!(
+        h.sessions.last_save().report.is_some(),
+        "the report is stored"
+    );
+    let request = h
+        .model
+        .calls()
+        .into_iter()
+        .find_map(|call| match call {
+            super::doubles::Call::Report(request) => Some(request),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(request.max_tokens, 900);
+    assert!(request.messages[0].text.contains("[Transcript]"));
+}

@@ -2,6 +2,7 @@
 //! 여기 있는 것은 HTTP 겉(경로, 요청 검증, 응답 모양, SSE)과 대화 기능의 관문(`SupportService`)이다. 대화의 속은 구현이 채운다.
 
 mod api;
+mod flow;
 mod knowledge;
 mod prompt;
 mod request;
@@ -13,6 +14,7 @@ mod sse;
 mod store;
 
 pub use api::router;
+pub use flow::SupportFlow;
 pub use request::{
     DailyStateRequest, EatingState, GriefPath, GriefProfileRequest, LossType, SendMessageRequest,
     Situation, SleepState, StartSessionRequest, TogetherRange,

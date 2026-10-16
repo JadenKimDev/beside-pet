@@ -5,14 +5,11 @@
 use crate::identity::ChatLanguage;
 
 use super::super::request::{
-    DailyStateRequest, EatingState, GriefPath, GriefProfileRequest, LossType, Situation,
-    SleepState, TogetherRange,
+    EatingState, GriefPath, GriefProfileRequest, LossType, Situation, SleepState, TogetherRange,
 };
 
 /// 세션의 애도 프로필. 요청 본문의 모양과 같아 따로 만들지 않는다.
 pub type GriefProfile = GriefProfileRequest;
-/// 온보딩의 하루 상태(잠, 식사).
-pub type DailyState = DailyStateRequest;
 
 /// 펫 이름이 없을 때 발화에 넣는 자리표시(모델이 대화 언어로 자연스럽게 바꾼다).
 pub const PET_NAME_FALLBACK: &str = "your little one";

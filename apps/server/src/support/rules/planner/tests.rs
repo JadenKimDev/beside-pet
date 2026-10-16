@@ -1,7 +1,8 @@
 use chrono::{TimeZone, Utc};
 
 use super::plan;
-use crate::support::rules::{DailyState, GriefProfile};
+use crate::support::DailyStateRequest as DailyState;
+use crate::support::rules::GriefProfile;
 use crate::support::{GriefPath, LossType, SleepState, TogetherRange};
 
 fn bare(path: GriefPath) -> GriefProfile {

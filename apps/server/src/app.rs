@@ -21,7 +21,7 @@ pub struct Services {
     pub accounts: SharedAccountService,
     pub authenticator: SharedAuthenticator,
     pub support: SharedSupportService,
-    /// 아직 부르는 기능이 없다. 대화 기능이 `support` 의 구현에 넘긴다(위기 판정은 `safety::assess_risk`).
+    /// 대화 기능(`support::SupportFlow`)이 발화, 위기 판정(`safety::assess_risk`), 리포트에 쓴다.
     pub text_model: SharedTextModel,
 }
 
@@ -36,7 +36,8 @@ impl Services {
         }
     }
 
-    /// 서버가 쓰는 조립: 모델은 설정의 기본 모델로 고르는 라우터(사용량은 메모리 싱크), 나머지는 아직 `unimplemented`.
+    /// 설정만으로 만드는 조립: 모델은 설정의 기본 모델로 고르는 라우터(사용량은 메모리 싱크), 나머지는 아직 `unimplemented`.
+    /// DB 가 필요한 구현(계정, 대화)은 `AppState::connect` 가 끼운다.
     pub fn for_config(config: &Config) -> Services {
         let settings = llm::ModelSettings::from_config(config);
         tracing::info!(
@@ -92,11 +93,15 @@ impl AppState {
             .await
             .map_err(ConnectError::Identity)?,
         );
+        let base = Services::for_config(&config);
+        let support =
+            support::SupportFlow::live(db.clone(), base.text_model.clone(), identity.clone());
         Ok(AppState {
             services: Services {
                 accounts: identity.clone(),
                 authenticator: identity,
-                ..Services::for_config(&config)
+                support,
+                ..base
             },
             config,
             db,

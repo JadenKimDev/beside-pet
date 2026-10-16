@@ -132,6 +132,6 @@ fn 분석_보기는_계획과_요약을_다시_구한다() {
     assert!(view.closed);
     assert_eq!(view.summary, closed.summary());
     assert_eq!(view.analyses.len(), 3);
-    assert_eq!(view.analyses[2], closed.analyses()[2].to_response());
+    assert_eq!(view.analyses[2], closed.analyses[2].to_response());
     assert_eq!(view.history.len(), 3);
 }

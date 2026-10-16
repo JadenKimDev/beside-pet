@@ -1,0 +1,74 @@
+//! 마음 리포트 작성(ADR-0008): 닫혔고 과제 2 이상일 때만 열리고, 처음 요청 때 한 번 써서 저장하며 다음부터는 저장된 것을 낸다.
+//!
+//! 구조(도달 과제, 언어, 장의 순서)는 규칙이 정하고 네 장의 본문만 모델이 쓴다.
+
+use super::access::session_conflict;
+use super::parts::FlowParts;
+use crate::llm::{GenerationRequest, PromptMessage, PromptRole};
+use crate::shared::ApiError;
+use crate::support::prompt::{
+    ReportContext, parse_report_bodies, report_system_prompt, report_user_prompt,
+};
+use crate::support::rules::{MindReport, REPORT_SECTION_ORDER};
+use crate::support::session::{Session, SessionError};
+use crate::support::{MindReportResponse, MindReportSectionResponse};
+
+/// 리포트 한 번의 출력 상한(TS 의 `REPORT_MAX_TOKENS`).
+pub const REPORT_MAX_TOKENS: u32 = 900;
+
+pub async fn report(
+    parts: &FlowParts,
+    mut session: Session,
+) -> Result<MindReportResponse, ApiError> {
+    if !session.report_available() {
+        return Err(session_conflict(
+            session.id(),
+            SessionError::ReportUnavailable,
+        ));
+    }
+    if let Some(stored) = session.report() {
+        return Ok(stored.to_response());
+    }
+    let report = write(parts, &session).await?;
+    let response = report.to_response();
+    session
+        .attach_report(report)
+        .map_err(|error| session_conflict(session.id(), error))?;
+    parts.sessions.save(&session.snapshot()).await?;
+    Ok(response)
+}
+
+async fn write(parts: &FlowParts, session: &Session) -> Result<MindReport, ApiError> {
+    let profile = session.grief_profile();
+    let context = ReportContext {
+        profile,
+        reached_task: session.task(),
+        crisis: session.support_level().is_crisis(),
+        history: session.history(),
+    };
+    let raw = parts
+        .model
+        .generate(GenerationRequest {
+            system: Some(report_system_prompt(&context)),
+            messages: vec![PromptMessage {
+                role: PromptRole::User,
+                text: report_user_prompt(&context),
+            }],
+            max_tokens: REPORT_MAX_TOKENS,
+        })
+        .await?;
+    let bodies = parse_report_bodies(&raw);
+    Ok(MindReport {
+        at: parts.clock.now(),
+        pet_name: profile.display_pet_name().to_owned(),
+        reached_task: session.task(),
+        locale: profile.language(),
+        sections: REPORT_SECTION_ORDER
+            .iter()
+            .map(|&key| MindReportSectionResponse {
+                key,
+                body: bodies.get(key).to_owned(),
+            })
+            .collect(),
+    })
+}

@@ -3,8 +3,6 @@
 //! 상태는 메서드로만 바뀐다. 닫힌 세션은 사용자 턴을 받지 않고, 리포트는 닫혔고 과제 2 이상일 때 한 번만 붙는다(ADR-0005, ADR-0008).
 //! 계획과 요약은 저장하지 않고 프로필과 전사·분석에서 규칙으로 다시 구한다. 시각은 부르는 쪽이 넘긴다.
 
-#![allow(dead_code, unused_imports)] // S4(흐름)가 연결하면 쓰인다. 그때 지운다
-
 use std::fmt;
 
 use chrono::{DateTime, Utc};
@@ -156,20 +154,12 @@ impl Session {
         &self.owner_id
     }
 
-    pub fn started_at(&self) -> DateTime<Utc> {
-        self.started_at
-    }
-
     pub fn grief_profile(&self) -> &GriefProfile {
         &self.grief_profile
     }
 
     pub fn task(&self) -> Task {
         self.task
-    }
-
-    pub fn retry_count(&self) -> u32 {
-        self.retry_count
     }
 
     pub fn support_level(&self) -> SupportLevel {
@@ -182,10 +172,6 @@ impl Session {
 
     pub fn history(&self) -> &[Message] {
         &self.history
-    }
-
-    pub fn analyses(&self) -> &[TurnAnalysis] {
-        &self.analyses
     }
 
     pub fn report(&self) -> Option<&MindReport> {

@@ -1,7 +1,8 @@
 use serde_json::json;
 
-use super::{DEFAULT_LANGUAGE, DailyState, GriefProfile, PET_NAME_FALLBACK};
+use super::{DEFAULT_LANGUAGE, GriefProfile, PET_NAME_FALLBACK};
 use crate::identity::ChatLanguage;
+use crate::support::DailyStateRequest as DailyState;
 use crate::support::{EatingState, GriefPath, LossType, Situation, SleepState, TogetherRange};
 
 /// 지어낸 프로필.

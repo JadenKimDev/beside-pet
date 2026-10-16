@@ -90,13 +90,13 @@ fn 시작() {
     let session = session();
     assert_eq!(session.id(), "session-1");
     assert_eq!(session.owner_id(), "owner-1");
-    assert_eq!(session.started_at(), t0());
+    assert_eq!(session.started_at, t0());
     assert_eq!(session.task(), Task::FIRST);
-    assert_eq!(session.retry_count(), 0);
+    assert_eq!(session.retry_count, 0);
     assert_eq!(session.support_level(), SupportLevel::Safe);
     assert!(!session.closed());
     assert!(session.history().is_empty());
-    assert!(session.analyses().is_empty());
+    assert!(session.analyses.is_empty());
     assert!(session.report().is_none());
     assert_eq!(session.progress(), 0.0);
     assert_eq!(session_at(task(3)).task(), task(3));
@@ -125,7 +125,7 @@ fn 사용자_턴은_그때의_과제로_전사에_적힌다() {
             level: SupportLevel::Safe,
         }
     );
-    assert_eq!(session.retry_count(), 1);
+    assert_eq!(session.retry_count, 1);
 }
 
 #[test]
@@ -133,7 +133,7 @@ fn 세_턴_진솔하면_다음_과제로_넘어가고_재시도가_0이_된다()
     let mut session = session();
     safe_turn(&mut session, ENGAGED, 1);
     safe_turn(&mut session, ENGAGED, 2);
-    assert_eq!(session.retry_count(), 2);
+    assert_eq!(session.retry_count, 2);
     let step = safe_turn(&mut session, ENGAGED, 3);
     assert_eq!(step.from, task(1));
     assert_eq!(step.to, task(2));
@@ -141,7 +141,7 @@ fn 세_턴_진솔하면_다음_과제로_넘어가고_재시도가_0이_된다()
     assert_eq!(step.phase, ReplyPhase::Task);
     assert_eq!(session.task(), task(2));
     assert_eq!(session.progress(), 0.25);
-    assert_eq!(session.retry_count(), 0);
+    assert_eq!(session.retry_count, 0);
     assert_eq!(
         session.history()[2].task,
         task(1),
@@ -208,8 +208,7 @@ fn 위기면_과제를_넘기지_않고_바로_닫는다() {
     assert_eq!(session.support_level(), SupportLevel::Crisis);
     assert_eq!(session.task(), task(1));
     assert_eq!(
-        session.retry_count(),
-        1,
+        session.retry_count, 1,
         "위기 턴은 깊이 게이트를 거치지 않는다"
     );
     assert_eq!(session.history().len(), 2, "위기 발화도 전사에 남는다");
@@ -267,7 +266,7 @@ fn 턴_분석과_감독_게이트() {
     let step = safe_turn(&mut session, ENGAGED, 5);
     session.record_turn(&step, "", vec![], at(6));
 
-    let analyses = session.analyses();
+    let analyses = session.analyses;
     assert_eq!(analyses.len(), 3);
     let first = &analyses[0];
     assert_eq!(first.at, at(2));
@@ -302,7 +301,7 @@ fn 위기_턴의_분석() {
         .unwrap();
     session.record_reply("A fixed crisis reply.", at(3));
     session.record_turn(&step, "A fixed crisis reply.", vec![], at(3));
-    let analysis = session.analyses().last().unwrap();
+    let analysis = session.analyses.last().unwrap();
     assert_eq!(analysis.phase, ReplyPhase::Closing);
     assert_eq!(analysis.risk.level, SupportLevel::Crisis);
     assert_eq!(analysis.transition.from, analysis.transition.to);

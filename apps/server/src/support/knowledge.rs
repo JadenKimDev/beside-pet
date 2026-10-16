@@ -2,7 +2,6 @@
 //!
 //! 파일은 기동 때 한 번 읽어 메모리에 둔다. 읽지 못하면 TS 처럼 경고를 남기고 빈 색인으로 돈다.
 //! `serde_json::Value` 는 파일을 읽는 `from_json` 한 곳에서만 쓰고 안으로는 `KnowledgeChunk` 만 넘긴다.
-#![allow(dead_code)] // S4 가 흐름에서 연결한다.
 
 use std::path::{Path, PathBuf};
 

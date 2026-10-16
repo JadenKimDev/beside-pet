@@ -4,8 +4,6 @@
 //! upsert 라 두 번 해도 같다. 계획·요약·진행률은 규칙으로 다시 구하므로 저장하지 않는다. 삭제는 한 트랜잭션으로
 //! turn_analyses → messages → sessions 순서로 지운다(ADR-0006). 시각은 timestamptz 라 마이크로초까지 남는다.
 
-#![allow(dead_code)] // S4(흐름)가 연결한다
-
 use std::fmt;
 
 use sqlx::{AssertSqlSafe, PgPool, Postgres, Transaction};

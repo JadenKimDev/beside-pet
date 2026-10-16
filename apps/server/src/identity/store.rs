@@ -170,4 +170,4 @@ fn language_text(language: ChatLanguage) -> &'static str {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests; // `AccountsSchema` 를 흐름 테스트(`service`)가 다시 쓴다

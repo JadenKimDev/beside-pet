@@ -5,7 +5,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 
 /// 이 서버가 읽는 환경 변수의 이름. TS API(`apps/api`)와 같은 이름이다.
-/// `JWT_*` 는 뒤의 계정 PRD 가 읽는다. 지금은 이름만 둔다.
+/// 모델 쪽 이름의 해석은 `llm` 이, `JWT_*` 는 identity 가 맡는다.
 pub const ENV_NAMES: [&str; 13] = [
     "PORT",
     "DATABASE_URL",
@@ -23,6 +23,8 @@ pub const ENV_NAMES: [&str; 13] = [
 ];
 
 const DEFAULT_PORT: u16 = 3000;
+/// `JWT_SECRET` 이 없을 때 개발에서 쓰는 값(TS API 와 같다). production 에서는 쓰지 않고 기동을 막는다.
+const DEV_JWT_SECRET: &str = "dev-insecure-secret-change-me";
 
 /// `LLM_PROVIDER` 가 받는 값.
 const KNOWN_PROVIDERS: [&str; 2] = ["anthropic", "ollama"];
@@ -35,6 +37,11 @@ pub struct Config {
     pub database_ssl: bool,
     pub node_env: Option<String>,
     pub model: ModelEnv,
+    /// 로그인 토큰의 서명 비밀 값.
+    pub jwt_secret: String,
+    /// 로그인 토큰의 수명 글(`7d`, `12h`, 단위 없는 숫자는 초). 없거나 비면 `None` 이고 기본값(`7d`)과
+    /// 글의 해석은 identity 의 몫이다. 읽지 못하는 글이면 기동 때 identity 가 막는다.
+    pub jwt_ttl: Option<String>,
 }
 
 /// 모델 쪽 환경 변수의 값(앞뒤 공백을 걷고, 빈 값은 없는 것으로 본다). 기본값과 해석은 `llm` 의 설정이 맡는다.
@@ -70,6 +77,8 @@ impl fmt::Debug for Config {
             .field("database_ssl", &self.database_ssl)
             .field("node_env", &self.node_env)
             .field("model", &self.model)
+            .field("jwt_secret", &"<hidden>")
+            .field("jwt_ttl", &self.jwt_ttl)
             .finish()
     }
 }
@@ -135,12 +144,27 @@ impl Config {
                 "LLM_PROVIDER must be anthropic or ollama".to_owned(),
             ));
         }
+        let production = is_production(node_env.as_deref());
+        let jwt_secret = match lookup("JWT_SECRET").filter(|v| !v.trim().is_empty()) {
+            Some(secret) => secret,
+            None if production => {
+                return Err(ConfigError(
+                    "JWT_SECRET is not set — required when NODE_ENV=production".to_owned(),
+                ));
+            }
+            None => DEV_JWT_SECRET.to_owned(),
+        };
+        let jwt_ttl = lookup("JWT_TTL")
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty());
         Ok(Config {
             port,
             database_url,
             database_ssl,
             node_env,
             model,
+            jwt_secret,
+            jwt_ttl,
         })
     }
 
@@ -174,13 +198,17 @@ impl Config {
 
     /// `NODE_ENV=production` 이면 참. 쿠키에 Secure 를 붙이는 기준이다.
     pub fn is_production(&self) -> bool {
-        self.node_env.as_deref() == Some("production")
+        is_production(self.node_env.as_deref())
     }
 }
 
 /// 앞뒤 공백을 걷고, 빈 값은 없는 것으로 본다.
 fn trimmed(value: Option<String>) -> Option<String> {
     value.map(|v| v.trim().to_owned()).filter(|v| !v.is_empty())
+}
+
+fn is_production(node_env: Option<&str>) -> bool {
+    node_env == Some("production")
 }
 
 /// `NODE_ENV` 에 따라 읽을 env 파일의 이름(TS API 와 같다).

@@ -38,6 +38,7 @@ fn 값을_읽는다() {
         ("PORT", "4100"),
         ("DATABASE_SSL", "true"),
         ("NODE_ENV", "production"),
+        ("JWT_SECRET", "fixture-secret"),
     ]))
     .unwrap();
     assert_eq!(config.port, 4100);
@@ -56,6 +57,7 @@ fn 개발에서는_루프백에만_연다() {
     let prod = Config::from_lookup(lookup(&[
         ("DATABASE_URL", "postgres://u:p@h/db"),
         ("NODE_ENV", "production"),
+        ("JWT_SECRET", "fixture-secret"),
     ]))
     .unwrap();
     assert_eq!(prod.listen_address().to_string(), "0.0.0.0:3000");
@@ -263,4 +265,60 @@ fn debug_에_키를_싣지_않는다() {
     let debug = format!("{config:?}");
     assert!(!debug.contains("sk-test-fake"), "{debug}");
     assert!(debug.contains("<hidden>"), "{debug}");
+}
+
+#[test]
+fn jwt_설정이_없으면_개발용_비밀_값과_빈_수명이다() {
+    let config = Config::from_lookup(lookup(&[("DATABASE_URL", "postgres://u:p@h/db")])).unwrap();
+    assert_eq!(config.jwt_secret, "dev-insecure-secret-change-me");
+    assert_eq!(config.jwt_ttl, None);
+    let blank = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("JWT_SECRET", " "),
+        ("JWT_TTL", ""),
+    ]))
+    .unwrap();
+    assert_eq!(blank.jwt_secret, "dev-insecure-secret-change-me");
+    assert_eq!(blank.jwt_ttl, None);
+}
+
+#[test]
+fn jwt_설정을_읽는다() {
+    let config = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("JWT_SECRET", "fixture-secret"),
+        ("JWT_TTL", "12h"),
+        ("NODE_ENV", "production"),
+    ]))
+    .unwrap();
+    assert_eq!(config.jwt_secret, "fixture-secret");
+    assert_eq!(config.jwt_ttl.as_deref(), Some("12h"));
+}
+
+#[test]
+fn production_에서_jwt_secret_이_없으면_기동하지_않는다() {
+    for secret in [None, Some(""), Some("  ")] {
+        let mut pairs = vec![
+            ("DATABASE_URL", "postgres://u:p@h/db"),
+            ("NODE_ENV", "production"),
+        ];
+        if let Some(secret) = secret {
+            pairs.push(("JWT_SECRET", secret));
+        }
+        let err = Config::from_lookup(lookup(&pairs)).unwrap_err();
+        assert!(err.to_string().contains("JWT_SECRET"), "{err}");
+        assert!(!err.to_string().contains("dev-insecure"), "{err}");
+    }
+}
+
+#[test]
+fn debug_에_jwt_secret_을_싣지_않는다() {
+    let config = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("JWT_SECRET", "fixture-secret"),
+    ]))
+    .unwrap();
+    let shown = format!("{config:?}");
+    assert!(!shown.contains("fixture-secret"), "{shown}");
+    assert!(shown.contains("<hidden>"), "{shown}");
 }

@@ -1,5 +1,6 @@
 //! 라우터와 상태(`AppState`)를 조립한다. 기능의 라우트와 trait 객체는 여기서 끼운다.
 
+use std::fmt;
 use std::sync::Arc;
 
 use axum::extract::FromRef;
@@ -60,15 +61,45 @@ pub struct AppState {
     pub services: Services,
 }
 
+/// 서버를 띄우지 못한 이유. 문구에 설정 값을 싣지 않는다.
+#[derive(Debug)]
+pub enum ConnectError {
+    Database(sqlx::Error),
+    Identity(identity::StartError),
+}
+
+impl fmt::Display for ConnectError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ConnectError::Database(error) => error.fmt(f),
+            ConnectError::Identity(error) => error.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for ConnectError {}
+
 impl AppState {
     /// DB 에 붙고 마이그레이션까지 마친 상태. 서버가 쓰는 trait 구현을 여기서 끼운다.
-    pub async fn connect(config: Arc<Config>) -> Result<AppState, sqlx::Error> {
-        let db = connect(&config).await?;
-        let services = Services::for_config(&config);
+    pub async fn connect(config: Arc<Config>) -> Result<AppState, ConnectError> {
+        let db = connect(&config).await.map_err(ConnectError::Database)?;
+        let identity = Arc::new(
+            identity::IdentityService::start(
+                db.clone(),
+                &config.jwt_secret,
+                config.jwt_ttl.as_deref(),
+            )
+            .await
+            .map_err(ConnectError::Identity)?,
+        );
         Ok(AppState {
+            services: Services {
+                accounts: identity.clone(),
+                authenticator: identity,
+                ..Services::for_config(&config)
+            },
             config,
             db,
-            services,
         })
     }
 

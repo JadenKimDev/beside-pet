@@ -13,14 +13,14 @@ use crate::identity::{AccountStatus, ChatLanguage, Role};
 use crate::shared::{MIGRATOR, test_database_url};
 
 /// 이 테스트 하나만 쓰는 스키마와 그 안을 보는 풀.
-struct AccountsSchema {
+pub(in crate::identity) struct AccountsSchema {
     admin: PgPool,
     name: String,
     pool: PgPool,
 }
 
 impl AccountsSchema {
-    async fn open() -> AccountsSchema {
+    pub(in crate::identity) async fn open() -> AccountsSchema {
         let base = PgConnectOptions::from_str(&test_database_url())
             .expect("DATABASE_URL 이 postgres 주소가 아니다")
             .ssl_mode(PgSslMode::Disable);
@@ -46,11 +46,11 @@ impl AccountsSchema {
         AccountsSchema { admin, name, pool }
     }
 
-    fn store(&self) -> AccountStore {
+    pub(in crate::identity) fn store(&self) -> AccountStore {
         AccountStore::new(self.pool.clone())
     }
 
-    async fn close(self) {
+    pub(in crate::identity) async fn close(self) {
         self.pool.close().await;
         self.admin
             .execute(AssertSqlSafe(format!(

@@ -1,4 +1,4 @@
-//! identity 가 바깥(계정 저장, 토큰 서명)에 묻는 trait 와, 구현이 아직 없을 때 끼우는 `Unimplemented`.
+//! identity 가 바깥에 보이는 trait(계정 동작, 토큰 확인)와 그 구현의 자리(`IdentityService`, 구현 없음의 `Unimplemented`).
 
 use std::future::Future;
 use std::pin::Pin;
@@ -6,6 +6,10 @@ use std::sync::Arc;
 
 use super::{Account, AuthenticatedAccount, ChatLanguage, Role};
 use crate::shared::ApiError;
+
+mod live;
+
+pub use live::{IdentityService, StartError};
 
 /// trait 객체로 부를 수 있는 비동기 반환값.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

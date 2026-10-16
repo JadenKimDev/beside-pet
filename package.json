@@ -15,7 +15,7 @@
     "test": "pnpm -s lint && pnpm -r typecheck && pnpm -r --if-present test && pnpm -s test:stack",
     "test:stack": "dev-tools/scripts/cargo.sh clippy --all-targets -- -D warnings && dev-tools/scripts/cargo.sh test",
     "lint": "biome check .",
-    "dev": "pnpm -r --parallel --filter './apps/*' dev",
+    "dev": "dev-tools/scripts/dev.sh",
     "db:up": "dev-tools/scripts/db.sh up",
     "db:down": "dev-tools/scripts/db.sh down",
     "db:status": "dev-tools/scripts/db.sh status",

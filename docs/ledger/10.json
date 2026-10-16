@@ -18,17 +18,17 @@
       ],
       "depends_on": [],
       "verify": [
-        "dev-tools/scripts/cargo.sh test -p beside-pet-server support::rules support::session"
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server -- support::rules support::session"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-16T10:40:03.526Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-16T10:30:09.382Z",
+      "finished_at": "2026-10-16T10:41:38.489Z",
+      "active_ms": 689107,
+      "verify_ms": 326
     },
     {
       "id": "S2",
@@ -41,17 +41,17 @@
       ],
       "depends_on": [],
       "verify": [
-        "dev-tools/scripts/cargo.sh test -p beside-pet-server support::prompt support::knowledge"
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server -- support::prompt support::knowledge"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-16T10:40:14.016Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-16T10:30:17.990Z",
+      "finished_at": "2026-10-16T10:41:34.736Z",
+      "active_ms": 676746,
+      "verify_ms": 318
     },
     {
       "id": "S3",

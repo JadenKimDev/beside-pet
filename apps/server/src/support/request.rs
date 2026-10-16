@@ -3,8 +3,8 @@
 //! 규칙은 TS 의 `support/interface/dto/*.request.ts` 의 데코레이터를 위에서 아래로 적은 순서 그대로다.
 //! `serde_json::Value` 는 여기서 받고 안쪽으로 넘기지 않는다.
 
-use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::identity::ChatLanguage;
@@ -19,14 +19,14 @@ const EATING_STATES: &[&str] = &["ok", "reduced"];
 /// TS 의 `LOCALES`. `ChatLanguage` 의 이름과 같다.
 const LOCALES: &[&str] = &["ko", "en"];
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GriefPath {
     AfterLoss,
     BeforeLoss,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum TogetherRange {
     #[serde(rename = "0-3")]
     UpToThree,
@@ -38,7 +38,7 @@ pub enum TogetherRange {
     TwelvePlus,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LossType {
     Sudden,
@@ -48,7 +48,7 @@ pub enum LossType {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Situation {
     Aging,
@@ -57,7 +57,7 @@ pub enum Situation {
     Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SleepState {
     Ok,
@@ -65,14 +65,14 @@ pub enum SleepState {
     Disturbed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EatingState {
     Ok,
     Reduced,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DailyStateRequest {
     pub sleep: Option<SleepState>,
@@ -80,7 +80,7 @@ pub struct DailyStateRequest {
 }
 
 /// 처음(온보딩) 세션의 프로필. 대화 언어는 `preferred_language` 한 곳에만 있다.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GriefProfileRequest {
     pub grief_path: GriefPath,

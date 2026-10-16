@@ -4,7 +4,7 @@
 //! 단계(`task`, 0..=5)와 지원 단계(`supportLevel`, 1..=3)는 수다.
 
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::identity::ChatLanguage;
 
@@ -198,7 +198,7 @@ pub struct SessionSummaryResponse {
     pub follow_up: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ReportSectionKey {
     Journey,
@@ -207,7 +207,7 @@ pub enum ReportSectionKey {
     Encouragement,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MindReportSectionResponse {
     pub key: ReportSectionKey,
     pub body: String,

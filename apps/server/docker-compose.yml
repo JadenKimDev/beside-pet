@@ -1,0 +1,51 @@
+# 로컬 Postgres(db)와 Rust 서버 컨테이너(api). 프로젝트 이름을 beside-pet 으로 고정해 워크트리마다 같은 볼륨(beside-pet_dbdata)을 쓴다.
+#   DB 만:      pnpm db:up   (= docker compose -f apps/server/docker-compose.yml up -d db, 포트는 DB_PORT)
+#   서버까지:   docker compose -f apps/server/docker-compose.yml --profile full up --build
+# 포트는 루프백(127.0.0.1)에만 연다.
+name: beside-pet
+
+services:
+  # PostgreSQL + pgvector.
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: beside
+      POSTGRES_PASSWORD: beside
+      POSTGRES_DB: besidepet
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beside -d besidepet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # 서버: 운영 이미지(apps/server/Dockerfile). --profile full 일 때만 뜬다.
+  api:
+    profiles: ["full"]
+    build:
+      context: ../..
+      dockerfile: apps/server/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      DATABASE_URL: postgres://beside:beside@db:5432/besidepet
+      JWT_SECRET: ${JWT_SECRET:-dev-insecure-secret-change-me}
+      # 모델 설정은 호스트 환경에서 받는다. 기본 공급자의 설정이 없으면 서버가 기동하지 않고 이유를 로그에 적는다.
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    # Linux 호스트에서도 host.docker.internal 로 호스트의 Ollama 에 닿게 한다.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:3000:3000"
+
+volumes:
+  dbdata:

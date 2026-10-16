@@ -17,13 +17,13 @@ description: "웹 화면을 띄워 보거나 확인한다. 사용자가 보고 �
 
 | 화면 | 주소 |
 |---|---|
-| 상담 웹 (`apps/web`) | `http://127.0.0.1:3001/` |
-| API 상태 확인 (`apps/api`) | `http://127.0.0.1:3000/v1/health` |
+| 상담 웹 (`apps/web`) | `http://localhost:3001/` (웹이 API 를 `localhost:3000` 으로 부르므로 `127.0.0.1` 로 열면 쿠키가 실리지 않는다) |
+| API 상태 확인 (`apps/api`) | `http://localhost:3000/v1/health` |
 
 **herdr 가 있으면** 따로 된 탭의 터미널 브라우저로 연다.
 
 ```bash
-pnpm -s browser:tab http://127.0.0.1:<포트>/
+pnpm -s browser:tab http://localhost:<포트>/
 ```
 
 - `browser` 라는 이름의 탭이 없으면 만들고, 있으면 그 탭의 브라우저를 주소로 옮긴다. 탭을 여러 개 만들지 않는다.

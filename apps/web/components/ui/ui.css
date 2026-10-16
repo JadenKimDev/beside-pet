@@ -1,0 +1,108 @@
+/* components/ui 의 움직임. 색과 크기는 globals.css 의 토큰(var(--…))만 쓴다.
+   prefers-reduced-motion 은 globals.css 가 전역으로 1ms 로 줄인다. */
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ui-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes ui-glow {
+  from {
+    width: 25%;
+    opacity: 0.7;
+  }
+  to {
+    width: 70%;
+    opacity: 1;
+  }
+}
+@keyframes ui-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes ui-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ui-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ui-sheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes ui-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.ui-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: ui-spin 0.8s linear infinite;
+}
+.ui-breathe {
+  animation: ui-breathe 2.4s var(--ease) infinite;
+}
+.ui-glow {
+  animation: ui-glow 2.8s var(--ease) infinite alternate;
+}
+.ui-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-sunk) 0%,
+    color-mix(in srgb, var(--bg-sunk) 50%, var(--surface)) 50%,
+    var(--bg-sunk) 100%
+  );
+  background-size: 200% 100%;
+  animation: ui-shimmer 1.6s linear infinite;
+}
+.ui-fade {
+  animation: ui-fade var(--t-base) var(--ease) both;
+}
+.ui-pop {
+  animation: ui-pop var(--t-base) var(--ease) both;
+}
+.ui-rise {
+  animation: ui-rise var(--t-base) var(--ease) both;
+}
+@media (max-width: 640px) {
+  .ui-pop {
+    animation-name: ui-sheet;
+  }
+}

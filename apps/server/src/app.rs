@@ -2,32 +2,90 @@
 
 use std::sync::Arc;
 
+use axum::extract::FromRef;
 use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
+use crate::identity::{IdentityState, SharedAccountService, SharedAuthenticator};
+use crate::llm::SharedTextModel;
 use crate::shared::{Config, connect, connect_lazy, cors_layer, route_not_found};
+use crate::support::SharedSupportService;
+use crate::{identity, llm, safety, support};
+
+/// 기능이 바깥에 묻는 trait 의 구현들. 구현이 생기면 `Services::unimplemented` 의 칸 하나를 바꾼다.
+#[derive(Clone)]
+pub struct Services {
+    pub accounts: SharedAccountService,
+    pub authenticator: SharedAuthenticator,
+    pub support: SharedSupportService,
+    /// 아직 부르는 기능이 없다. 대화 기능이 `support` 의 구현에 넘긴다.
+    pub text_model: SharedTextModel,
+}
+
+impl Services {
+    /// 모든 trait 가 아직 구현이 없다(`501`, 인증은 늘 `None`).
+    pub fn unimplemented() -> Services {
+        Services {
+            accounts: Arc::new(identity::Unimplemented),
+            authenticator: Arc::new(identity::Unimplemented),
+            support: Arc::new(support::Unimplemented),
+            text_model: Arc::new(llm::Unimplemented),
+        }
+    }
+}
 
 /// 핸들러가 받는 상태. 복제가 싸야 하므로 칸은 `Arc` 나 풀(안이 `Arc`)로 둔다.
-/// 기능의 trait 객체(`Arc<dyn AccountService>` 등)는 칸으로 더하고, 기능의 라우터는 `FromRef` 로 필요한 칸만 꺼낸다.
+/// 기능의 라우터는 `FromRef` 로 필요한 칸만 꺼낸다.
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
     pub db: PgPool,
+    pub services: Services,
 }
 
 impl AppState {
-    /// DB 에 붙고 마이그레이션까지 마친 상태.
+    /// DB 에 붙고 마이그레이션까지 마친 상태. 서버가 쓰는 trait 구현을 여기서 끼운다.
     pub async fn connect(config: Arc<Config>) -> Result<AppState, sqlx::Error> {
         let db = connect(&config).await?;
-        Ok(AppState { config, db })
+        Ok(AppState {
+            config,
+            db,
+            services: Services::unimplemented(),
+        })
     }
 
-    /// DB 에 붙지 않은 상태(풀은 처음 쓸 때 붙는다). DB 를 쓰지 않는 라우터 테스트가 쓴다.
-    pub fn lazy(config: Arc<Config>) -> Result<AppState, sqlx::Error> {
+    /// DB 에 붙지 않은 상태(풀은 처음 쓸 때 붙는다). DB 를 쓰지 않는 라우터 테스트가 더블을 끼워 쓴다.
+    pub fn lazy(config: Arc<Config>, services: Services) -> Result<AppState, sqlx::Error> {
         let db = connect_lazy(&config)?;
-        Ok(AppState { config, db })
+        Ok(AppState {
+            config,
+            db,
+            services,
+        })
+    }
+}
+
+impl FromRef<AppState> for IdentityState {
+    fn from_ref(state: &AppState) -> IdentityState {
+        IdentityState {
+            accounts: state.services.accounts.clone(),
+            authenticator: state.services.authenticator.clone(),
+            secure_cookies: state.config.is_production(),
+        }
+    }
+}
+
+impl FromRef<AppState> for SharedAuthenticator {
+    fn from_ref(state: &AppState) -> SharedAuthenticator {
+        state.services.authenticator.clone()
+    }
+}
+
+impl FromRef<AppState> for SharedSupportService {
+    fn from_ref(state: &AppState) -> SharedSupportService {
+        state.services.support.clone()
     }
 }
 
@@ -35,6 +93,9 @@ impl AppState {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/v1/health", get(health))
+        .merge(safety::router())
+        .merge(identity::router())
+        .merge(support::router())
         .fallback(route_not_found)
         .method_not_allowed_fallback(route_not_found)
         .layer(cors_layer())

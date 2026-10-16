@@ -5,7 +5,7 @@ use axum::http::{Request, StatusCode};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-use super::{AppState, router};
+use super::{AppState, Services, router};
 use crate::shared::Config;
 
 fn state() -> AppState {
@@ -14,7 +14,7 @@ fn state() -> AppState {
         _ => None,
     })
     .unwrap();
-    AppState::lazy(Arc::new(config)).unwrap()
+    AppState::lazy(Arc::new(config), Services::unimplemented()).unwrap()
 }
 
 async fn call(request: Request<Body>) -> (StatusCode, axum::http::HeaderMap, Value) {

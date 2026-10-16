@@ -13,12 +13,43 @@ import type {
   TogetherRange,
 } from '@/lib/api';
 
+/** A heading with one sentence under it (feature cards, promises). */
+export interface TitledText {
+  title: string;
+  body: string;
+}
+
+/** One phone line on the help page, crisis card and footer. Numbers are the
+ * same in every locale and must match the server's `GET /v1/safety/resources`. */
+export interface HelpLine {
+  /** As dialled and shown, e.g. "1577-1366". `tel:` links strip the hyphens. */
+  number: string;
+  name: string;
+  hours: string;
+}
+
 export interface Messages {
   landing: {
     title: string;
+    /** @deprecated Old two-line hero; replaced by `heroTitle`/`heroLead`. */
     subtitleLine1: string;
+    /** @deprecated Old two-line hero; replaced by `heroTitle`/`heroLead`. */
     subtitleLine2: string;
     start: string;
+    eyebrow: string;
+    /** Contains one "\n" where the title breaks. */
+    heroTitle: string;
+    heroLead: string;
+    trust: [string, string, string];
+    featuresEyebrow: string;
+    featuresTitle: string;
+    feature1: TitledText;
+    feature2: TitledText;
+    feature3: TitledText;
+    stepsEyebrow: string;
+    stepsTitle: string;
+    stepsDesc: [string, string, string, string];
+    promise: [TitledText, TitledText, TitledText];
   };
   auth: {
     title: string;
@@ -43,11 +74,28 @@ export interface Messages {
     registering: string;
     registerDone: string;
     backToLogin: string;
+    welcome: string;
+    noAccount: string;
+    loginFailed: string;
+    companyHint: string;
+    chatLanguageHint: string;
+    registerDoneTitle: string;
   };
   chat: {
     placeholder: string;
     send: string;
     skip: string;
+    title: (petName: string) => string;
+    waitHint: string;
+    enterHint: string;
+    typing: string;
+    sendFailed: string;
+    resend: string;
+    stage: (step: number, stage: string) => string;
+    newReply: string;
+    closedTitle: string;
+    closedBody: string;
+    openReport: string;
   };
   onboarding: {
     askName: string;
@@ -66,6 +114,25 @@ export interface Messages {
     situation: Record<SituationType, string>;
     path: Record<GriefPath, string>;
     sleep: Record<SleepState, string>;
+    companion: string;
+    askLanguageHint: string;
+    skip: string;
+    skipAnyHint: string;
+    nameHint: string;
+    pathSkipHint: string;
+    pathAfterDesc: string;
+    pathBeforeDesc: string;
+    artCaption: string;
+    artCaptionAfter: string;
+    artCaptionBefore: string;
+    step: (step: number, total: number) => string;
+    summary: {
+      pet: string;
+      together: string;
+      now: string;
+      chatLanguage: string;
+    };
+    beginHint: string;
   };
   /** Stage names. The backend sends the stage id; naming it is the client's job. */
   taskLabels: Record<TaskId, string>;
@@ -81,6 +148,7 @@ export interface Messages {
     confirmEndTitle: string;
     confirmEndBody: string;
     confirmEnd: string;
+    /** "Cancel" on the wrap-up confirmation: reads as "keep talking". */
     cancel: string;
   };
   sessionList: {
@@ -92,6 +160,7 @@ export interface Messages {
     done: string;
     loading: string;
     settings: string;
+    /** @deprecated Replaced by the `noOpenTitle`/`noOpenBody`/`noOpenCta` card. */
     noOpenHint: string;
     confirmNewTitle: string;
     confirmNewBody: string;
@@ -101,8 +170,30 @@ export interface Messages {
     viewReport: string;
     deleteConversation: string;
     confirmDeleteTitle: string;
+    /** Without the date; prefer `confirmDeleteBodyDated` when the date is known. */
     confirmDeleteBody: string;
+    confirmDeleteBodyDated: (date: string) => string;
     confirmDelete: string;
+    greeting: (name: string) => string;
+    currentTitle: (petName: string, step: number) => string;
+    stepOf: (step: number) => string;
+    lastActive: (time: string) => string;
+    newShort: string;
+    noOpenTitle: string;
+    noOpenBody: string;
+    noOpenCta: string;
+    walked: (steps: number) => string;
+    pastTitle: string;
+    count: (count: number) => string;
+    reachedUntil: (stage: string) => string;
+    itemMeta: (when: string, petName: string, minutes: number, messages: number) => string;
+    reportLocked: string;
+    more: string;
+    emptyTitle: string;
+    emptyBody: string;
+    emptyCta: string;
+    failedTitle: string;
+    failedBody: string;
   };
   sessionDetail: {
     back: string;
@@ -123,6 +214,22 @@ export interface Messages {
     chatLanguageHint: string;
     account: string;
     signedInAs: (username: string) => string;
+    groupChat: string;
+    groupAccount: string;
+    groupHelp: string;
+    uiLanguageHint: string;
+  };
+  report: {
+    eyebrow: string;
+    title: (petName: string) => string;
+    meta: (date: string, minutes: number, step: number) => string;
+    stepsShort: [string, string, string, string];
+    signature: string;
+    print: string;
+    writeOnce: string;
+    writingHint: string;
+    notReadyTitle: string;
+    failedBody: string;
   };
   admin: {
     title: string;
@@ -150,10 +257,58 @@ export interface Messages {
     formCompany: string;
     formExpiry: string;
     formSubmit: string;
+    subtitle: string;
+    search: string;
+    filterAll: string;
+    badge: string;
   };
+  /** Fixed helpline copy shared by the help page, crisis card and footer (ADR-0004). */
   safety: {
     title: string;
     body: string;
+    /** @deprecated Use `lines[0].number`. */
     hotlineNumber: string;
+    /** 109 then 1577-1366. */
+    lines: [HelpLine, HelpLine];
+    call: string;
+    /** The "112 or 119" line. */
+    emergency: string;
+  };
+  /** The crisis card under a supportLevel-3 reply. */
+  crisis: {
+    title: string;
+    lead: string;
+    /** Shown in place of the composer once the card appears. */
+    stopped: string;
+    toList: string;
+    toHelp: string;
+  };
+  /** The public `/help` page and the header pill that leads to it. */
+  help: {
+    pill: string;
+    pillShort: string;
+    eyebrow: string;
+    title: string;
+    lead: string;
+    toHome: string;
+  };
+  nav: {
+    conversations: string;
+    settings: string;
+  };
+  footer: {
+    crisis: string;
+    more: string;
+    /** ADR-0003's negative-form exception: the only place banned words may appear. */
+    disclaimer: string;
+  };
+  common: {
+    reload: string;
+    retry: string;
+  };
+  toast: {
+    deleted: string;
+    chatLanguageSaved: (language: string) => string;
+    saveFailed: string;
   };
 }

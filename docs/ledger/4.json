@@ -1,0 +1,138 @@
+{
+  "issue": 4,
+  "title": "모델 호출을 DB 에 기록하고 운영 계측 API 를 연다",
+  "prd": "docs/prd/4-llm-call-metrics.md",
+  "depends_on": [
+    3
+  ],
+  "created_at": "2026-10-16T07:35:54.490Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "마이그레이션: `llm_calls`, `model_prices`, 집계 뷰",
+      "scope": [
+        "apps/api/src/infrastructure/database/migrations/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/api test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "`GenerationRequest.purpose` 와 호출하는 곳의 역할 표시, 라우터의 시간 재기",
+      "scope": [
+        "apps/api/src/llm/",
+        "apps/api/src/support/infrastructure/llm/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/api test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "Postgres `UsageSink`: 쓰기와 실패 격리",
+      "scope": [
+        "apps/api/src/llm/infrastructure/postgres-usage.recorder.ts",
+        "apps/api/src/llm/infrastructure/postgres-usage.recorder.test.ts"
+      ],
+      "depends_on": [
+        "S1",
+        "S2"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/api test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "계측 모듈과 API: 모델별, 대화별 집계",
+      "scope": [
+        "apps/api/src/metrics/"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/api test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S5",
+      "title": "계정 목록에 대화 수와 마지막 활동을 더한다",
+      "scope": [
+        "apps/api/src/identity/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/api test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S6",
+      "title": "새 ADR: 모델 호출 기록과 계측의 원칙",
+      "scope": [
+        "docs/adr/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

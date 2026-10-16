@@ -2,14 +2,14 @@
 
 Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원(emotional support) 웹서비스다. 사용자에게 보이는 글에서는 상담, 치료라고 부르지 않는다(ADR-0003). 사용자 본인의 제품이고, 같은 레포에서 실제 제품과 포트폴리오용 구현을 함께 관리한다. 모바일 앱은 접었고 웹으로만 운영한다.
 
-모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, API(`apps/api`)는 NestJS 와 PostgreSQL 이다. API 는 같은 동작을 유지한 채 Rust 로 옮기고, AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(backoffice)과 포트폴리오용 구현(`showcase/`)은 앞으로 만든다.
+모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, API(`apps/api`)는 NestJS 와 PostgreSQL 이다. API 는 Rust(axum, sqlx)로 다시 쓰는 중이고(ADR-0015), AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(backoffice)과 포트폴리오용 구현(`showcase/`)은 앞으로 만든다.
 
 조사 근거는 `docs/research/` 에 있다(로컬 전용, gitignore. 커밋하지 않는다). 제품과 구조의 결정과 그 이유는 `docs/adr/`, 해 봤는데 안 된 일은 `docs/devlog/` 에 적는다(추적 대상, 안내는 `docs/adr/README.md`). 매번 읽지 않고, PRD 를 쓰기 전과 결정이 갈릴 때 `pnpm docs:search` 로 찾아 나온 것만 읽는다.
 
 ## 제품 원칙
 
 - 실제 제품은 `apps/` 에, 포트폴리오로 보여 줄 구현은 `showcase/` 에 둔다. 제품 앱에 데모나 포트폴리오 전용 분기를 넣지 않는다.
-- API 의 Rust 포팅은 동작을 바꾸지 않는다. 경로, 요청과 응답의 모양, 상태 코드, 오류 문구, 환경 변수 이름, DB 스키마를 그대로 둔다. 바꾸고 싶은 것은 포팅이 끝난 뒤 따로 PRD 로 다룬다.
+- API 를 Rust 로 다시 쓸 때 엔드포인트의 겉(경로, 요청과 응답의 모양, 상태 코드, 오류 문구, 환경 변수 이름)은 먼저 그대로 옮기고, 기능의 속은 PRD 마다 포팅과 재설계 중에 고른다. 고르면 ADR 로 남긴다(ADR-0015). 겉을 바꾸고 싶은 것은 웹과 함께 따로 PRD 로 다룬다.
 - 위기 발화(자해, 자살)를 감지해 안내로 잇는 흐름은 약하게 만들지 않는다. 바꿀 때는 감지 테스트를 먼저 쓴다.
 
 ## 지키는 선

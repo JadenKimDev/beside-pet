@@ -71,16 +71,18 @@ Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원
 ## 명령
 
 ```bash
-pnpm test           # biome, 전 워크스페이스 typecheck 와 테스트(레포 검사 포함), 그리고 스택의 테스트(test:stack)
+pnpm test           # biome, 전 워크스페이스 typecheck 와 테스트(레포 검사 포함), 그리고 스택의 테스트(test:stack: clippy 와 cargo test)
 pnpm lint           # biome 만
+pnpm db:up          # 로컬 PostgreSQL 을 띄운다 (db:down, db:status). 다른 Postgres 가 5432 를 쓰면 DB_PORT=5433 처럼 바꾸고 DATABASE_URL 도 맞춘다
 pnpm browser:tab <주소>  # herdr 의 따로 된 탭에 터미널 브라우저를 연다 (herdr 가 있을 때만)
 ```
 
 ```bash
 pnpm dev            # 대화 웹(3001)과 API(3000)를 함께 띄운다. API 는 apps/api/.env.development 와 PostgreSQL 이 필요하다
+dev-tools/scripts/cargo.sh run -p beside-pet-server   # Rust 서버(3000). cargo 는 이 머신의 PATH 에 없어 래퍼로 부른다. DATABASE_URL 이 없으면 뜨지 않는다
 ```
 
-화면은 루프백(127.0.0.1)에만 연다. `test:stack` 은 API 를 Rust 로 옮길 때 `cargo test` 를 넣는다.
+화면은 루프백(127.0.0.1)에만 연다. `test:stack` 의 `cargo test` 는 DB 테스트를 품으므로 `DATABASE_URL` 과 떠 있는 Postgres 가 필요하고, 없으면 이유를 적고 실패한다.
 
 작업 대장:
 
@@ -111,6 +113,7 @@ herdr 는 선택이다. 없으면 워크트리는 git worktree 로만 만들고,
 | 경로 | 언어 | 책임 | 상태 |
 |---|---|---|---|
 | `apps/` | TypeScript | 제품 코드. 영역마다 `apps/<영역>/` 하나와 그 영역의 규칙을 담은 `apps/<영역>/CLAUDE.md` | 있음 |
+| `apps/server/` | Rust (axum, sqlx) | 서버. `apps/api` 의 엔드포인트 겉을 그대로 가진 채 기능을 채우는 중이고(ADR-0015), 전환(#11) 뒤 `apps/api` 를 대신한다 | 있음 |
 | `showcase/` | - | 포트폴리오용 구현 | 계획 |
 | `packages/dev-checks/` | TypeScript | 개발 전용 검사. 레포 검사 규칙(큰 파일, 같은 몸체 함수, 범용 타입)의 순수 함수와 단위 테스트 | 있음 |
 | `dev-tools/scripts/` | bash | 워크트리, pane, 브라우저 탭 스크립트 | 있음 |

@@ -2,7 +2,7 @@
   "name": "beside-pet",
   "repo": "JadenKimDev/beside-pet",
   "ghUser": "JadenKimDev",
-  "boardNumber": null,
+  "boardNumber": 2,
   "tddAreas": ["apps"],
   "codeRoots": ["apps/", "packages/", "dev-tools/src/"]
 }

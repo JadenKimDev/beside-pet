@@ -18,7 +18,7 @@ description: "웹 화면을 띄워 보거나 확인한다. 사용자가 보고 �
 | 화면 | 주소 |
 |---|---|
 | 상담 웹 (`apps/web`) | `http://localhost:3001/` (웹이 API 를 `localhost:3000` 으로 부르므로 `127.0.0.1` 로 열면 쿠키가 실리지 않는다) |
-| API 상태 확인 (`apps/api`) | `http://localhost:3000/v1/health` |
+| API 상태 확인 (`apps/server`) | `http://localhost:3000/v1/health` |
 
 **herdr 가 있으면** 따로 된 탭의 터미널 브라우저로 연다.
 

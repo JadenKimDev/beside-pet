@@ -2,14 +2,14 @@
 
 Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원(emotional support) 웹서비스다. 사용자에게 보이는 글에서는 상담, 치료라고 부르지 않는다(ADR-0003). 사용자 본인의 제품이고, 같은 레포에서 실제 제품과 포트폴리오용 구현을 함께 관리한다. 모바일 앱은 접었고 웹으로만 운영한다.
 
-모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, API(`apps/api`)는 NestJS 와 PostgreSQL 이다. API 는 Rust(axum, sqlx)로 다시 쓰는 중이고(ADR-0015), AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(backoffice)과 포트폴리오용 구현(`showcase/`)은 앞으로 만든다.
+모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, 서버(`apps/server`)는 Rust(axum, sqlx)와 PostgreSQL 이고, TS(NestJS) API 는 2026-10-16 에 지웠다(ADR-0019). AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(backoffice)과 포트폴리오용 구현(`showcase/`)은 앞으로 만든다.
 
 조사 근거는 `docs/research/` 에 있다(로컬 전용, gitignore. 커밋하지 않는다). 제품과 구조의 결정과 그 이유는 `docs/adr/`, 해 봤는데 안 된 일은 `docs/devlog/` 에 적는다(추적 대상, 안내는 `docs/adr/README.md`). 매번 읽지 않고, PRD 를 쓰기 전과 결정이 갈릴 때 `pnpm docs:search` 로 찾아 나온 것만 읽는다.
 
 ## 제품 원칙
 
 - 실제 제품은 `apps/` 에, 포트폴리오로 보여 줄 구현은 `showcase/` 에 둔다. 제품 앱에 데모나 포트폴리오 전용 분기를 넣지 않는다.
-- API 를 Rust 로 다시 쓸 때 엔드포인트의 겉(경로, 요청과 응답의 모양, 상태 코드, 오류 문구, 환경 변수 이름)은 먼저 그대로 옮기고, 기능의 속은 PRD 마다 포팅과 재설계 중에 고른다. 고르면 ADR 로 남긴다(ADR-0015). 겉을 바꾸고 싶은 것은 웹과 함께 따로 PRD 로 다룬다.
+- 서버 엔드포인트의 겉(경로, 요청과 응답의 모양, 상태 코드, 오류 문구, 환경 변수 이름)은 옛 TS API 의 것을 그대로 둔다(ADR-0015). 겉을 바꾸고 싶은 것은 웹과 함께 따로 PRD 로 다룬다.
 - 위기 발화(자해, 자살)를 감지해 안내로 잇는 흐름은 약하게 만들지 않는다. 바꿀 때는 감지 테스트를 먼저 쓴다.
 
 ## 지키는 선
@@ -78,7 +78,7 @@ pnpm browser:tab <주소>  # herdr 의 따로 된 탭에 터미널 브라우저�
 ```
 
 ```bash
-pnpm dev            # 대화 웹(3001)과 API(3000)를 함께 띄운다. API 는 apps/api/.env.development 와 PostgreSQL 이 필요하다
+pnpm dev            # Rust 서버(3000)와 대화 웹(3001)을 함께 띄운다. 서버는 apps/server/.env.development 와 PostgreSQL 이 필요하다
 dev-tools/scripts/cargo.sh run -p beside-pet-server   # Rust 서버(3000). cargo 는 이 머신의 PATH 에 없어 래퍼로 부른다. DATABASE_URL 이 없으면 뜨지 않는다
 ```
 
@@ -113,7 +113,7 @@ herdr 는 선택이다. 없으면 워크트리는 git worktree 로만 만들고,
 | 경로 | 언어 | 책임 | 상태 |
 |---|---|---|---|
 | `apps/` | TypeScript | 제품 코드. 영역마다 `apps/<영역>/` 하나와 그 영역의 규칙을 담은 `apps/<영역>/CLAUDE.md` | 있음 |
-| `apps/server/` | Rust (axum, sqlx) | 서버. `apps/api` 의 엔드포인트 겉을 그대로 가진 채 기능을 채우는 중이고(ADR-0015), 전환(#11) 뒤 `apps/api` 를 대신한다 | 있음 |
+| `apps/server/` | Rust (axum, sqlx) | 서버. 엔드포인트의 겉은 옛 TS API 의 것을 그대로 가진다(ADR-0015, ADR-0019) | 있음 |
 | `showcase/` | - | 포트폴리오용 구현 | 계획 |
 | `packages/dev-checks/` | TypeScript | 개발 전용 검사. 레포 검사 규칙(큰 파일, 같은 몸체 함수, 범용 타입)의 순수 함수와 단위 테스트 | 있음 |
 | `dev-tools/scripts/` | bash | 워크트리, pane, 브라우저 탭 스크립트 | 있음 |

@@ -61,7 +61,9 @@
         "pnpm-lock.yaml",
         "CLAUDE.md",
         "README.md",
-        "docs/adr/"
+        "docs/adr/",
+        "apps/server/CLAUDE.md",
+        ".claude/skills/open-web/SKILL.md"
       ],
       "depends_on": [
         "S1",
@@ -72,13 +74,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
-      "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "status": "done",
+      "passes": true,
+      "retries": 1,
+      "started_at": "2026-10-16T11:24:47.040Z",
+      "finished_at": "2026-10-16T11:28:20.170Z",
+      "active_ms": 213130,
+      "verify_ms": 8157
     }
   ]
 }

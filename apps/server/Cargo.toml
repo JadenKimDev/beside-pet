@@ -6,15 +6,19 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+argon2 = "0.6.0" # 비밀번호 해시(argon2id, PHC 문자열과 난수 솔트)
 axum = "0.8.9"
 chrono = { version = "0.4.45", default-features = false, features = ["std", "clock", "serde"] }
 dotenvy = "0.15.7"
 futures-util = { version = "0.3.34", default-features = false, features = ["std"] } # SSE 의 이벤트 스트림(Stream, StreamExt)
+getrandom = "0.4.3" # setup 토큰의 16바이트 난수
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto"] } # 로그인 토큰(HS256)
 regex = "1.13.1"
 reqwest = { version = "0.12.28", default-features = false, features = ["json", "stream", "rustls-tls"] } # 모델 공급자(Anthropic, Ollama) 호출. TLS 는 sqlx 와 같은 rustls+ring+webpki 루트
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] } # 모르는 칸의 오류를 본문에 온 순서대로 낸다(class-validator 와 같게)
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "migrate", "macros", "chrono", "json"] }
+subtle = "2.6.1" # setup 토큰의 상수 시간 비교
 tokio = { version = "1.53.3", features = ["full"] }
 tower-http = { version = "0.7.1", features = ["cors"] }
 tracing = "0.1.44"

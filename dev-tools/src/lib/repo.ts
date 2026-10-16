@@ -3,15 +3,18 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import {
   appendFileSync,
+  closeSync,
   existsSync,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
   rmSync,
   statSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import type { SourceFile } from "@beside-pet/dev-checks/code-rules";
 
@@ -60,6 +63,84 @@ export function readLedger(root: string, issue: number): Ledger {
 export function writeLedger(root: string, ledger: Ledger): void {
   mkdirSync(ledgerDir(root), { recursive: true });
   writeFileSync(ledgerPath(root, ledger.issue), `${JSON.stringify(ledger, null, 2)}\n`);
+}
+
+export function ledgerLockPath(root: string, issue: number): string {
+  return `${ledgerPath(root, issue)}.lock`;
+}
+
+export interface LockOptions {
+  /** 잠금을 기다리는 최대 시간. */
+  waitMs?: number;
+  /** 다시 시도하는 간격. */
+  intervalMs?: number;
+}
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * 원장 하나의 잠금(`docs/ledger/<이슈>.json.lock`)을 쥔 채 `body` 를 돌린다. 잠금은 배타 생성으로 얻고,
+ * 남이 쥐고 있으면 `intervalMs` 마다 다시 시도하다 `waitMs` 가 지나면 던진다. 죽은 프로세스가 남긴
+ * 잠금을 스스로 지우지 않는다: 쥔 쪽이 아직 쓰는 중일 수 있으므로 사람이 판단한다.
+ * 잠금 안에서는 짧은 읽기·고치기·쓰기만 한다. 검증 명령처럼 오래 걸리는 일은 밖에서 돌린다.
+ */
+export function withLedgerLock<T>(root: string, issue: number, body: () => T, options: LockOptions = {}): T {
+  const { waitMs = 10_000, intervalMs = 50 } = options;
+  mkdirSync(ledgerDir(root), { recursive: true });
+  const path = ledgerLockPath(root, issue);
+  const deadline = Date.now() + waitMs;
+  let fd: number;
+  for (;;) {
+    try {
+      fd = openSync(path, "wx");
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `원장 잠금을 ${Math.round(waitMs / 1000)}초 동안 얻지 못했습니다: ${relative(root, path)} — ` +
+            "다른 러너가 돌고 있지 않다면 잠금 파일을 지우고 다시 시도하세요",
+        );
+      }
+      sleepSync(intervalMs);
+    }
+  }
+  try {
+    try {
+      writeSync(fd, `${process.pid}\n`);
+    } finally {
+      closeSync(fd);
+    }
+    return body();
+  } finally {
+    rmSync(path, { force: true });
+  }
+}
+
+/**
+ * 잠금 안에서 원장을 읽고, `change` 로 고치고, 쓴다. 늘 그 순간의 최신 원장에 고침을 더하므로
+ * 동시에 돈 다른 작업의 판정을 덮지 않는다. 쓴 원장을 돌려준다.
+ */
+export function updateLedger(
+  root: string,
+  issue: number,
+  change: (ledger: Ledger) => Ledger,
+  options: LockOptions = {},
+): Ledger {
+  return withLedgerLock(
+    root,
+    issue,
+    () => {
+      const next = change(readLedger(root, issue));
+      writeLedger(root, next);
+      return next;
+    },
+    options,
+  );
 }
 
 export function removeLedger(root: string, issue: number): void {

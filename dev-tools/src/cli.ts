@@ -53,6 +53,8 @@ import {
   removeLedger,
   repoRoot,
   runCommand,
+  updateLedger,
+  withLedgerLock,
   writeLedger,
 } from "./lib/repo.ts";
 
@@ -174,14 +176,18 @@ function printTasks(ledger: Ledger): void {
 
 function work(root: string, args: string[]): void {
   const usage = "pnpm work <이슈> <작업>";
-  const before = readLedger(root, needIssue(args[0], usage));
-  const ledger = startTask(before, need(args[1], usage), new Date());
-  writeLedger(root, ledger);
+  const issue = needIssue(args[0], usage);
+  const taskId = need(args[1], usage);
+  let first = false;
+  const ledger = updateLedger(root, issue, (before) => {
+    first = before.tasks.every((t) => t.started_at === null);
+    return startTask(before, taskId, new Date());
+  });
   // 이 이슈의 첫 작업을 집는 순간 보드를 옮긴다.
-  if (before.tasks.every((t) => t.started_at === null)) {
+  if (first) {
     board(root, ledger.issue, "in_progress");
   }
-  const task = ledger.tasks.find((t) => t.id === args[1])!;
+  const task = ledger.tasks.find((t) => t.id === taskId)!;
   console.log(`▶ ${task.id}  ${task.title}`);
   console.log(`  범위: ${task.scope.join(", ")}`);
   console.log("  검증:");
@@ -210,22 +216,26 @@ function runAll(root: string, commands: string[]): boolean {
 function red(root: string, args: string[]): void {
   const usage = "pnpm ledger:red <이슈> <작업>";
   const taskId = need(args[1], usage);
-  const before = readLedger(root, needIssue(args[0], usage));
+  const issue = needIssue(args[0], usage);
+  const before = withLedgerLock(root, issue, () => readLedger(root, issue));
   const task = before.tasks.find((t) => t.id === taskId);
   if (!task) {
     throw new Error(`작업 '${taskId}' 가 원장에 없습니다`);
   }
   // 돌리기 전에 기록할 수 있는 상태인지 본다.
   recordRed(before, taskId, { failed: true, now: new Date() });
+  // 검증은 잠금 밖에서 돌리고, 기록은 그 사이 바뀌었을 수 있는 최신 원장에 더한다.
   const failed = !runAll(root, task.verify);
-  writeLedger(root, recordRed(before, taskId, { failed, now: new Date() }));
+  updateLedger(root, issue, (latest) => recordRed(latest, taskId, { failed, now: new Date() }));
   console.log(`\n✓ ${taskId} 의 실패를 기록했습니다. 이제 구현하고: pnpm ledger:verify ${before.issue} ${taskId}`);
 }
 
 function verify(root: string, args: string[]): void {
   const usage = "pnpm ledger:verify <이슈> <작업>";
   const taskId = need(args[1], usage);
-  const before = readLedger(root, needIssue(args[0], usage));
+  const issue = needIssue(args[0], usage);
+  // 검증 전의 읽기는 상태 확인에만 쓴다. 판정은 검증 뒤의 최신 원장에 더한다.
+  const before = withLedgerLock(root, issue, () => readLedger(root, issue));
   const task = before.tasks.find((t) => t.id === taskId);
   if (!task) {
     throw new Error(`작업 '${taskId}' 가 원장에 없습니다`);
@@ -241,8 +251,10 @@ function verify(root: string, args: string[]): void {
 
   const started = Date.now();
   const passed = runAll(root, task.verify);
-  const after = recordVerdict(before, taskId, { passed, verifyMs: Date.now() - started, now: new Date() });
-  writeLedger(root, after);
+  const verifyMs = Date.now() - started;
+  const after = updateLedger(root, issue, (latest) =>
+    recordVerdict(latest, taskId, { passed, verifyMs, now: new Date() }),
+  );
 
   const result = after.tasks.find((t) => t.id === taskId)!;
   if (passed) {
@@ -266,9 +278,20 @@ function verify(root: string, args: string[]): void {
 }
 
 function finish(root: string, args: string[]): void {
-  const ledger = readLedger(root, needIssue(args[0], "pnpm finish <이슈>"));
-  const blockers = finishBlockers(ledger);
-  if (blockers.length > 0) {
+  const issue = needIssue(args[0], "pnpm finish <이슈>");
+  const done = withLedgerLock(root, issue, () => {
+    const ledger = readLedger(root, issue);
+    const blockers = finishBlockers(ledger);
+    if (blockers.length > 0) {
+      return { ledger, blockers, record: null };
+    }
+    const record = outcome(ledger, new Date());
+    appendOutcome(root, record);
+    removeLedger(root, ledger.issue);
+    return { ledger, blockers, record };
+  });
+  const { ledger, blockers, record } = done;
+  if (record === null) {
     console.log("마감할 수 없습니다. 끝나지 않은 작업:");
     for (const line of blockers) {
       console.log(`  ${line}`);
@@ -276,9 +299,6 @@ function finish(root: string, args: string[]): void {
     process.exitCode = 1;
     return;
   }
-  const record = outcome(ledger, new Date());
-  appendOutcome(root, record);
-  removeLedger(root, ledger.issue);
   console.log(
     `✓ #${ledger.issue} 마감 — 작업 합계 ${formatDuration(record.active_ms)}, 전체 ${formatDuration(record.lead_time_ms)}`,
   );

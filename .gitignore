@@ -29,3 +29,6 @@ next-env.d.ts
 .pulumi/
 infra/bin/
 *.pem
+
+# 원장 러너의 잠금 파일. 러너가 원장을 읽고 쓰는 동안에만 생긴다.
+/docs/ledger/*.lock

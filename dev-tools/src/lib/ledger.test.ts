@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { deriveVerify, type RepoProbe, unitDir, wantsTdd } from "./actions.ts";
@@ -6,6 +10,7 @@ import {
   extend,
   finishBlockers,
   formatDuration,
+  type Ledger,
   nextTask,
   outcome,
   PARK_AFTER,
@@ -15,6 +20,7 @@ import {
   startTask,
 } from "./ledger.ts";
 import type { Prd } from "./prd.ts";
+import { ledgerLockPath, readLedger, updateLedger, withLedgerLock, writeLedger } from "./repo.ts";
 
 const probe: RepoProbe = {
   nodePackage: (dir) => {
@@ -227,5 +233,132 @@ test("판정이 내려진 작업이 PRD 에서 빠지면 원장을 잇지 않는
   assert.throws(
     () => extend(fresh(), scaffold(shorter, { prdFile: "docs/prd/7-example.md", now: at(9), probe, tddAreas })),
     /S1/,
+  );
+});
+
+// 원장 파일과 잠금. 실제 파일 시스템의 임시 디렉터리에서 돈다.
+
+function tempRoot(t: { after: (fn: () => void) => void }): string {
+  const root = mkdtempSync(join(tmpdir(), "ledger-lock-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  return root;
+}
+
+/** 작업 넷을 모두 집어 둔 원장. 동시에 판정받게 의존성은 없앤다. */
+function doingLedger(): Ledger {
+  let ledger = fresh();
+  ledger.tasks[2]!.verify = ["true"];
+  ledger.tasks[2]!.status = "todo";
+  ledger.tasks.push({ ...ledger.tasks[0]!, id: "S4" });
+  for (const task of ledger.tasks) {
+    task.depends_on = [];
+  }
+  for (const id of ["S1", "S2", "S3", "S4"]) {
+    ledger = startTask(ledger, id, at(1));
+  }
+  return ledger;
+}
+
+test("두 판정을 서로 다른 출발 사본에서 더해도 둘 다 남는다", (t) => {
+  const root = tempRoot(t);
+  writeLedger(root, doingLedger());
+  // 두 러너가 검증 전에 같은 원장을 읽는다.
+  const first = readLedger(root, 7);
+  const second = readLedger(root, 7);
+  assert.equal(first.tasks[0]!.status, "doing");
+  assert.equal(second.tasks[1]!.status, "doing");
+  // 검증이 끝난 순서대로 최신 원장에 자기 판정만 더한다.
+  updateLedger(root, 7, (latest) => recordVerdict(latest, "S1", { passed: true, verifyMs: 1, now: at(5) }));
+  updateLedger(root, 7, (latest) => recordVerdict(latest, "S2", { passed: true, verifyMs: 1, now: at(6) }));
+  const after = readLedger(root, 7);
+  assert.equal(after.tasks.find((task) => task.id === "S1")!.status, "done");
+  assert.equal(after.tasks.find((task) => task.id === "S2")!.status, "done");
+  assert.equal(existsSync(ledgerLockPath(root, 7)), false);
+});
+
+const repoModule = new URL("./repo.ts", import.meta.url).href;
+const ledgerModule = new URL("./ledger.ts", import.meta.url).href;
+
+/** 다른 프로세스에서 `updateLedger` 를 `times` 번 부른다. 잠금 안에서 일부러 쉬어 겹칠 틈을 넓힌다. */
+function failRepeatedly(root: string, taskId: string, times: number): Promise<void> {
+  const script = `
+    import { updateLedger } from ${JSON.stringify(repoModule)};
+    import { recordVerdict } from ${JSON.stringify(ledgerModule)};
+    const [root, taskId, times] = process.argv.slice(1);
+    const pause = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 15);
+    for (let i = 0; i < Number(times); i += 1) {
+      updateLedger(root, 7, (ledger) => {
+        pause();
+        return recordVerdict(ledger, taskId, { passed: false, verifyMs: 1, now: new Date() });
+      });
+    }
+  `;
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ["--input-type=module", "-e", script, root, taskId, String(times)], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+    });
+    child.on("error", reject);
+    child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error(`자식 프로세스 실패 (${code}): ${stderr}`))));
+  });
+}
+
+test("잠금은 여러 프로세스의 읽고 고치고 쓰기를 차례로 세운다", async (t) => {
+  const root = tempRoot(t);
+  writeLedger(root, doingLedger());
+  const times = PARK_AFTER - 2;
+  await Promise.all(["S1", "S2", "S3", "S4"].map((id) => failRepeatedly(root, id, times)));
+  const after = readLedger(root, 7);
+  // 잃어버린 쓰기가 하나라도 있으면 어느 작업의 실패 횟수가 모자란다.
+  assert.deepEqual(
+    after.tasks.map((task) => [task.id, task.retries]),
+    [
+      ["S1", times],
+      ["S2", times],
+      ["S3", times],
+      ["S4", times],
+    ],
+  );
+  assert.equal(existsSync(ledgerLockPath(root, 7)), false);
+});
+
+test("죽은 프로세스가 남긴 잠금이 있으면 기다린 뒤 오류로 끝나고 잠금을 지우지 않는다", (t) => {
+  const root = tempRoot(t);
+  writeLedger(root, doingLedger());
+  writeFileSync(ledgerLockPath(root, 7), "99999\n");
+  let ran = false;
+  const started = Date.now();
+  assert.throws(
+    () =>
+      updateLedger(
+        root,
+        7,
+        (latest) => {
+          ran = true;
+          return latest;
+        },
+        { waitMs: 100, intervalMs: 10 },
+      ),
+    /잠금 파일을 지우고 다시 시도하세요/,
+  );
+  assert.ok(Date.now() - started >= 100);
+  assert.equal(ran, false);
+  assert.equal(existsSync(ledgerLockPath(root, 7)), true);
+});
+
+test("잠금 안의 일이 던져도 잠금은 풀린다", (t) => {
+  const root = tempRoot(t);
+  writeLedger(root, doingLedger());
+  assert.throws(
+    () => updateLedger(root, 7, (latest) => recordVerdict(latest, "S9", { passed: true, verifyMs: 1, now: at(2) })),
+    /S9/,
+  );
+  assert.equal(existsSync(ledgerLockPath(root, 7)), false);
+  assert.equal(
+    withLedgerLock(root, 7, () => "다시 얻음"),
+    "다시 얻음",
   );
 });

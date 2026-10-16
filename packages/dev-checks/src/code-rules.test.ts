@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 import * as rules from "@beside-pet/dev-checks/code-rules";
 
 describe("code-rules 입구", () => {
-  it("세 규칙과 소스 글 다루기의 함수를 내보낸다", () => {
+  it("다섯 규칙과 소스 글 다루기의 함수를 내보낸다", () => {
     const kinds = new Map(Object.entries(rules).map(([name, value]) => [name, typeof value]));
     for (const name of [
       "largeFiles",
@@ -14,6 +14,8 @@ describe("code-rules 입구", () => {
       "genericTypeViolations",
       "blankCommentsAndStrings",
       "languageOf",
+      "internalUseViolations",
+      "modPlacementViolations",
     ]) {
       assert.equal(kinds.get(name), "function", name);
     }

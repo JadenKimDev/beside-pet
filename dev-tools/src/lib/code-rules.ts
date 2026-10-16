@@ -1,16 +1,23 @@
 // 레포 검사(`../code-rules.test.ts`)가 `@beside-pet/dev-checks/code-rules` 의 규칙을 부르는 조립. 순수 함수만 둔다.
-// 경로는 레포 루트 기준으로 받고 돌려준다. 파일을 읽는 부분은 `repo.ts` 의 `readTrackedSources` 다.
+// 경로는 레포 루트 기준으로 받고 돌려준다. Rust 서버 규칙은 `apps/server/src` 기준 경로로 바꿔 돌린 뒤 되돌린다.
+// 파일을 읽는 부분은 `repo.ts` 의 `readTrackedSources` 다.
 // 검사하는 소스 자리는 `project.config.json` 의 `codeRoots` 다.
 
 import {
   duplicateBodies,
   genericTypeViolations,
+  internalUseViolations,
+  isTestPath,
   languageOf,
   largeFiles,
+  modPlacementViolations,
   type SourceFile,
 } from "@beside-pet/dev-checks/code-rules";
 
 import { DEFAULT_CODE_ROOTS } from "./config.ts";
+
+/** Rust 서버 크레이트의 소스 뿌리(레포 루트 기준). 기능 내부 경로와 `mod.rs` 자리 규칙은 이 아래만 본다. */
+export const SERVER_SRC = "apps/server/src/";
 
 /** 발견 하나. `line` 이 없으면 파일 전체에 대한 것이다. */
 export type Finding = { file: string; line?: number; note: string };
@@ -24,6 +31,37 @@ export function isCodeFile(path: string, roots: readonly string[] = DEFAULT_CODE
   if (path.endsWith(".d.ts")) return false;
   if (/(^|\/)generated\//.test(path)) return false;
   return languageOf(path) !== null;
+}
+
+function inServer(path: string): boolean {
+  return path.startsWith(SERVER_SRC) && path.endsWith(".rs");
+}
+
+function serverRelative(path: string): string {
+  return path.slice(SERVER_SRC.length);
+}
+
+/**
+ * 기능 밖에서 기능의 내부 모듈 경로를 쓴 자리. 서버 src 아래의 `.rs` 만 본다.
+ * 테스트 파일은 검사하지 않지만 모듈 모양(어떤 경로가 모듈인가)에는 넣는다.
+ */
+export function internalUseFindings(files: SourceFile[]): Finding[] {
+  const server = files.filter((file) => inServer(file.path));
+  const paths = server.map((file) => serverRelative(file.path));
+  const checked = server
+    .map((file) => ({ path: serverRelative(file.path), source: file.source }))
+    .filter((file) => !isTestPath(file.path));
+  return internalUseViolations(checked, paths).map((v) => ({
+    file: SERVER_SRC + v.file,
+    line: v.line,
+    note: `${v.usePath}: ${v.rule}`,
+  }));
+}
+
+/** `mod.rs` 의 자리. 받은 경로 가운데 서버 src 아래의 `.rs` 만 본다. */
+export function modPlacementFindings(paths: readonly string[]): Finding[] {
+  const server = paths.filter(inServer).map(serverRelative);
+  return modPlacementViolations(server).map((v) => ({ file: SERVER_SRC + v.path, note: v.rule }));
 }
 
 function lineCount(source: string): number {

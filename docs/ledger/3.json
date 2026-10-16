@@ -1,0 +1,122 @@
+{
+  "issue": 3,
+  "title": "API 의 기본 모델을 이 머신의 Ollama 로 바꾼다",
+  "prd": "docs/prd/3-ollama-provider.md",
+  "depends_on": [
+    1
+  ],
+  "created_at": "2026-10-16T07:32:08.649Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "`LlmProvider` 에 Ollama 를 더하고 단가 0을 둔다",
+      "scope": [
+        "apps/api/src/llm/domain/model/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/api typecheck && pnpm -F @beside-pet/api test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "Ollama 공급자: 생성, 스트리밍, 토큰 집계, 연결 실패 오류",
+      "scope": [
+        "apps/api/src/llm/infrastructure/provider/ollama.provider.ts",
+        "apps/api/src/llm/infrastructure/provider/ollama.provider.test.ts"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/api test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "라우터 등록과 기동 검사: 기본 공급자의 설정만 필수로 본다, `.env.example` 갱신",
+      "scope": [
+        "apps/api/src/llm/infrastructure/model-router.ts",
+        "apps/api/src/llm/infrastructure/provider/anthropic.provider.ts",
+        "apps/api/src/llm/llm.module.ts",
+        "apps/api/src/support/infrastructure/llm/reply-composer.adapter.ts",
+        "apps/api/.env.example"
+      ],
+      "depends_on": [
+        "S2"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/api test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "새 ADR: 기본 모델을 로컬 Ollama 로 두고 ADR-0010 을 대체한다",
+      "scope": [
+        "docs/adr/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test && grep -q 'superseded' docs/adr/0010-llm-single-model-behind-text-model-port.md"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S5",
+      "title": "루트 `CLAUDE.md` 에 AI 엔진은 Ollama 가 기본이고 환경 변수로 바꾼다는 결정을 적는다",
+      "scope": [
+        "CLAUDE.md"
+      ],
+      "depends_on": [
+        "S4"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

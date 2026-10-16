@@ -1,0 +1,103 @@
+{
+  "issue": 1,
+  "title": "api 와 web 에 테스트 러너를 깔고, 쓰지 않는 소개 사이트를 지운다",
+  "prd": "docs/prd/1-app-test-foundation.md",
+  "depends_on": [],
+  "created_at": "2026-10-16T07:32:08.072Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "api 와 web 에 Vitest 를 깔고 `test` 스크립트와 설정 파일을 둔다",
+      "scope": [
+        "apps/api/package.json",
+        "apps/api/vitest.config.ts",
+        "apps/web/package.json",
+        "apps/web/vitest.config.ts",
+        "pnpm-lock.yaml"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/api exec vitest --version && pnpm -F @beside-pet/web exec vitest --version"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "api: 위기 발화 감지와 안내 연결의 특성화 테스트",
+      "scope": [
+        "apps/api/src/safety/"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/api test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "web: `lib/` 의 순수 함수(HTTP 기본 주소, 스트림 타자기)의 테스트",
+      "scope": [
+        "apps/web/lib/"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/web test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "소개 사이트를 지우고, 루트 `CLAUDE.md` 와 `README.md` 에서 소개 사이트가 있다는 문장을 고친다",
+      "scope": [
+        "apps/landing",
+        "pnpm-lock.yaml",
+        "CLAUDE.md",
+        "README.md",
+        "package.json"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "test ! -e apps/landing && pnpm test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

@@ -226,6 +226,7 @@ export const en: Messages = {
     reachedUntil: (stage) => `Up to: ${stage}`,
     itemMeta: (when, petName, minutes, messages) =>
       `${when} · ${petName} · ${minutes} min · ${messages} messages`,
+    itemStats: (minutes, messages) => `${minutes} min · ${messages} messages`,
     reportLocked: 'Opens once the conversation reaches the second step and you wrap it up.',
     more: 'More',
     emptyTitle: 'No conversations yet',

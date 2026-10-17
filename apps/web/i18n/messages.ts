@@ -194,6 +194,7 @@ export interface Messages {
     count: (count: number) => string;
     reachedUntil: (stage: string) => string;
     itemMeta: (when: string, petName: string, minutes: number, messages: number) => string;
+    itemStats: (minutes: number, messages: number) => string;
     reportLocked: string;
     more: string;
     emptyTitle: string;

@@ -222,6 +222,7 @@ export const ko: Messages = {
     reachedUntil: (stage) => `${stage}까지`,
     itemMeta: (when, petName, minutes, messages) =>
       `${when} · ${petName} · ${minutes}분 · 메시지 ${messages}개`,
+    itemStats: (minutes, messages) => `${minutes}분 · 메시지 ${messages}개`,
     reportLocked: '이야기가 두 번째 걸음까지 이어진 뒤 대화를 마치면 열려요.',
     more: '더 보기',
     emptyTitle: '아직 나눈 이야기가 없어요',

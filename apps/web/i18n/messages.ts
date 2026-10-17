@@ -96,6 +96,10 @@ export interface Messages {
     closedTitle: string;
     closedBody: string;
     openReport: string;
+    /** Header title: who the conversation is about, then the current stage. */
+    titleWithStage: (petName: string, stage: string) => string;
+    /** Read by screen readers on the progress stones, e.g. step 3 of 4. */
+    progressText: (step: number, stage: string) => string;
   };
   onboarding: {
     askName: string;
@@ -152,24 +156,25 @@ export interface Messages {
     confirmEnd: string;
     /** "Cancel" on the wrap-up confirmation: reads as "keep talking". */
     cancel: string;
+    /** The greeting could not be fetched. */
+    startFailed: string;
+    startFailedBody: string;
   };
   sessionList: {
     title: string;
     subtitle: string;
     continueButton: string;
-    newButton: string;
     ongoing: string;
     done: string;
     loading: string;
-    settings: string;
-    /** @deprecated Replaced by the `noOpenTitle`/`noOpenBody`/`noOpenCta` card. */
-    noOpenHint: string;
     confirmNewTitle: string;
     confirmNewBody: string;
     confirmNewStart: string;
     cancel: string;
     viewTranscript: string;
     viewReport: string;
+    /** The item's more-menu: view the transcript. */
+    menuView: string;
     deleteConversation: string;
     confirmDeleteTitle: string;
     /** Without the date; prefer `confirmDeleteBodyDated` when the date is known. */
@@ -208,6 +213,8 @@ export interface Messages {
     continueButton: string;
     ongoing: string;
     done: string;
+    /** Reassurance under the load failure. */
+    loadFailedBody: string;
   };
   settings: {
     title: string;
@@ -220,18 +227,33 @@ export interface Messages {
     groupAccount: string;
     groupHelp: string;
     uiLanguageHint: string;
+    theme: string;
+    themeHint: string;
+    themeNames: Record<'hanji' | 'night' | 'ink', string>;
+    signedIn: string;
+    helpLink: string;
   };
   report: {
     eyebrow: string;
     title: (petName: string) => string;
-    meta: (date: string, minutes: number, step: number) => string;
+    /** 표지의 날짜 줄. `reached` 는 `reachedStep` 의 한 칸. 대화한 시간(분)은 서버가 아직 주지 않아 뺀다(§11). */
+    meta: (date: string, reached: string) => string;
+    /** 도달한 걸음(1..4)의 말. */
+    reachedStep: [string, string, string, string];
     stepsShort: [string, string, string, string];
+    stepsLabel: string;
     signature: string;
     print: string;
     writeOnce: string;
     writingHint: string;
+    writingTitle: string;
     notReadyTitle: string;
+    notReadyBody: string;
+    failedTitle: string;
     failedBody: string;
+    retry: string;
+    revisit: string;
+    toList: string;
   };
   admin: {
     title: string;
@@ -263,6 +285,17 @@ export interface Messages {
     search: string;
     filterAll: string;
     badge: string;
+    filterLabel: string;
+    countsLabel: string;
+    loading: string;
+    noMatch: string;
+    addTitle: string;
+    cancel: string;
+    confirmDeleteTitle: (username: string) => string;
+    confirmDeleteBody: string;
+    confirmRevokeTitle: (username: string) => string;
+    confirmRevokeBody: string;
+    noExpiry: string;
   };
   /** Fixed helpline copy shared by the help page, crisis card and footer (ADR-0004). */
   safety: {
@@ -310,6 +343,8 @@ export interface Messages {
   };
   toast: {
     deleted: string;
+    deleteFailed: string;
+    endFailed: string;
     chatLanguageSaved: (language: string) => string;
     saveFailed: string;
   };

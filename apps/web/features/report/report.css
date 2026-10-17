@@ -1,0 +1,44 @@
+/* 마음 리포트 화면에서만 import 한다. 색은 globals.css 의 테마 토큰(var(--…))만 쓴다. */
+
+/* 표지 삽화: 아래로 갈수록 바탕(bg)에 녹아든다. */
+.report-cover {
+  position: relative;
+}
+.report-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 45%, var(--bg) 100%);
+  pointer-events: none;
+}
+
+/* 구역은 80ms 간격으로 차례로 떠오른다. 순번은 --i 로 받는다. */
+.report-rise {
+  animation: ui-rise var(--t-slow) var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-rise {
+    animation: none;
+  }
+}
+
+/* 인쇄: 머리, 바닥, 버튼을 숨기고 구역이 쪽 사이에서 갈라지지 않게 한다. PDF 파일은 만들지 않는다(ADR-0008). */
+@media print {
+  body:has(.report-page) > header,
+  body:has(.report-page) > footer,
+  .report-page .report-actions {
+    display: none !important;
+  }
+  .report-page .report-section {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+  .report-page .report-rise {
+    animation: none;
+  }
+  .report-page .report-cover {
+    height: 200px;
+  }
+}

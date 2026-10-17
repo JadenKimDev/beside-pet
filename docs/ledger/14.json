@@ -13,21 +13,24 @@
       "scope": [
         "apps/web/app/sessions/page.tsx",
         "apps/web/features/session-archive/",
-        "apps/web/components/ui/"
+        "apps/web/components/ui/",
+        "apps/web/i18n/ko.ts",
+        "apps/web/i18n/en.ts",
+        "apps/web/i18n/messages.ts"
       ],
       "depends_on": [],
       "verify": [
         "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-17T00:39:55.188Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-17T00:34:30.591Z",
+      "finished_at": "2026-10-17T00:45:29.450Z",
+      "active_ms": 658859,
+      "verify_ms": 2012
     },
     {
       "id": "S2",
@@ -36,42 +39,48 @@
         "apps/web/app/session/",
         "apps/web/app/sessions/[id]/page.tsx",
         "apps/web/components/chat/",
-        "apps/web/features/session/"
+        "apps/web/features/session/",
+        "apps/web/i18n/ko.ts",
+        "apps/web/i18n/en.ts",
+        "apps/web/i18n/messages.ts"
       ],
       "depends_on": [],
       "verify": [
         "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-17T00:39:54.043Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-17T00:34:36.126Z",
+      "finished_at": "2026-10-17T00:44:54.010Z",
+      "active_ms": 617884,
+      "verify_ms": 2324
     },
     {
       "id": "S3",
       "title": "마음 리포트: 표지, 네 걸음, 네 구역의 그릇과 순차 등장, 쓰는 중·아직 안 열림·실패 상태, 인쇄 CSS, 상태 테스트",
       "scope": [
         "apps/web/app/sessions/[id]/report/",
-        "apps/web/features/report/"
+        "apps/web/features/report/",
+        "apps/web/i18n/ko.ts",
+        "apps/web/i18n/en.ts",
+        "apps/web/i18n/messages.ts"
       ],
       "depends_on": [],
       "verify": [
         "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-17T00:39:45.039Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-17T00:34:36.415Z",
+      "finished_at": "2026-10-17T00:44:27.368Z",
+      "active_ms": 590953,
+      "verify_ms": 2482
     },
     {
       "id": "S4",
@@ -81,21 +90,24 @@
         "apps/web/app/admin/",
         "apps/web/features/admin/",
         "apps/web/features/auth/components/ChatLanguageSelect.tsx",
-        "apps/web/i18n/LocaleSelect.tsx"
+        "apps/web/i18n/LocaleSelect.tsx",
+        "apps/web/i18n/ko.ts",
+        "apps/web/i18n/en.ts",
+        "apps/web/i18n/messages.ts"
       ],
       "depends_on": [],
       "verify": [
         "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
+      "red_at": "2026-10-17T00:40:11.607Z",
+      "status": "doing",
       "passes": false,
-      "retries": 0,
-      "started_at": null,
+      "retries": 1,
+      "started_at": "2026-10-17T00:34:36.709Z",
       "finished_at": null,
       "active_ms": null,
-      "verify_ms": null
+      "verify_ms": 843
     },
     {
       "id": "S5",

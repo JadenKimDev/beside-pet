@@ -16,10 +16,24 @@
 //   pnpm docs:list [--type adr|devlog] [--status <s>] [--tag <t>]   결정 기록 목록
 //   pnpm docs:neighbors <id>                related 와 겹치는 태그로 이어진 글
 //   (docs:* 넷 모두 --json 이면 결과를 JSON 으로 찍는다)
+//   pnpm chat:eval run (--persona <이름> | --all) [--interactive] [--stream] [--baseline <날짜>]   대화 실측
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
+import { createClient, loadQaAccount } from "./lib/chat-eval/client.ts";
+import { loadPersona, loadPersonas, personasDir } from "./lib/chat-eval/persona.ts";
+import {
+  CHAT_EVAL_USAGE,
+  chatEvalDir,
+  localDate,
+  parseChatEvalArgs,
+  readBaseline,
+  saveRun,
+  turnLine,
+  writeSummary,
+} from "./lib/chat-eval/report.ts";
+import { runPersona, stdinLines } from "./lib/chat-eval/runner.ts";
 import type { DocKind } from "./lib/docs.ts";
 import type { BuildResult } from "./lib/docs-db.ts";
 import { asString, setFrontmatter, splitFrontmatter } from "./lib/frontmatter.ts";
@@ -496,7 +510,54 @@ function docsNeighbors(root: string, args: string[]): void {
   printTable(found.map((n) => [n.id, n.kind, n.title, n.reasons.join(", ")]));
 }
 
-const COMMANDS: Record<string, (root: string, args: string[]) => void> = {
+// ── 대화 실측 (lib/chat-eval). 비밀번호는 클라이언트 안에만 있고 여기서는 찍지 않는다 ──
+
+async function chatEval(root: string, args: string[]): Promise<void> {
+  const options = parseChatEvalArgs(args);
+  if (options === null) {
+    console.log(CHAT_EVAL_USAGE);
+    return;
+  }
+  const dir = personasDir(root);
+  if (options.persona !== null && !existsSync(join(dir, `${options.persona}.json`))) {
+    throw new Error(`인물이 없습니다: ${options.persona} (${relative(root, dir)} 의 파일 이름)`);
+  }
+  const personas = options.persona === null ? loadPersonas(dir) : [loadPersona(join(dir, `${options.persona}.json`))];
+  const date = localDate(new Date());
+  const out = chatEvalDir(root, date);
+  const baseline =
+    options.baseline === null ? null : readBaseline(chatEvalDir(root, options.baseline), options.baseline);
+  if (baseline !== null && baseline.runs.length === 0) {
+    console.error(`⚠ 기준 날짜 ${baseline.date} 에 결과 json(<인물>.run.json)이 없어 기준 없이 씁니다`);
+  }
+  const client = createClient({ account: loadQaAccount(root) });
+  await client.health();
+  await client.login();
+  const input = options.interactive ? stdinLines(process.stdin.isTTY ? "> " : "") : null;
+  try {
+    for (const persona of personas) {
+      console.log(`\n▶ ${persona.name} — ${persona.situation}`);
+      const result = await runPersona(persona, {
+        client,
+        mode: input === null ? "script" : "interactive",
+        stream: options.stream,
+        ...(input === null ? {} : { nextTurn: input.next }),
+        onGreeting: (greeting, ms) => console.log(`  첫 인사 (${(ms / 1000).toFixed(1)}s)\n${greeting}`),
+        onTurn: (turn) => console.log(turnLine(turn, input !== null)),
+      });
+      const flags = result.sessionFlags.map((flag) => flag.check).join(", ") || "-";
+      console.log(
+        `  closedBy ${result.closedBy}  세션 검사 [${flags}]  리포트 ${result.report === null ? "없음" : "있음"}`,
+      );
+      console.log(`  → ${relative(root, saveRun(out, { ...result, baseUrl: client.baseUrl }))}`);
+    }
+  } finally {
+    input?.close();
+  }
+  console.log(`\n→ ${relative(root, writeSummary(out, date, baseline))}`);
+}
+
+const COMMANDS: Record<string, (root: string, args: string[]) => void | Promise<void>> = {
   "prd:push": prdPush,
   "prd:pull": prdPull,
   "ledger:new": ledgerNew,
@@ -510,6 +571,7 @@ const COMMANDS: Record<string, (root: string, args: string[]) => void> = {
   "docs:search": docsSearch,
   "docs:list": docsList,
   "docs:neighbors": docsNeighbors,
+  "chat:eval": chatEval,
 };
 
 const [name, ...rest] = process.argv.slice(2);
@@ -522,7 +584,7 @@ try {
   if (name!.startsWith("docs:")) {
     docsDb = await import("./lib/docs-db.ts");
   }
-  command(repoRoot(), rest);
+  await command(repoRoot(), rest);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

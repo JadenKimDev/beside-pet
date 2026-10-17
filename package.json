@@ -38,6 +38,7 @@
     "docs:index": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:index",
     "docs:search": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:search",
     "docs:list": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:list",
-    "docs:neighbors": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:neighbors"
+    "docs:neighbors": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:neighbors",
+    "chat:eval": "node dev-tools/src/cli.ts chat:eval"
   }
 }

@@ -75,6 +75,7 @@ pnpm test           # biome, 전 워크스페이스 typecheck 와 테스트(레�
 pnpm lint           # biome 만
 pnpm db:up          # 로컬 PostgreSQL 을 띄운다 (db:down, db:status). 다른 Postgres 가 5432 를 쓰면 DB_PORT=5433 처럼 바꾸고 DATABASE_URL 도 맞춘다
 pnpm browser:tab <주소>  # herdr 의 따로 된 탭에 터미널 브라우저를 연다 (herdr 가 있을 때만)
+pnpm chat:eval run --persona <이름>  # QA 계정으로 인물 대본의 대화를 돌려 outputs/chat-eval/<날짜>/ 에 전사와 자동 검사를 남긴다 (--all, --interactive, --stream, --baseline <날짜>. 절차는 chat-eval 스킬)
 ```
 
 ```bash

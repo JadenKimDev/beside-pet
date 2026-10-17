@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// 이 서버가 읽는 환경 변수의 이름. TS API(`apps/api`)와 같은 이름이다.
 /// 모델 쪽 이름의 해석은 `llm` 이, `JWT_*` 는 identity 가 맡는다.
-pub const ENV_NAMES: [&str; 13] = [
+pub const ENV_NAMES: [&str; 14] = [
     "PORT",
     "DATABASE_URL",
     "DATABASE_SSL",
@@ -20,6 +20,7 @@ pub const ENV_NAMES: [&str; 13] = [
     "OLLAMA_BASE_URL",
     "OLLAMA_THINK",
     "NODE_ENV",
+    "COOKIE_SECURE",
 ];
 
 const DEFAULT_PORT: u16 = 3000;
@@ -42,6 +43,8 @@ pub struct Config {
     /// 로그인 토큰의 수명 글(`7d`, `12h`, 단위 없는 숫자는 초). 없거나 비면 `None` 이고 기본값(`7d`)과
     /// 글의 해석은 identity 의 몫이다. 읽지 못하는 글이면 기동 때 identity 가 막는다.
     pub jwt_ttl: Option<String>,
+    /// `COOKIE_SECURE` 의 값. 없으면 `None` 이고 `NODE_ENV` 가 정한다(`secure_cookies`).
+    pub cookie_secure: Option<bool>,
 }
 
 /// 모델 쪽 환경 변수의 값(앞뒤 공백을 걷고, 빈 값은 없는 것으로 본다). 기본값과 해석은 `llm` 의 설정이 맡는다.
@@ -79,6 +82,7 @@ impl fmt::Debug for Config {
             .field("model", &self.model)
             .field("jwt_secret", &"<hidden>")
             .field("jwt_ttl", &self.jwt_ttl)
+            .field("cookie_secure", &self.cookie_secure)
             .finish()
     }
 }
@@ -157,6 +161,16 @@ impl Config {
         let jwt_ttl = lookup("JWT_TTL")
             .map(|v| v.trim().to_owned())
             .filter(|v| !v.is_empty());
+        let cookie_secure = match trimmed(lookup("COOKIE_SECURE")) {
+            None => None,
+            Some(raw) if raw.eq_ignore_ascii_case("true") => Some(true),
+            Some(raw) if raw.eq_ignore_ascii_case("false") => Some(false),
+            Some(_) => {
+                return Err(ConfigError(
+                    "COOKIE_SECURE must be true or false".to_owned(),
+                ));
+            }
+        };
         Ok(Config {
             port,
             database_url,
@@ -165,6 +179,7 @@ impl Config {
             model,
             jwt_secret,
             jwt_ttl,
+            cookie_secure,
         })
     }
 
@@ -199,9 +214,15 @@ impl Config {
         }
     }
 
-    /// `NODE_ENV=production` 이면 참. 쿠키에 Secure 를 붙이는 기준이다.
+    /// `NODE_ENV=production` 이면 참.
     pub fn is_production(&self) -> bool {
         is_production(self.node_env.as_deref())
+    }
+
+    /// 로그인 쿠키에 Secure 를 붙이는가. `COOKIE_SECURE` 가 있으면 그 값, 없으면 production 일 때 참이다.
+    /// http 루프백의 컨테이너(`compose --profile full`)는 `COOKIE_SECURE=false` 로 로그인을 유지한다.
+    pub fn secure_cookies(&self) -> bool {
+        self.cookie_secure.unwrap_or_else(|| self.is_production())
     }
 }
 
@@ -247,16 +268,35 @@ fn error_kind(error: &dotenvy::Error) -> &'static str {
     }
 }
 
-/// DB 를 쓰는 테스트가 붙을 주소. 없으면 이유를 적고 실패한다(조용히 건너뛰지 않는다).
+/// 테스트가 `DATABASE_URL` 을 찾을 env 파일들(앞의 것이 먼저). 테스트는 `NODE_ENV` 없이 돌기 쉬우므로 서버
+/// 기동의 규칙(`env_file_name`)을 따르지 않고 `.env.development` 다음 `.env` 를 이 크레이트의 디렉터리에서 찾는다.
+#[cfg(test)]
+fn test_env_files(crate_dir: &Path) -> [PathBuf; 2] {
+    [crate_dir.join(".env.development"), crate_dir.join(".env")]
+}
+
+/// DB 를 쓰는 테스트가 붙을 주소. 환경에 없으면 `test_env_files` 의 순서로 찾는다. 그래도 없으면 이유를 적고
+/// 실패한다(조용히 건너뛰지 않는다). 파일은 환경에 올리지 않고 `DATABASE_URL` 하나만 읽는다.
 #[cfg(test)]
 pub fn test_database_url() -> String {
-    load_env_file();
-    std::env::var("DATABASE_URL")
+    let from_env = std::env::var("DATABASE_URL")
         .ok()
-        .filter(|v| !v.trim().is_empty())
+        .filter(|v| !v.trim().is_empty());
+    from_env
+        .or_else(|| {
+            test_env_files(Path::new(env!("CARGO_MANIFEST_DIR")))
+                .iter()
+                .filter_map(|path| dotenvy::from_path_iter(path).ok())
+                .find_map(|entries| {
+                    entries
+                        .filter_map(Result::ok)
+                        .find(|(name, value)| name == "DATABASE_URL" && !value.trim().is_empty())
+                        .map(|(_, value)| value)
+                })
+        })
         .expect(
             "DATABASE_URL 이 없다: DB 테스트는 로컬 Postgres 가 필요하다. pnpm db:up 으로 띄우고 \
-             DATABASE_URL 을 환경이나 apps/server/.env(.development) 에 둔다",
+             DATABASE_URL 을 환경이나 apps/server/.env.development(또는 .env) 에 둔다",
         )
 }
 

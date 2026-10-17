@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::{Config, ENV_NAMES, env_file_name};
+use super::{Config, ENV_NAMES, env_file_name, test_env_files};
 
 fn lookup(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
     let map: HashMap<String, String> = pairs
@@ -114,6 +114,15 @@ fn node_env_가_env_파일을_고른다() {
     assert_eq!(env_file_name(Some("development")), ".env.development");
     assert_eq!(env_file_name(Some("production")), ".env");
     assert_eq!(env_file_name(None), ".env");
+}
+
+#[test]
+fn 테스트는_node_env_없이도_env_development_를_먼저_읽고_그다음_env_를_읽는다() {
+    let dir = std::path::Path::new("/crate");
+    assert_eq!(
+        test_env_files(dir),
+        [dir.join(".env.development"), dir.join(".env")]
+    );
 }
 
 #[test]
@@ -335,4 +344,49 @@ fn debug_에_jwt_secret_을_싣지_않는다() {
     let shown = format!("{config:?}");
     assert!(!shown.contains("fixture-secret"), "{shown}");
     assert!(shown.contains("<hidden>"), "{shown}");
+}
+
+fn prod_with(extra: &[(&str, &str)]) -> Result<Config, super::ConfigError> {
+    let mut pairs = vec![
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("NODE_ENV", "production"),
+        ("JWT_SECRET", "fixture-secret"),
+    ];
+    pairs.extend_from_slice(extra);
+    Config::from_lookup(lookup(&pairs))
+}
+
+#[test]
+fn cookie_secure_가_없으면_production_에서만_secure_쿠키다() {
+    assert!(prod_with(&[]).unwrap().secure_cookies());
+    let dev = Config::from_lookup(lookup(&[("DATABASE_URL", "postgres://u:p@h/db")])).unwrap();
+    assert!(!dev.secure_cookies());
+}
+
+#[test]
+fn cookie_secure_가_production_의_기본을_덮는다() {
+    assert!(
+        !prod_with(&[("COOKIE_SECURE", "false")])
+            .unwrap()
+            .secure_cookies()
+    );
+    assert!(
+        !prod_with(&[("COOKIE_SECURE", " FALSE ")])
+            .unwrap()
+            .secure_cookies()
+    );
+    let dev = Config::from_lookup(lookup(&[
+        ("DATABASE_URL", "postgres://u:p@h/db"),
+        ("COOKIE_SECURE", "True"),
+    ]))
+    .unwrap();
+    assert!(dev.secure_cookies());
+}
+
+#[test]
+fn cookie_secure_가_true_false_가_아니면_이름만_적고_실패한다() {
+    let err = prod_with(&[("COOKIE_SECURE", "yes-fixture")]).unwrap_err();
+    let text = err.to_string();
+    assert!(text.contains("COOKIE_SECURE"), "{text}");
+    assert!(!text.contains("yes-fixture"), "{text}");
 }

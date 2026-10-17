@@ -124,7 +124,7 @@ impl FromRef<AppState> for IdentityState {
         IdentityState {
             accounts: state.services.accounts.clone(),
             authenticator: state.services.authenticator.clone(),
-            secure_cookies: state.config.is_production(),
+            secure_cookies: state.config.secure_cookies(),
         }
     }
 }

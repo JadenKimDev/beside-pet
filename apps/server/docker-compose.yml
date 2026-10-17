@@ -34,6 +34,8 @@ services:
     environment:
       PORT: 3000
       NODE_ENV: production
+      # http 루프백이라 Secure 쿠키는 브라우저가 돌려보내지 않는다. 로그인을 유지하려고 끈다.
+      COOKIE_SECURE: "false"
       DATABASE_URL: postgres://beside:beside@db:5432/besidepet
       JWT_SECRET: ${JWT_SECRET:-dev-insecure-secret-change-me}
       # 모델 설정은 호스트 환경에서 받는다. 기본 공급자의 설정이 없으면 서버가 기동하지 않고 이유를 로그에 적는다.

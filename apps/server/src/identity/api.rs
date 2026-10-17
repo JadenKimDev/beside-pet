@@ -24,7 +24,7 @@ use response::{AccountResponse, SetupStatusResponse};
 pub struct IdentityState {
     pub accounts: SharedAccountService,
     pub authenticator: SharedAuthenticator,
-    /// 쿠키에 Secure 를 붙이는가(`Config::is_production()`).
+    /// 쿠키에 Secure 를 붙이는가(`Config::secure_cookies()`).
     pub secure_cookies: bool,
 }
 

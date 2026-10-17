@@ -40,8 +40,8 @@ curl 127.0.0.1:3000/v1/health
 ```
 
 - 서비스는 `db`(pgvector/pgvector:pg16, `127.0.0.1:${DB_PORT:-5432}`, DB `besidepet`, 사용자 `beside`)와 `api`(프로필 `full`, `127.0.0.1:3000`, 레포 루트를 빌드 문맥으로 `apps/server/Dockerfile`)다. 프로필 없이 띄우면 `db` 만 뜬다. `pnpm db:up` 이 그것이다. compose 프로젝트 이름은 `beside-pet` 으로 고정해 워크트리마다 같은 DB 를 함께 쓴다.
-- 컨테이너의 서버는 `.env` 파일을 읽지 않는다. `NODE_ENV=production` 과 `DATABASE_URL`(compose 안의 `db`)은 compose 가 고정하고, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY`, `OLLAMA_BASE_URL`(기본 `http://host.docker.internal:11434`), `JWT_SECRET` 은 띄우는 셸의 환경에서 받는다.
-- `NODE_ENV=production` 이라 로그인 쿠키에 `Secure` 가 붙는다. 컨테이너 서버로 화면까지 써 보려면 HTTPS 앞단이 필요하고, 루프백의 개발은 `pnpm dev` 로 한다.
+- 컨테이너의 서버는 `.env` 파일을 읽지 않는다. `NODE_ENV=production`, `COOKIE_SECURE=false`, `DATABASE_URL`(compose 안의 `db`)은 compose 가 고정하고, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY`, `OLLAMA_BASE_URL`(기본 `http://host.docker.internal:11434`), `JWT_SECRET` 은 띄우는 셸의 환경에서 받는다.
+- 로그인 쿠키의 `Secure` 는 `COOKIE_SECURE` 가 정하고, 없으면 `NODE_ENV=production` 일 때 붙는다. compose 는 http 루프백에서 로그인이 유지되도록 `COOKIE_SECURE=false` 를 둔다. HTTPS 앞단 뒤에 올릴 때는 이 값을 빼거나 `true` 로 둔다.
 
 ## 엔드포인트
 

@@ -61,7 +61,7 @@ export function SiteHeader({
         href={href}
         aria-current={current ? 'page' : undefined}
         className={cx(
-          'rounded-pill px-3 py-2 text-sm no-underline transition-colors duration-(--t-fast) hover:bg-bg-sunk hover:text-fg focus-visible:shadow-focus focus-visible:outline-none',
+          'rounded-pill px-3 py-2 text-sm whitespace-nowrap no-underline transition-colors duration-(--t-fast) hover:bg-bg-sunk hover:text-fg focus-visible:shadow-focus focus-visible:outline-none',
           current ? 'bg-bg-sunk text-fg' : 'text-fg-muted',
         )}
       >

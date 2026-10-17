@@ -47,20 +47,34 @@ fn 값을_읽는다() {
 }
 
 #[test]
-fn 개발에서는_루프백에만_연다() {
+fn 개발에서는_두_루프백에_연다() {
     let dev = Config::from_lookup(lookup(&[
         ("DATABASE_URL", "postgres://u:p@h/db"),
         ("PORT", "4100"),
     ]))
     .unwrap();
-    assert_eq!(dev.listen_address().to_string(), "127.0.0.1:4100");
+    let addresses: Vec<String> = dev
+        .listen_addresses()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(addresses, ["127.0.0.1:4100", "[::1]:4100"]);
+}
+
+#[test]
+fn production_에서는_모든_주소_하나에_연다() {
     let prod = Config::from_lookup(lookup(&[
         ("DATABASE_URL", "postgres://u:p@h/db"),
         ("NODE_ENV", "production"),
         ("JWT_SECRET", "fixture-secret"),
     ]))
     .unwrap();
-    assert_eq!(prod.listen_address().to_string(), "0.0.0.0:3000");
+    let addresses: Vec<String> = prod
+        .listen_addresses()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(addresses, ["0.0.0.0:3000"]);
 }
 
 #[test]

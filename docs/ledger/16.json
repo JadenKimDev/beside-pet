@@ -10,6 +10,7 @@
       "title": "테스트 DB 주소 도우미가 `.env.development` → `.env` 순서로 읽는다",
       "scope": [
         "apps/server/src/shared/db/",
+        "apps/server/src/shared/config.rs",
         "apps/server/src/shared/config/"
       ],
       "depends_on": [],
@@ -18,10 +19,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-17T00:13:51.112Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -39,14 +40,14 @@
         "dev-tools/scripts/cargo.sh test -p beside-pet-server -- shared::config"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-17T00:16:16.221Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-17T00:13:56.966Z",
+      "finished_at": "2026-10-17T00:16:49.493Z",
+      "active_ms": 172527,
+      "verify_ms": 6015
     },
     {
       "id": "S3",
@@ -89,14 +90,14 @@
         "dev-tools/scripts/cargo.sh test -p beside-pet-server -- support::store"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-17T00:16:14.003Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-17T00:13:57.285Z",
+      "finished_at": "2026-10-17T00:17:26.753Z",
+      "active_ms": 209468,
+      "verify_ms": 1269
     },
     {
       "id": "S5",
@@ -112,13 +113,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-17T00:15:01.823Z",
+      "finished_at": "2026-10-17T00:17:22.242Z",
+      "active_ms": 140419,
+      "verify_ms": 1467
     },
     {
       "id": "S6",
@@ -132,10 +133,10 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-17T00:13:57.609Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null

@@ -1,7 +1,7 @@
 //! 환경 변수를 읽는 유일한 곳. 읽는 이름은 모두 `apps/server/.env.example` 에 있다.
 
 use std::fmt;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 
 /// 이 서버가 읽는 환경 변수의 이름. TS API(`apps/api`)와 같은 이름이다.
@@ -186,14 +186,17 @@ impl Config {
         }
     }
 
-    /// 듣는 주소. 개발에서는 루프백(127.0.0.1)에만 열고, `NODE_ENV=production`(컨테이너)이면 모든 주소에 연다.
-    pub fn listen_address(&self) -> SocketAddr {
-        let ip = if self.is_production() {
-            Ipv4Addr::UNSPECIFIED
+    /// 듣는 주소들. 개발에서는 두 루프백(127.0.0.1, ::1)에만 연다. `localhost` 가 어느 쪽으로 먼저 풀려도 붙게
+    /// 하려는 것이다. `NODE_ENV=production`(컨테이너)이면 모든 주소(0.0.0.0) 하나에 연다.
+    pub fn listen_addresses(&self) -> Vec<SocketAddr> {
+        if self.is_production() {
+            vec![SocketAddr::from((Ipv4Addr::UNSPECIFIED, self.port))]
         } else {
-            Ipv4Addr::LOCALHOST
-        };
-        SocketAddr::from((ip, self.port))
+            vec![
+                SocketAddr::from((Ipv4Addr::LOCALHOST, self.port)),
+                SocketAddr::from((Ipv6Addr::LOCALHOST, self.port)),
+            ]
+        }
     }
 
     /// `NODE_ENV=production` 이면 참. 쿠키에 Secure 를 붙이는 기준이다.

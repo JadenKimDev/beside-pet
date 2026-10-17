@@ -343,6 +343,12 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* Headings are set in the serif (Gowun Batang); body text stays sans (design proposal §4). */
+h1,
+h2 {
+  font-family: var(--font-serif);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

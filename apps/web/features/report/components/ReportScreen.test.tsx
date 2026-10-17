@@ -10,13 +10,14 @@ import { ReportScreen } from './ReportScreen';
 // 지어낸 값이다. 실제 사용자의 대화나 리포트가 아니다.
 const REPORT: MindReport = {
   at: '2026-10-12T09:00:00.000Z',
+  startedAt: '2026-10-03T09:00:00.000Z',
   petName: '테스트콩',
   reachedTask: 2,
   progress: 0.25,
   locale: 'ko',
   sections: [
     { key: 'journey', body: '지어낸 걸어온 길' },
-    { key: 'emotions', body: '지어낸 감정' },
+    { key: 'emotions', body: '지어낸 감정', tags: ['그리움', '고마움', '미안함'] },
     { key: 'keepsake', body: '지어낸 간직할 것' },
     { key: 'encouragement', body: '지어낸 다독임' },
   ],
@@ -140,5 +141,39 @@ describe('ReportScreen 상태 전환', () => {
     await flush();
     expect(container.textContent).not.toContain(ko.report.failedTitle);
     expect(sectionKeys(container)).toEqual(['journey', 'emotions', 'keepsake', 'encouragement']);
+  });
+});
+
+describe('ReportScreen 표지와 감정 칩', () => {
+  const longDate = (iso: string) =>
+    new Intl.DateTimeFormat('ko', { dateStyle: 'long' }).format(new Date(iso));
+
+  it('표지 날짜는 대화를 시작한 날이고, emotions 구역에 감정 칩이 보인다', async () => {
+    stubFetch({
+      '/v1/sessions/s-tags': () => json(200, state('s-tags', true)),
+      '/v1/sessions/s-tags/report': () => json(200, REPORT),
+    });
+    const container = render('s-tags');
+    await flush();
+    const header = container.querySelector('header')?.textContent ?? '';
+    expect(header).toContain(longDate(REPORT.startedAt));
+    expect(header).not.toContain(longDate(REPORT.at));
+    const chips = container.querySelectorAll('[data-section="emotions"] [data-emotion-tag]');
+    expect(Array.from(chips, (chip) => chip.textContent)).toEqual(['그리움', '고마움', '미안함']);
+  });
+
+  it('감정 낱말이 없는 옛 리포트는 칩 줄을 생략한다', async () => {
+    const old: MindReport = {
+      ...REPORT,
+      sections: REPORT.sections.map(({ tags: _tags, ...section }) => section),
+    };
+    stubFetch({
+      '/v1/sessions/s-old': () => json(200, state('s-old', true)),
+      '/v1/sessions/s-old/report': () => json(200, old),
+    });
+    const container = render('s-old');
+    await flush();
+    expect(sectionKeys(container)).toEqual(['journey', 'emotions', 'keepsake', 'encouragement']);
+    expect(container.querySelector('[data-emotion-tags]')).toBeNull();
   });
 });

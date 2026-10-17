@@ -9,7 +9,7 @@ import { dateBox, weekdayTime } from '../list-dates';
 /**
  * 지난 대화 한 줄: 날짜 상자, "도달한 단계 + 까지", 보조 줄, 작은 디딤돌, [다시 보기] [마음 리포트] […].
  * 삭제는 더보기 메뉴 안에만 둔다. 마음 리포트는 열 수 없으면 이유를 툴팁으로 단 비활성 버튼이다(ADR-0008).
- * 보조 줄의 대화 시간과 메시지 수는 서버가 아직 주지 않아 뺀다.
+ * 보조 줄의 대화 시간과 메시지 수는 메시지가 없는 대화(서버가 시간 칸을 주지 않는다)면 뺀다.
  */
 export function PastSessionItem({
   item,
@@ -24,7 +24,13 @@ export function PastSessionItem({
   const { locale } = useLocale();
   const box = dateBox(item.startedAt, locale);
   const stage = t.taskLabels[item.reachedTask];
-  const sub = [weekdayTime(item.startedAt, locale), item.petName].filter(Boolean).join(' · ');
+  const stats =
+    item.durationMinutes !== undefined && item.messageCount > 0
+      ? t.sessionList.itemStats(item.durationMinutes, item.messageCount)
+      : undefined;
+  const sub = [weekdayTime(item.startedAt, locale), item.petName, stats]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <li
@@ -40,7 +46,9 @@ export function PastSessionItem({
           <b className="text-base">{t.sessionList.reachedUntil(stage)}</b>
           <Badge>{item.closed ? t.sessionList.done : t.sessionList.ongoing}</Badge>
         </div>
-        <div className="mt-1 text-[13px] text-fg-muted">{sub}</div>
+        <div data-past-meta className="mt-1 text-[13px] text-fg-muted">
+          {sub}
+        </div>
         <Journey
           compact
           task={item.reachedTask}

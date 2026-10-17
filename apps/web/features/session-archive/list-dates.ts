@@ -34,3 +34,26 @@ export function weekdayTime(iso: string, locale: Locale): string {
 export function monthDay(iso: string, locale: Locale): string {
   return format(locale, { month: 'long', day: 'numeric' }).format(new Date(iso));
 }
+
+/** 하루의 시작(그 기기의 시간대). */
+const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+/**
+ * 이어지는 대화 카드의 마지막 시각. 오늘과 어제는 상대 날짜("어제 오후 10:24"), 그 전은 달과 일
+ * ("10월 12일 오후 9:12"). 상대 날짜의 낱말도 Intl 이 그 언어로 만든다.
+ */
+export function lastActiveLabel(iso: string, now: Date, locale: Locale): string {
+  const date = new Date(iso);
+  const days = Math.round((startOfDay(date).getTime() - startOfDay(now).getTime()) / 86_400_000);
+  if (days === 0 || days === -1) {
+    const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(days, 'day');
+    const time = format(locale, { hour: 'numeric', minute: '2-digit' }).format(date);
+    return `${relative} ${time}`;
+  }
+  return format(locale, {
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}

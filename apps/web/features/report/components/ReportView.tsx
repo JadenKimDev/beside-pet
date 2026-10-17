@@ -9,7 +9,7 @@ import type { MindReport, ReportSectionKey } from '@/lib/api';
 import { reportArt } from '../illustration';
 import { ReportSteps } from './ReportSteps';
 
-/** 구역마다 그릇이 다르다(§7.5). emotions 의 감정 칩은 서버가 `tags` 를 아직 주지 않아 생략한다(§11). */
+/** 구역마다 그릇이 다르다(§7.5). emotions 는 본문 아래 감정 낱말 칩을 둔다(옛 리포트는 `tags` 가 없어 생략). */
 const VESSEL: Record<ReportSectionKey, { variant: CardVariant; icon: IconName }> = {
   journey: { variant: 'default', icon: 'paw' },
   emotions: { variant: 'default', icon: 'heart' },
@@ -26,8 +26,10 @@ export function ReportView({ sessionId, report }: { sessionId: string; report: M
   const theme = useDocumentTheme();
   const cover = reportArt(theme, 'report-header');
   const reached = reachedStep(report.reachedTask);
-  // 표지 날짜는 대화를 시작한 날이어야 하지만 서버가 아직 주지 않아 리포트를 쓴 날(`at`)로 대신한다(§11).
-  const date = new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(new Date(report.at));
+  // 표지 날짜는 리포트를 쓴 날(`at`)이 아니라 대화를 시작한 날이다.
+  const date = new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(
+    new Date(report.startedAt),
+  );
 
   return (
     <article>
@@ -74,6 +76,19 @@ export function ReportView({ sessionId, report }: { sessionId: string; report: M
                 </blockquote>
               ) : (
                 <p className="m-0 text-body-l whitespace-pre-line">{section.body}</p>
+              )}
+              {section.key === 'emotions' && section.tags && section.tags.length > 0 && (
+                <ul data-emotion-tags className="m-0 flex list-none flex-wrap gap-2 p-0">
+                  {section.tags.map((tag) => (
+                    <li
+                      key={tag}
+                      data-emotion-tag
+                      className="rounded-pill border border-border bg-accent-soft px-3.5 py-1 text-small font-semibold text-accent-ink"
+                    >
+                      {tag}
+                    </li>
+                  ))}
+                </ul>
               )}
               {section.key === 'encouragement' && (
                 <p className="m-0 justify-self-end font-serif text-fg-muted">

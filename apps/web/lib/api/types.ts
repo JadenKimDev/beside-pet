@@ -107,11 +107,16 @@ export type ReportSectionKey = 'journey' | 'emotions' | 'keepsake' | 'encouragem
 export interface ReportSection {
   key: ReportSectionKey;
   body: string;
+  /** emotions only: 2–4 feeling words the model wrote with the report. Absent on older reports. */
+  tags?: string[];
 }
 
 /** User-facing mind report of a closed session (warm reflection, not analytics). */
 export interface MindReport {
+  /** When the report was written (ISO-8601). */
   at: string;
+  /** When the conversation began (ISO-8601) — the cover date. */
+  startedAt: string;
   petName: string;
   reachedTask: TaskId;
   progress: number;
@@ -132,6 +137,12 @@ export interface SessionListItem {
   preferredLanguage: Locale;
   /** Whether the mind report can be viewed (wrapped up with enough progress). */
   reportAvailable: boolean;
+  /** Last message instant (ISO-8601). Absent when the session has no messages. */
+  lastMessageAt?: string;
+  /** Whole minutes between the first and last message. Absent when the session has no messages. */
+  durationMinutes?: number;
+  /** Messages in the session (0 possible). */
+  messageCount: number;
 }
 
 /** The single data-layer abstraction the http adapter implements.

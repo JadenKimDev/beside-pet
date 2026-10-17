@@ -8,6 +8,7 @@ import { useAuthStore } from '@/features/auth/auth.store';
 import { I18nProvider } from '@/i18n/I18nProvider';
 import { ko } from '@/i18n/ko';
 import type { SessionListItem } from '@/lib/api';
+import { lastActiveLabel, weekdayTime } from '../list-dates';
 import { useSessionArchiveStore } from '../session-archive.store';
 import { SessionsScreen } from './SessionsScreen';
 
@@ -50,6 +51,9 @@ const closed: SessionListItem = {
   petName: '보리',
   preferredLanguage: 'ko',
   reportAvailable: true,
+  lastMessageAt: '2026-10-12T12:54:00Z',
+  durationMinutes: 42,
+  messageCount: 31,
 };
 const ongoing: SessionListItem = {
   ...closed,
@@ -59,6 +63,14 @@ const ongoing: SessionListItem = {
   reachedTask: 3,
   progress: 0.5,
   reportAvailable: false,
+  lastMessageAt: '2026-10-16T13:24:00Z',
+  durationMinutes: 84,
+  messageCount: 12,
+};
+/** 메시지가 하나도 없는 세션(옛 데이터도 같은 모양이다): 마지막 시각과 시간 칸이 없다. */
+const silent = (item: SessionListItem, sessionId: string): SessionListItem => {
+  const { lastMessageAt: _last, durationMinutes: _minutes, ...rest } = item;
+  return { ...rest, sessionId, messageCount: 0 };
 };
 
 let mounted: Mounted | undefined;
@@ -129,5 +141,53 @@ describe('SessionsScreen 상태', () => {
     await answer(200, [closed]);
     expect(container.textContent).toContain(ko.sessionList.noOpenTitle);
     expect(buttonNamed(container, ko.sessionList.noOpenCta)).toBeDefined();
+  });
+
+  it('값이 있으면 이어지는 대화에 마지막 시각, 지난 대화에 시간과 메시지 수가 보인다', async () => {
+    const container = render();
+    await answer(200, [ongoing, closed]);
+    const lastActive = container.querySelector('[data-last-active]');
+    expect(lastActive?.textContent).toBe(
+      ko.sessionList.lastActive(lastActiveLabel(ongoing.lastMessageAt ?? '', new Date(), 'ko')),
+    );
+    const meta = container.querySelector('[data-past-session="sess-closed-1"] [data-past-meta]');
+    expect(meta?.textContent).toBe(
+      [weekdayTime(closed.startedAt, 'ko'), '보리', ko.sessionList.itemStats(42, 31)].join(' · '),
+    );
+  });
+
+  it('메시지가 없으면 마지막 시각 줄과 시간·메시지 수를 생략한다', async () => {
+    const container = render();
+    await answer(200, [silent(ongoing, 'sess-open-0'), silent(closed, 'sess-closed-0')]);
+    expect(container.querySelector('[data-last-active]')).toBeNull();
+    const meta = container.querySelector('[data-past-session="sess-closed-0"] [data-past-meta]');
+    expect(meta?.textContent).toBe([weekdayTime(closed.startedAt, 'ko'), '보리'].join(' · '));
+  });
+});
+
+describe('lastActiveLabel', () => {
+  const now = new Date(2026, 9, 17, 15, 0);
+  const at = (day: number, hour: number, minute: number) =>
+    new Date(2026, 9, day, hour, minute).toISOString();
+  const time = (iso: string, locale: 'ko' | 'en') =>
+    new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+
+  it('오늘과 어제는 상대 날짜, 그 전은 달과 일을 시각 앞에 둔다', () => {
+    const rtf = (locale: 'ko' | 'en', days: number) =>
+      new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(days, 'day');
+    const today = at(17, 9, 5);
+    const yesterday = at(16, 22, 24);
+    const older = at(12, 21, 12);
+    expect(lastActiveLabel(today, now, 'ko')).toBe(`${rtf('ko', 0)} ${time(today, 'ko')}`);
+    expect(lastActiveLabel(yesterday, now, 'ko')).toBe(`${rtf('ko', -1)} ${time(yesterday, 'ko')}`);
+    expect(lastActiveLabel(yesterday, now, 'en')).toBe(`${rtf('en', -1)} ${time(yesterday, 'en')}`);
+    expect(lastActiveLabel(older, now, 'ko')).toBe(
+      new Intl.DateTimeFormat('ko', {
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(new Date(older)),
+    );
   });
 });

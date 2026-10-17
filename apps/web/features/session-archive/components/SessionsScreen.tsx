@@ -6,8 +6,8 @@
  * 이어지는 대화가 있는데 새로 시작하면 그 대화를 먼저 마친다(확인창).
  *
  * 상태: 불러오는 중(스켈레톤) / 실패(다시 불러오기, 온보딩으로 보내지 않는다: 대화가 있는 사람에게
- * 프로필을 다시 만들게 하지 않으려고) / 빈 목록(온보딩으로. "처음 온 사람"과 "다 지운 사람"을 가를 값이
- * 서버에 생기기 전까지는 그대로 둔다) / 목록.
+ * 프로필을 다시 만들게 하지 않으려고) / 빈 목록(온보딩으로. "처음 온 사람"과 "다 지운 사람"을 가르지 않는다.
+ * 서버는 지운 대화의 흔적을 두지 않으므로 둘을 가를 값이 없다, ADR-0020) / 목록.
  */
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
@@ -25,7 +25,7 @@ import { useAuthStore } from '@/features/auth/auth.store';
 import { useSessionStore } from '@/features/session/session.store';
 import { useLocale, useTranslations } from '@/i18n/I18nProvider';
 import type { SessionListItem, TaskId } from '@/lib/api';
-import { monthDay, todayLabel } from '../list-dates';
+import { lastActiveLabel, monthDay, todayLabel } from '../list-dates';
 import { useSessionArchiveStore } from '../session-archive.store';
 import { HomeCard, HomeCardActions } from './HomeCard';
 import { PastSessionItem } from './PastSessionItem';
@@ -267,9 +267,13 @@ export function SessionsScreen() {
   );
 }
 
-/** 이어지는 대화의 제목: "보리와의 3번째 걸음"과 지금 단계. 반려동물 이름이 없으면 단계만. */
+/**
+ * 이어지는 대화의 제목: "보리와의 3번째 걸음"과 지금 단계. 반려동물 이름이 없으면 단계만.
+ * 그 아래 마지막으로 이야기한 시각. 메시지가 없는 대화는 서버가 시각을 주지 않아 그 줄을 뺀다.
+ */
 function CurrentHeading({ item }: { item: SessionListItem }) {
   const t = useTranslations();
+  const { locale } = useLocale();
   const stage = t.taskLabels[item.reachedTask];
   const step = Math.max(journeyProgress(item.reachedTask).step, 1);
   return (
@@ -278,6 +282,11 @@ function CurrentHeading({ item }: { item: SessionListItem }) {
         {item.petName ? t.sessionList.currentTitle(item.petName, step) : stage}
       </h2>
       {item.petName && <p className="m-0 mt-1.5 text-fg-muted">{stage}</p>}
+      {item.lastMessageAt && (
+        <p data-last-active className="m-0 mt-1 text-small text-fg-muted">
+          {t.sessionList.lastActive(lastActiveLabel(item.lastMessageAt, new Date(), locale))}
+        </p>
+      )}
     </div>
   );
 }

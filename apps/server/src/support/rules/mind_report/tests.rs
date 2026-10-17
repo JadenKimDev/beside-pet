@@ -21,6 +21,7 @@ fn report() -> MindReport {
             .map(|key| MindReportSectionResponse {
                 key: *key,
                 body: "A made-up body.".to_owned(),
+                tags: None,
             })
             .collect(),
     }

@@ -211,6 +211,9 @@ pub enum ReportSectionKey {
 pub struct MindReportSectionResponse {
     pub key: ReportSectionKey,
     pub body: String,
+    /// emotions 구역의 감정 낱말(2~4개). 모델이 리포트를 쓸 때 함께 쓴 사실이라 리포트 안에 둔다(#15). 옛 리포트와 다른 구역은 없다.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
 }
 
 /// 세션을 마칠 때 사용자에게 보이는 마음 리포트.

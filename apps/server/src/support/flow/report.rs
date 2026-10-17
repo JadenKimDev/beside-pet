@@ -68,6 +68,7 @@ async fn write(parts: &FlowParts, session: &Session) -> Result<MindReport, ApiEr
             .map(|&key| MindReportSectionResponse {
                 key,
                 body: bodies.get(key).to_owned(),
+                tags: None,
             })
             .collect(),
     })

@@ -185,10 +185,12 @@ fn report(at: i64) -> MindReport {
             MindReportSectionResponse {
                 key: ReportSectionKey::Journey,
                 body: "made-up journey".to_owned(),
+                tags: None,
             },
             MindReportSectionResponse {
                 key: ReportSectionKey::Encouragement,
                 body: "made-up encouragement".to_owned(),
+                tags: None,
             },
         ],
     }

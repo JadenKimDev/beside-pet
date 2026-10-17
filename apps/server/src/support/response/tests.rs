@@ -237,10 +237,12 @@ fn 마음_리포트() {
             MindReportSectionResponse {
                 key: ReportSectionKey::Journey,
                 body: "j".to_owned(),
+                tags: None,
             },
             MindReportSectionResponse {
                 key: ReportSectionKey::Encouragement,
                 body: "e".to_owned(),
+                tags: None,
             },
         ],
     };

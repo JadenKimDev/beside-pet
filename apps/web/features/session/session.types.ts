@@ -4,4 +4,5 @@
  * components/chat, not here.
  */
 
+/** idle: nothing held · active: talking · closed: wrapped up (or paused by the safety hand-off). */
 export type SessionStatus = 'idle' | 'active' | 'closed';

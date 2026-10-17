@@ -1,19 +1,48 @@
 'use client';
 
 /**
- * /sessions/[id] — one session's transcript.
- * Shows the full conversation record; the mind report lives on its own page
- * (/sessions/[id]/report). An ongoing session offers to re-enter the
- * conversation instead. Loading lives in session-archive.store; this page
- * renders it and owns navigation.
+ * /sessions/[id] — one session's transcript, read again.
+ * Same header as the live conversation (progress fixed at the stage reached; on the
+ * right the mind report, or "continue" for an open one), same bubbles and stage
+ * dividers, no composer. Loading lives in session-archive.store; this page renders
+ * it and owns navigation.
  */
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { MessageBubble } from '@/components/chat/MessageBubble';
+import { MessageList } from '@/components/chat/MessageList';
+import type { Message } from '@/components/chat/types';
+import { Button, buttonClass, EmptyState, Icon, Skeleton, SkeletonArea } from '@/components/ui';
+import { CrisisResources } from '@/features/safety/components/CrisisResources';
+import { SessionHeader } from '@/features/session/components/SessionHeader';
 import { useSessionStore } from '@/features/session/session.store';
 import { useSessionArchiveStore } from '@/features/session-archive/session-archive.store';
 import { useTranslations } from '@/i18n/I18nProvider';
+import type { HistoryMessage } from '@/lib/api';
+
+const toMessages = (transcript: HistoryMessage[], crisis: boolean): Message[] => {
+  const lastBot = transcript.map((message) => message.role).lastIndexOf('assistant');
+  return transcript.map((message, index) => ({
+    id: `history-${index}`,
+    role: message.role === 'user' ? 'user' : 'bot',
+    text: message.text,
+    at: message.at,
+    task: message.task,
+    // The transcript has no per-message level; the session's crisis belongs to its last reply.
+    ...(crisis && index === lastBot ? { supportLevel: 3 as const } : {}),
+  }));
+};
+
+/** Three bubble-shaped bars while the transcript loads. */
+function TranscriptSkeleton({ label }: { label: string }) {
+  return (
+    <SkeletonArea label={label} className="mx-auto grid w-full max-w-read gap-4 px-4 pt-6 pb-8">
+      <Skeleton className="h-16 w-[70%] rounded-bubble" />
+      <Skeleton className="ml-auto h-12 w-[55%] rounded-bubble" />
+      <Skeleton className="h-20 w-[75%] rounded-bubble" />
+    </SkeletonArea>
+  );
+}
 
 export default function SessionDetailPage() {
   const labels = useTranslations();
@@ -28,82 +57,79 @@ export default function SessionDetailPage() {
   const loadedId = useSessionArchiveStore((state) => state.detailId);
   const session = useSessionArchiveStore((state) => state.detail);
   const transcript = useSessionArchiveStore((state) => state.transcript);
+  const petName = useSessionArchiveStore(
+    (state) => state.items?.find((item) => item.sessionId === sessionId)?.petName,
+  );
 
   useEffect(() => {
     void loadDetail(sessionId);
   }, [sessionId, loadDetail]);
 
   const onContinue = () => {
-    void resumeSession(sessionId);
+    void resumeSession(sessionId, petName);
     router.push('/session');
   };
 
-  if (status === 'failed') {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="text-muted">{translations.loadFailed}</p>
-        <Link href="/sessions" className="font-medium text-accent underline">
-          {translations.back}
-        </Link>
-      </main>
-    );
-  }
-
   // `loadedId` guards the first render after navigating between sessions.
-  if (status !== 'ready' || loadedId !== sessionId || !session || !transcript) {
-    return (
-      <main className="flex flex-1 items-center justify-center px-6 text-muted">
-        {translations.loading}
-      </main>
-    );
-  }
+  const ready =
+    status === 'ready' &&
+    loadedId === sessionId &&
+    session !== undefined &&
+    transcript !== undefined;
+
+  const actions = !ready ? undefined : !session.closed ? (
+    <Button size="sm" iconEnd={<Icon name="arrow-right" />} onClick={onContinue}>
+      {translations.continueButton}
+    </Button>
+  ) : session.reportAvailable ? (
+    <Link
+      href={`/sessions/${sessionId}/report`}
+      className={buttonClass({ variant: 'secondary', size: 'sm' })}
+    >
+      <Icon name="book" />
+      {translations.reportTitle}
+    </Link>
+  ) : (
+    <Button
+      variant="secondary"
+      size="sm"
+      iconStart={<Icon name="book" />}
+      disabled
+      disabledReason={translations.reportNotReady}
+    >
+      {translations.reportTitle}
+    </Button>
+  );
+
+  const messages = ready ? toMessages(transcript, session.supportLevel === 3) : [];
+  const crisisId = messages.findLast((message) => message.supportLevel === 3)?.id;
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-4 py-8">
-      <header className="space-y-3">
-        <Link href="/sessions" className="text-sm text-muted underline hover:text-foreground">
-          ← {translations.back}
-        </Link>
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <h1 className="text-xl font-semibold tracking-tight">
-              {labels.taskLabels[session.task]}
-            </h1>
-            <p className="text-xs text-muted">{Math.round(session.progress * 100)}%</p>
-          </div>
-          <span
-            className={`rounded-full px-3 py-1 text-xs ${
-              session.closed ? 'bg-black/5 text-muted' : 'bg-accent/10 font-medium text-accent'
-            }`}
-          >
-            {session.closed ? translations.done : translations.ongoing}
-          </span>
-        </div>
-      </header>
-
-      <section className="mt-6 space-y-3">
-        {transcript.map((message) => (
-          <MessageBubble
-            key={`${message.at}-${message.role}`}
-            message={{
-              id: `${message.at}-${message.role}`,
-              role: message.role === 'user' ? 'user' : 'bot',
-              text: message.text,
-            }}
-          />
-        ))}
-      </section>
-
-      {!session.closed && (
-        <div className="mt-8">
-          <button
-            type="button"
-            onClick={onContinue}
-            className="rounded-xl bg-accent px-6 py-3 font-medium text-accent-foreground transition-opacity hover:opacity-90"
-          >
-            {translations.continueButton}
-          </button>
-        </div>
+    <main className="flex w-full flex-1 flex-col">
+      <SessionHeader
+        task={ready ? session.task : 0}
+        petName={petName}
+        backHref="/sessions"
+        actions={actions}
+      />
+      {status === 'failed' ? (
+        <EmptyState
+          icon={<Icon name="alert" />}
+          title={translations.loadFailed}
+          reassurance={translations.loadFailedBody}
+          action={
+            <Button iconStart={<Icon name="refresh" />} onClick={() => void loadDetail(sessionId)}>
+              {labels.common.reload}
+            </Button>
+          }
+        />
+      ) : ready ? (
+        <MessageList
+          messages={messages}
+          after={(message) => (message.id === crisisId ? <CrisisResources /> : undefined)}
+        />
+      ) : (
+        <TranscriptSkeleton label={translations.loading} />
       )}
     </main>
   );

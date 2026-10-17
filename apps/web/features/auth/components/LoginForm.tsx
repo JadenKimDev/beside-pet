@@ -1,64 +1,74 @@
 'use client';
 
 /**
- * LoginForm — shared username/password sign-in (public gate + admin).
- * View + local input only; the use case lives in auth.store. Routing on success
- * is the page's concern (it reacts to the resulting principal).
+ * LoginForm — 첫 화면 카드의 로그인. 실패하면 폼 위에 오류 알림, 비밀번호 칸은 danger 테두리이고
+ * 입력은 지우지 않는다. 로그인 중에는 버튼에 스피너를 두고 입력을 막는다.
+ * 유스케이스는 auth.store 에 있다. 로그인 뒤 어디로 갈지는 페이지가 정한다(principal 을 보고).
  */
 import { type FormEvent, useState } from 'react';
+import { Alert, Button, Field, Input } from '@/components/ui';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { useTranslations } from '@/i18n/I18nProvider';
+import { CardHead, SwitchLine } from './card-parts';
 
-export function LoginForm() {
-  const translations = useTranslations();
-  const t = translations.auth;
+export function LoginForm({ onRegister }: { onRegister: () => void }) {
+  const t = useTranslations().auth;
   const login = useAuthStore((s) => s.login);
   const busy = useAuthStore((s) => s.busy);
   const error = useAuthStore((s) => s.error);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const failed = Boolean(error) && !busy;
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     void login(username.trim(), password);
   };
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="w-full max-w-sm space-y-4 rounded-xl border border-black/10 bg-surface p-6"
-    >
-      <div className="space-y-1">
-        <h1 className="text-lg font-semibold">{t.title}</h1>
-        <p className="text-sm text-muted">{t.subtitle}</p>
-      </div>
-      <label className="block space-y-1">
-        <span className="text-sm text-muted">{t.username}</span>
-        <input
-          value={username}
-          onChange={(event) => setUsername(event.target.value)}
-          autoComplete="username"
-          className="w-full rounded-md border border-black/15 bg-background px-3 py-2 outline-none focus:border-accent"
-        />
-      </label>
-      <label className="block space-y-1">
-        <span className="text-sm text-muted">{t.password}</span>
-        <input
-          type="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          autoComplete="current-password"
-          className="w-full rounded-md border border-black/15 bg-background px-3 py-2 outline-none focus:border-accent"
-        />
-      </label>
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <button
-        type="submit"
-        disabled={busy || !username.trim() || !password}
-        className="w-full rounded-md bg-accent px-3 py-2 font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-      >
-        {busy ? t.signingIn : t.submit}
-      </button>
-    </form>
+    <>
+      <CardHead title={t.welcome} lead={t.subtitle} />
+      <form onSubmit={onSubmit} className="grid gap-4" noValidate>
+        {failed && <Alert>{t.loginFailed}</Alert>}
+        <Field label={t.username}>
+          {(control) => (
+            <Input
+              {...control}
+              name="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              autoComplete="username"
+              disabled={busy}
+            />
+          )}
+        </Field>
+        <Field label={t.password}>
+          {(control) => (
+            <Input
+              {...control}
+              name="password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              invalid={failed}
+              disabled={busy}
+            />
+          )}
+        </Field>
+        <Button
+          type="submit"
+          size="lg"
+          block
+          busy={busy}
+          aria-label={busy ? t.signingIn : undefined}
+          disabled={!username.trim() || !password}
+        >
+          {t.submit}
+        </Button>
+      </form>
+      <SwitchLine lead={t.noAccount} action={t.registerLink} onClick={onRegister} />
+    </>
   );
 }

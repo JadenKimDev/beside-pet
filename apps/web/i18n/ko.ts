@@ -9,8 +9,6 @@ import { particle as p } from './particle';
 export const ko: Messages = {
   landing: {
     title: 'Beside Pet',
-    subtitleLine1: '반려동물을 떠나보낸 당신 곁에서,',
-    subtitleLine2: '천천히 함께 이야기를 나눠요.',
     start: '시작하기',
     eyebrow: '반려동물을 떠나보낸 보호자를 위한 감정 지원',
     heroTitle: '떠나보낸 마음 곁에,\n천천히 함께 있을게요.',
@@ -89,6 +87,8 @@ export const ko: Messages = {
     companyHint: '소속을 알려 주시면 승인이 빨라져요.',
     chatLanguageHint: '마음이와 나눌 대화의 언어예요. 나중에 설정에서 바꿀 수 있어요.',
     registerDoneTitle: '신청이 접수됐어요',
+    checking: '로그인 상태를 확인하는 중…',
+    passwordHint: '8자 이상으로 정해 주세요.',
   },
   chat: {
     placeholder: '마음을 들려주세요…',
@@ -152,6 +152,8 @@ export const ko: Messages = {
     step: (step, total) => `${step} / ${total}`,
     summary: { pet: '아이', together: '함께한 시간', now: '지금', chatLanguage: '대화 언어' },
     beginHint: '대화 중 언제든 멈추고, 나중에 이어서 할 수 있어요.',
+    next: '다음',
+    summaryUnanswered: '대화 중에 알아갈게요',
   },
   taskLabels: {
     0: '처음 인사',

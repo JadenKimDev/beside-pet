@@ -8,8 +8,6 @@ import type { Messages } from './messages';
 export const en: Messages = {
   landing: {
     title: 'Beside Pet',
-    subtitleLine1: 'Beside you, after losing your companion —',
-    subtitleLine2: "let's talk it through, slowly, together.",
     start: 'Get started',
     eyebrow: 'Emotional support for people who have lost a pet',
     heroTitle: 'Beside you after the goodbye,\nfor as long as you need.',
@@ -89,6 +87,8 @@ export const en: Messages = {
     chatLanguageHint:
       'The language you will talk with Maeumi in. You can change it later in Settings.',
     registerDoneTitle: 'Request received',
+    checking: 'Checking your sign-in…',
+    passwordHint: 'At least 8 characters.',
   },
   chat: {
     placeholder: 'Share what is on your mind…',
@@ -155,6 +155,8 @@ export const en: Messages = {
       chatLanguage: 'Conversation language',
     },
     beginHint: 'You can pause anytime and pick up later.',
+    next: 'Next',
+    summaryUnanswered: 'We will learn as we talk',
   },
   taskLabels: {
     0: 'Getting started',

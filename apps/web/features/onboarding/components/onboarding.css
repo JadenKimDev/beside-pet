@@ -1,0 +1,16 @@
+/* 온보딩 질문 교체: 위로 8px 떠오르며 420ms(디자인 안 §5.4 t-slow).
+   prefers-reduced-motion 은 globals.css 가 전역으로 1ms 로 줄인다. */
+@keyframes onboarding-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.onboarding-rise {
+  animation: onboarding-rise var(--t-slow) var(--ease) both;
+}

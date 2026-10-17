@@ -31,10 +31,6 @@ export interface HelpLine {
 export interface Messages {
   landing: {
     title: string;
-    /** @deprecated Old two-line hero; replaced by `heroTitle`/`heroLead`. */
-    subtitleLine1: string;
-    /** @deprecated Old two-line hero; replaced by `heroTitle`/`heroLead`. */
-    subtitleLine2: string;
     start: string;
     eyebrow: string;
     /** Contains one "\n" where the title breaks. */
@@ -80,6 +76,10 @@ export interface Messages {
     companyHint: string;
     chatLanguageHint: string;
     registerDoneTitle: string;
+    /** Accessible name of the card skeleton while the sign-in state is checked. */
+    checking: string;
+    /** Shown under the password on the sign-up form (the server needs 8+). */
+    passwordHint: string;
   };
   chat: {
     placeholder: string;
@@ -133,6 +133,8 @@ export interface Messages {
       chatLanguage: string;
     };
     beginHint: string;
+    next: string;
+    summaryUnanswered: string;
   };
   /** Stage names. The backend sends the stage id; naming it is the client's job. */
   taskLabels: Record<TaskId, string>;

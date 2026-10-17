@@ -10,6 +10,8 @@ import type { Account, CreateAccountInput } from './admin.types';
 
 interface AdminState {
   accounts: Account[];
+  /** The first list has arrived (before that the screen shows the loading state). */
+  loaded: boolean;
   busy: boolean;
   error?: string;
 
@@ -38,12 +40,17 @@ export const useAdminStore = create<AdminState>((set, get) => {
 
   return {
     accounts: [],
+    loaded: false,
     busy: false,
     error: undefined,
 
     async refresh() {
-      const accounts = await api.listAccounts();
-      set({ accounts });
+      try {
+        const accounts = await api.listAccounts();
+        set({ accounts, loaded: true });
+      } catch (error) {
+        set({ loaded: true, error: error instanceof Error ? error.message : 'Request failed.' });
+      }
     },
 
     create: (input) => mutate(() => api.createAccount(input)),

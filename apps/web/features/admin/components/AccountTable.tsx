@@ -1,144 +1,202 @@
 'use client';
 
 /**
- * AccountTable — lists every account. Deleted/expired rows are greyed out and labelled.
- * Actions: revoke, soft-delete, reactivate, and set/extend/clear expiry (local → UTC).
- * The admin's own (role: admin) rows are protected from destructive actions to avoid self-lockout.
+ * AccountTable — the filtered account list: a table on wide screens, a card list on
+ * phones (both render the same rows; CSS shows one). Actions per state are the same
+ * as before: pending → approve / delete, active → expiry / revoke, revoked or deleted
+ * → reactivate (+ delete), expired → extend expiry. Delete and revoke only ask —
+ * the confirm modal lives in AdminConsole. Admin rows are protected from destructive
+ * actions to avoid self-lockout.
  */
 import { useState } from 'react';
+import { Badge, type BadgeTone, Button, cx } from '@/components/ui';
 import { useLocale, useTranslations } from '@/i18n/I18nProvider';
 import type { Messages } from '@/i18n/messages';
 import { useAdminStore } from '../admin.store';
 import { fromLocalInput, toLocalDisplay, toLocalInput } from '../admin.time';
 import type { Account } from '../admin.types';
+import { type AccountState, accountState } from '../admin.view';
 
-const statusLabel = (account: Account, t: Messages['admin']): string => {
-  if (account.status === 'pending') {
-    return t.statusPending;
-  }
-  if (account.status === 'deleted') {
-    return t.statusDeleted;
-  }
-  if (account.status === 'revoked') {
-    return t.statusRevoked;
-  }
-  return account.expired ? t.statusExpired : t.statusActive;
+export type ConfirmKind = 'delete' | 'revoke';
+export type AskConfirm = (kind: ConfirmKind, account: Account) => void;
+
+const STATE_TONE: Record<AccountState, BadgeTone> = {
+  pending: 'warn',
+  active: 'live',
+  expired: 'default',
+  revoked: 'danger',
+  deleted: 'default',
 };
 
-const isDimmed = (account: Account): boolean =>
-  account.status === 'revoked' || account.status === 'deleted' || account.expired;
+export const stateLabel = (state: AccountState, t: Messages['admin']): string =>
+  ({
+    pending: t.statusPending,
+    active: t.statusActive,
+    expired: t.statusExpired,
+    revoked: t.statusRevoked,
+    deleted: t.statusDeleted,
+  })[state];
 
-/** Pending applications float to the top so they get acted on. */
-const byPendingFirst = (a: Account, b: Account): number =>
-  Number(b.status === 'pending') - Number(a.status === 'pending');
+const isDimmed = (state: AccountState): boolean =>
+  state === 'revoked' || state === 'deleted' || state === 'expired';
 
-export function AccountTable() {
+export function AccountTable({
+  accounts,
+  onAsk,
+}: {
+  accounts: readonly Account[];
+  onAsk: AskConfirm;
+}) {
   const t = useTranslations().admin;
-  const accounts = useAdminStore((s) => s.accounts);
-
-  if (accounts.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted">{t.empty}</p>;
-  }
-  const ordered = [...accounts].sort(byPendingFirst);
-
   return (
-    <div className="overflow-x-auto rounded-xl border border-black/10">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-black/10 text-xs text-muted">
-          <tr>
-            <th className="px-3 py-2">{t.columnUsername}</th>
-            <th className="px-3 py-2">{t.columnCompany}</th>
-            <th className="px-3 py-2">{t.columnStatus}</th>
-            <th className="px-3 py-2">{t.columnExpiry}</th>
-            <th className="px-3 py-2">{t.columnLastLogin}</th>
-            <th className="px-3 py-2">{t.columnActions}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ordered.map((account) => (
-            <AccountRow key={account.id} account={account} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <>
+      <div className="overflow-x-auto rounded-lg border border-border bg-surface max-sm:hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-border text-xs text-fg-muted">
+            <tr>
+              <th className="px-4 py-3 font-semibold">{t.columnUsername}</th>
+              <th className="px-4 py-3 font-semibold">{t.columnCompany}</th>
+              <th className="px-4 py-3 font-semibold">{t.columnStatus}</th>
+              <th className="px-4 py-3 font-semibold">{t.columnExpiry}</th>
+              <th className="px-4 py-3 font-semibold">{t.columnLastLogin}</th>
+              <th className="px-4 py-3 font-semibold">{t.columnActions}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map((account) => (
+              <AccountRow key={account.id} account={account} onAsk={onAsk} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="m-0 grid list-none gap-3 p-0 sm:hidden">
+        {accounts.map((account) => (
+          <AccountCard key={account.id} account={account} onAsk={onAsk} />
+        ))}
+      </ul>
+    </>
   );
 }
 
-function AccountRow({ account }: { account: Account }) {
+function Username({ account }: { account: Account }) {
   const t = useTranslations().admin;
-  const { locale } = useLocale();
-  const busy = useAdminStore((s) => s.busy);
-  const approve = useAdminStore((s) => s.approve);
-  const revoke = useAdminStore((s) => s.revoke);
-  const softDelete = useAdminStore((s) => s.softDelete);
-  const reactivate = useAdminStore((s) => s.reactivate);
-
-  const dimmed = isDimmed(account);
-  const isAdmin = account.role === 'admin';
-
   return (
-    <tr className={`border-b border-black/5 align-top ${dimmed ? 'opacity-50' : ''}`}>
-      <td className="px-3 py-2 font-medium">
-        {account.username}
-        {isAdmin && <span className="ml-1 text-xs text-accent">(admin)</span>}
+    <span className="inline-flex items-center gap-2 font-semibold text-fg">
+      {account.username}
+      {account.role === 'admin' && <Badge>{t.badge}</Badge>}
+    </span>
+  );
+}
+
+function StateBadge({ state }: { state: AccountState }) {
+  const t = useTranslations().admin;
+  return <Badge tone={STATE_TONE[state]}>{stateLabel(state, t)}</Badge>;
+}
+
+function AccountRow({ account, onAsk }: { account: Account; onAsk: AskConfirm }) {
+  const { locale } = useLocale();
+  const state = accountState(account);
+  const isAdmin = account.role === 'admin';
+  return (
+    <tr
+      className={cx(
+        'border-b border-border align-top last:border-b-0',
+        isDimmed(state) && 'text-fg-muted',
+      )}
+    >
+      <td className="px-4 py-3">
+        <Username account={account} />
       </td>
-      <td className="px-3 py-2">{account.company}</td>
-      <td className={`px-3 py-2 ${account.status === 'pending' ? 'font-medium text-accent' : ''}`}>
-        {statusLabel(account, t)}
+      <td className="px-4 py-3">{account.company}</td>
+      <td className="px-4 py-3">
+        <StateBadge state={state} />
       </td>
-      <td className="px-3 py-2">
-        {isAdmin ? <span className="text-muted">—</span> : <ExpiryEditor account={account} />}
+      <td className="px-4 py-3">
+        {isAdmin ? <span className="text-fg-muted">—</span> : <ExpiryEditor account={account} />}
       </td>
-      <td className="px-3 py-2 text-muted">{toLocalDisplay(account.lastLoginAt, locale)}</td>
-      <td className="px-3 py-2">
+      <td className="px-4 py-3 text-fg-muted">{toLocalDisplay(account.lastLoginAt, locale)}</td>
+      <td className="px-4 py-3">
         {isAdmin ? (
-          <span className="text-muted">—</span>
+          <span className="text-fg-muted">—</span>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {account.status === 'pending' && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void approve(account.id)}
-                className="rounded bg-accent px-2 py-1 text-xs font-medium text-accent-foreground disabled:opacity-50"
-              >
-                {t.approve}
-              </button>
-            )}
-            {account.status === 'active' && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void revoke(account.id)}
-                className="rounded border border-black/15 px-2 py-1 text-xs disabled:opacity-50"
-              >
-                {t.revoke}
-              </button>
-            )}
-            {(account.status === 'revoked' || account.status === 'deleted') && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void reactivate(account.id)}
-                className="rounded border border-black/15 px-2 py-1 text-xs disabled:opacity-50"
-              >
-                {t.reactivate}
-              </button>
-            )}
-            {account.status !== 'deleted' && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void softDelete(account.id)}
-                className="rounded border border-red-300 px-2 py-1 text-xs text-red-600 disabled:opacity-50"
-              >
-                {t.delete}
-              </button>
-            )}
-          </div>
+          <Actions account={account} onAsk={onAsk} />
         )}
       </td>
     </tr>
+  );
+}
+
+function AccountCard({ account, onAsk }: { account: Account; onAsk: AskConfirm }) {
+  const t = useTranslations().admin;
+  const { locale } = useLocale();
+  const state = accountState(account);
+  const isAdmin = account.role === 'admin';
+  return (
+    <li className="grid gap-3 rounded-lg border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="grid gap-0.5">
+          <Username account={account} />
+          <span className="text-small text-fg-muted">{account.company}</span>
+        </div>
+        <StateBadge state={state} />
+      </div>
+      <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-small">
+        <dt className="text-fg-muted">{t.columnLastLogin}</dt>
+        <dd className="m-0">{toLocalDisplay(account.lastLoginAt, locale)}</dd>
+      </dl>
+      {!isAdmin && (
+        <>
+          <ExpiryEditor account={account} />
+          <Actions account={account} onAsk={onAsk} />
+        </>
+      )}
+    </li>
+  );
+}
+
+function Actions({ account, onAsk }: { account: Account; onAsk: AskConfirm }) {
+  const t = useTranslations().admin;
+  const busy = useAdminStore((s) => s.busy);
+  const approve = useAdminStore((s) => s.approve);
+  const reactivate = useAdminStore((s) => s.reactivate);
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {account.status === 'pending' && (
+        <Button size="sm" disabled={busy} onClick={() => void approve(account.id)}>
+          {t.approve}
+        </Button>
+      )}
+      {account.status === 'active' && (
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={busy}
+          onClick={() => onAsk('revoke', account)}
+        >
+          {t.revoke}
+        </Button>
+      )}
+      {(account.status === 'revoked' || account.status === 'deleted') && (
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={busy}
+          onClick={() => void reactivate(account.id)}
+        >
+          {t.reactivate}
+        </Button>
+      )}
+      {account.status !== 'deleted' && (
+        <Button
+          size="sm"
+          variant="danger-ghost"
+          disabled={busy}
+          onClick={() => onAsk('delete', account)}
+        >
+          {t.delete}
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -150,35 +208,38 @@ function ExpiryEditor({ account }: { account: Account }) {
   const [value, setValue] = useState(toLocalInput(account.expiresAt));
 
   return (
-    <div className="space-y-1">
-      <div className="text-xs text-muted">{toLocalDisplay(account.expiresAt, locale)}</div>
+    <div className="grid gap-1.5">
+      <div className="text-xs text-fg-muted">
+        {account.expiresAt ? toLocalDisplay(account.expiresAt, locale) : t.noExpiry}
+      </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           type="datetime-local"
+          aria-label={t.columnExpiry}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="rounded border border-black/15 bg-transparent px-1.5 py-1 text-xs"
+          className="h-9 rounded-md border border-border-strong bg-surface px-2 text-[13px] text-fg focus:border-accent focus:outline-none"
         />
-        <button
-          type="button"
+        <Button
+          size="sm"
+          variant="secondary"
           disabled={busy || !value}
           onClick={() => void setExpiry(account.id, fromLocalInput(value))}
-          className="rounded border border-black/15 px-2 py-1 text-xs disabled:opacity-50"
         >
           {t.setExpiry}
-        </button>
+        </Button>
         {account.expiresAt && (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="ghost"
             disabled={busy}
             onClick={() => {
               setValue('');
               void setExpiry(account.id, undefined);
             }}
-            className="rounded border border-black/15 px-2 py-1 text-xs disabled:opacity-50"
           >
             {t.clearExpiry}
-          </button>
+          </Button>
         )}
       </div>
     </div>

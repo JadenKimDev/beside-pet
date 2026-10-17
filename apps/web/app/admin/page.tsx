@@ -2,9 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { Button, Icon } from '@/components/ui';
 import { useAdminStore } from '@/features/admin/admin.store';
-import { AccountTable } from '@/features/admin/components/AccountTable';
-import { AddAccountForm } from '@/features/admin/components/AddAccountForm';
+import { AdminConsole } from '@/features/admin/components/AdminConsole';
 import { useAuthStore } from '@/features/auth/auth.store';
 import { useTranslations } from '@/i18n/I18nProvider';
 import { LocaleSelect } from '@/i18n/LocaleSelect';
@@ -17,7 +17,6 @@ export default function AdminPage() {
   const init = useAuthStore((s) => s.init);
   const logout = useAuthStore((s) => s.logout);
   const refresh = useAdminStore((s) => s.refresh);
-  const error = useAdminStore((s) => s.error);
 
   useEffect(() => {
     void init();
@@ -45,7 +44,7 @@ export default function AdminPage() {
   }, [isAdmin, refresh]);
 
   if (!ready || !isAdmin || !principal) {
-    return <main className="px-6 py-24 text-center text-muted">…</main>;
+    return <main className="flex-1" aria-busy="true" />;
   }
 
   const onLogout = async () => {
@@ -54,27 +53,29 @@ export default function AdminPage() {
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 px-6 py-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">{translations.admin.title}</h1>
-          <p className="text-sm text-muted">{translations.admin.signedInAs(principal.username)}</p>
+    <main className="mx-auto grid w-full max-w-wide flex-1 content-start gap-8 px-8 py-10 max-sm:px-4 max-sm:py-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="grid gap-2">
+          <h1 className="m-0 text-h1">{translations.admin.title}</h1>
+          <p className="m-0 max-w-[560px] text-fg-muted">{translations.admin.subtitle}</p>
+          <p className="m-0 text-small text-fg-muted">
+            {translations.admin.signedInAs(principal.username)}
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <LocaleSelect />
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            iconStart={<Icon name="logout" />}
             onClick={() => void onLogout()}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm"
           >
             {translations.auth.logout}
-          </button>
+          </Button>
         </div>
       </header>
 
-      <AddAccountForm />
-      {error && <p className="text-sm text-red-600">{error}</p>}
-      <AccountTable />
+      <AdminConsole />
     </main>
   );
 }

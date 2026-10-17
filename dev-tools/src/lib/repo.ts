@@ -143,11 +143,41 @@ export function updateLedger(
   );
 }
 
+/**
+ * `ledger:new` 이 만든 원장을 잠금 안에서 둔다. `merge` 가 있으면 그 순간의 원장을 읽어 잇고(`--extend`),
+ * 없으면 원장이 이미 있을 때 `force` 가 아니면 던진다. 있는지 보기, 읽기, 쓰기가 한 잠금 안이라
+ * 그 사이에 든 다른 러너의 판정을 덮지 않는다. 쓴 원장을 돌려준다.
+ */
+export function placeLedger(
+  root: string,
+  fresh: Ledger,
+  how: { force?: boolean; merge?: (before: Ledger) => Ledger },
+  options: LockOptions = {},
+): Ledger {
+  return withLedgerLock(
+    root,
+    fresh.issue,
+    () => {
+      let next = fresh;
+      if (how.merge) {
+        next = how.merge(readLedger(root, fresh.issue));
+      } else if (existsSync(ledgerPath(root, fresh.issue)) && !how.force) {
+        throw new Error(
+          `원장이 이미 있습니다: docs/ledger/${fresh.issue}.json (--force 로 덮어쓰고, --extend 로 판정을 둔 채 작업을 더합니다)`,
+        );
+      }
+      writeLedger(root, next);
+      return next;
+    },
+    options,
+  );
+}
+
 export function removeLedger(root: string, issue: number): void {
   rmSync(ledgerPath(root, issue));
 }
 
-export function listLedgers(root: string): Ledger[] {
+export function listLedgers(root: string, options: LockOptions = {}): Ledger[] {
   const dir = ledgerDir(root);
   if (!existsSync(dir)) {
     return [];
@@ -155,7 +185,11 @@ export function listLedgers(root: string): Ledger[] {
   return readdirSync(dir)
     .filter((name) => name.endsWith(".json"))
     .sort()
-    .map((name) => JSON.parse(readFileSync(join(dir, name), "utf8")) as Ledger);
+    .map((name) => {
+      // 원장마다 잠금을 짧게 쥐고 읽는다. 다른 러너가 쓰는 중인 반쪽 파일을 읽지 않게 한다.
+      const issue = Number(name.slice(0, -".json".length));
+      return withLedgerLock(root, issue, () => readLedger(root, issue), options);
+    });
 }
 
 export function appendOutcome(root: string, record: Outcome): void {

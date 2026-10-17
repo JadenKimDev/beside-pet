@@ -17,7 +17,7 @@
 //   pnpm docs:neighbors <id>                related 와 겹치는 태그로 이어진 글
 //   (docs:* 넷 모두 --json 이면 결과를 JSON 으로 찍는다)
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
 import type { DocKind } from "./lib/docs.ts";
@@ -44,8 +44,8 @@ import {
   appendOutcome,
   fileProbe,
   gh,
-  ledgerPath,
   listLedgers,
+  placeLedger,
   prdDir,
   readConfig,
   readLedger,
@@ -55,7 +55,6 @@ import {
   runCommand,
   updateLedger,
   withLedgerLock,
-  writeLedger,
 } from "./lib/repo.ts";
 
 function need(value: string | undefined, usage: string): string {
@@ -140,20 +139,14 @@ function ledgerNew(root: string, args: string[]): void {
     ),
   );
   const prd = parsePrd(readFileSync(file, "utf8"));
-  let ledger = scaffold(prd, {
+  const fresh = scaffold(prd, {
     prdFile: relative(root, file),
     now: new Date(),
     probe: fileProbe(root),
     tddAreas: readConfig(root).tddAreas,
   });
-  if (extending) {
-    ledger = extend(readLedger(root, ledger.issue), ledger);
-  } else if (existsSync(ledgerPath(root, ledger.issue)) && !force) {
-    throw new Error(
-      `원장이 이미 있습니다: docs/ledger/${ledger.issue}.json (--force 로 덮어쓰고, --extend 로 판정을 둔 채 작업을 더합니다)`,
-    );
-  }
-  writeLedger(root, ledger);
+  // 있는지 보기, 읽기, 잇기, 쓰기를 한 잠금 안에서 한다. 동시에 돈 'pnpm ledger:verify' 의 판정을 덮지 않는다.
+  const ledger = placeLedger(root, fresh, extending ? { merge: (before) => extend(before, fresh) } : { force });
   console.log(`docs/ledger/${ledger.issue}.json — #${ledger.issue} ${ledger.title}, 작업 ${ledger.tasks.length}개`);
   printTasks(ledger);
   const unspecified = ledger.tasks.filter((task) => task.status === "needs_spec");
@@ -310,7 +303,8 @@ function finish(root: string, args: string[]): void {
 
 function status(root: string, args: string[]): void {
   const only = args.find((arg) => !arg.startsWith("--"));
-  const ledgers = only ? [readLedger(root, needIssue(only, "pnpm ledger:status [이슈]"))] : listLedgers(root);
+  const issue = only ? needIssue(only, "pnpm ledger:status [이슈]") : null;
+  const ledgers = issue !== null ? [withLedgerLock(root, issue, () => readLedger(root, issue))] : listLedgers(root);
   if (args.includes("--json")) {
     console.log(JSON.stringify(ledgers, null, 2));
     return;

@@ -7,8 +7,8 @@ describe('chromeFor', () => {
     expect(chromeFor('/help').variant).toBe('public');
   });
 
-  it('첫 화면은 화면이 자기 언어 선택을 가지므로 머리의 언어 선택을 감춘다', () => {
-    expect(chromeFor('/').showLocale).toBe(false);
+  it('첫 화면과 /help 의 머리에 언어 선택이 있다', () => {
+    expect(chromeFor('/').showLocale).toBe(true);
     expect(chromeFor('/help').showLocale).toBe(true);
   });
 

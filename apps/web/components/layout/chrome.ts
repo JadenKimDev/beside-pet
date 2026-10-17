@@ -12,7 +12,7 @@ export type Chrome = {
 type Rule = { path: string; prefix?: boolean; chrome: Chrome };
 
 const RULES: Rule[] = [
-  { path: '/', chrome: { variant: 'public', showLocale: false } },
+  { path: '/', chrome: { variant: 'public', showLocale: true } },
   { path: '/help', chrome: { variant: 'public', showLocale: true } },
   { path: '/session', chrome: { variant: 'chat', showLocale: false } },
   { path: '/onboarding', chrome: { variant: 'chat', showLocale: false } },

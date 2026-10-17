@@ -18,6 +18,7 @@ export { ICON_NAMES, Icon, type IconName } from './icons';
 export { Journey } from './Journey';
 export { JOURNEY_STEPS, journeyProgress, journeyStones, type StoneState } from './journey-steps';
 export { Logo, LogoMark } from './Logo';
+export { Menu, type MenuItem } from './Menu';
 export { Modal, type ModalProps, type ModalTone } from './Modal';
 export { Segmented, type SegmentedOption } from './Segmented';
 export { SKELETON_DELAY_MS, Skeleton, SkeletonArea } from './Skeleton';

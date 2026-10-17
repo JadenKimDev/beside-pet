@@ -1,12 +1,13 @@
 'use client';
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { cx } from './cx';
 
 export type IconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> & {
   /** 아이콘만 있으므로 이름이 반드시 있어야 한다. */
   label: string;
   icon: ReactNode;
+  ref?: Ref<HTMLButtonElement>;
 };
 
 /** 40px 원형 아이콘 버튼(머리의 뒤로, 메뉴, 닫기). 바깥 여백까지 44px 터치 대상이 되게 둔다. */

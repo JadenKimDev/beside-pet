@@ -70,10 +70,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-17T00:17:37.814Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null

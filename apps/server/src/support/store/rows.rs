@@ -39,6 +39,11 @@ impl<'a> MessageColumns<'a> {
         }
         Ok(columns)
     }
+
+    /// 전사의 길이. 이 순번부터는 전사에 없는 행이다.
+    pub(super) fn length(&self) -> i32 {
+        self.seq.last().map_or(0, |seq| seq + 1)
+    }
 }
 
 /// `turn_analyses` 에 한 번에 쓰는 칸들. JSONB 는 글로 넘기고 SQL 이 `::jsonb` 로 바꾼다.

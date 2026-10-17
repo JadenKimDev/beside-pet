@@ -274,6 +274,30 @@ async fn 이어_저장하면_바뀐_상태와_새_행이_더해진다() {
 }
 
 #[tokio::test]
+async fn 줄어든_전사로_저장하면_꼬리_메시지가_사라진다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    let mut snap = snapshot("s-1", "owner-a", 0);
+    snap.history
+        .push(message(MessageRole::User, "made-up fourth", 2, 3));
+    snap.history
+        .push(message(MessageRole::Assistant, "made-up fifth", 2, 4));
+    store.save(&snap).await.unwrap();
+    assert_eq!(db.rows_of("s-1").await, (1, 5, 2));
+
+    snap.history.truncate(3);
+    store.save(&snap).await.unwrap();
+    assert_eq!(db.rows_of("s-1").await, (1, 3, 2));
+    assert_eq!(store.find("s-1").await.unwrap(), Some(snap.clone()));
+
+    snap.history.clear();
+    store.save(&snap).await.unwrap();
+    assert_eq!(db.rows_of("s-1").await, (1, 0, 2));
+    assert_eq!(store.find("s-1").await.unwrap(), Some(snap));
+    db.close().await;
+}
+
+#[tokio::test]
 async fn 다른_소유자의_같은_id_로는_쓰지_않는다() {
     let db = SessionsSchema::open().await;
     let store = db.store();

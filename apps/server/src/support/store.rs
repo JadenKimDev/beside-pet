@@ -62,6 +62,7 @@ impl SessionStore {
     }
 
     /// 세션 행을 넣거나 갱신하고, 메시지와 턴 분석을 순번으로 upsert 한다. 한 트랜잭션이다.
+    /// 전사가 줄었으면 새 길이 뒤의 메시지 행을 지운다.
     /// 소유자와 시작 시각은 처음 쓴 값이 남는다. 같은 id 가 다른 소유자의 것이면 `OwnerMismatch` 이고 아무것도 쓰지 않는다.
     pub async fn save(&self, snapshot: &SessionSnapshot) -> Result<(), StoreError> {
         let mut tx = self.pool.begin().await?;
@@ -202,11 +203,17 @@ impl SessionStore {
     }
 }
 
+/// 메시지를 순번으로 upsert 하고, 새 전사보다 뒤의 순번(줄어든 전사의 옛 꼬리)을 지운다.
 async fn save_messages(
     tx: &mut Transaction<'_, Postgres>,
     session_id: &str,
     columns: MessageColumns<'_>,
 ) -> Result<(), sqlx::Error> {
+    sqlx::query("DELETE FROM messages WHERE session_id = $1 AND seq >= $2")
+        .bind(session_id)
+        .bind(columns.length())
+        .execute(&mut **tx)
+        .await?;
     if columns.seq.is_empty() {
         return Ok(());
     }

@@ -65,7 +65,7 @@ pnpm chat:eval run --persona elderly-cat           # 인물 하나, 대본 모�
 pnpm chat:eval run --all                           # 아홉 모두
 pnpm chat:eval run --persona teen-hamster --stream # 스트림으로 받아 첫 토큰 지연을 잰다
 pnpm chat:eval run --persona teen-hamster --interactive   # 대화 모드
-pnpm chat:eval run --all --baseline 2026-10-17     # 이전 날짜의 summary 와 나란히
+pnpm chat:eval run --all --baseline 2026-10-17     # 이전 날짜의 결과(<인물>.run.json)와 나란히
 ```
 
 - **대본 모드**는 인물 파일의 `turns` 를 순서대로 보낸다. 같은 대본이라 날짜끼리 비교하기 좋다. 회귀를 볼 때는 이것을 쓴다.
@@ -119,7 +119,7 @@ ls outputs/chat-eval/                              # 이전 날짜를 고른다
 pnpm chat:eval run --all --baseline <이전 날짜>
 ```
 
-- 기준 날짜는 같은 인물 묶음을 대본 모드로 돌린 가장 최근의 날이다. 바꾸기 전 커밋의 결과면 더 좋다.
+- 기준 날짜는 같은 인물 묶음을 대본 모드로 돌린 가장 최근의 날이다. 바꾸기 전 커밋의 결과면 더 좋다. 그 날짜 폴더에 이 도구가 남긴 `<인물>.run.json` 이 있어야 하고, 손으로 한 첫 실측(2026-10-17)은 기준이 되지 않는다.
 - `summary.md` 에 두 날짜의 검사 수가 나란히 나온다. 인물 × 검사마다 늘었는가, 줄었는가, 같은가를 본다.
 - **회귀**는 이전에 없던 표시가 새로 생긴 것, 그리고 이전에 `적절` 이던 턴이 `부적절` 이 된 것이다. 도구가 다시 돌면 `summary.md` 를 새로 쓰므로 손으로 고치지 않는다. 7절의 `report.md` 에 `## 회귀` 절을 두고 인물, 턴, 검사(또는 판정), 이전 값 → 지금 값을 한 줄씩 적는다. 없으면 "없음"이라고 적는다.
 - 고쳐진 것(이전의 표시가 사라짐)도 `## 고쳐진 것` 으로 적되, 흔들리는 검사는 4절의 규칙대로 두 번 확인한 것만 적는다.

@@ -29,6 +29,15 @@ describe('chromeFor', () => {
     expect(chromeFor('/help/').variant).toBe('public');
   });
 
+  it('관리자 화면만 도움 알약과 위기 띠를 끈다. 그 밖과 모르는 경로는 켠다', () => {
+    expect(chromeFor('/admin').crisis).toBe(false);
+    expect(chromeFor('/admin/accounts').crisis).toBe(false);
+    expect(chromeFor('/session').crisis).toBe(true);
+    expect(chromeFor('/sessions').crisis).toBe(true);
+    expect(chromeFor('/help').crisis).toBe(true);
+    expect(chromeFor(null).crisis).toBe(true);
+  });
+
   it('모르는 경로와 null 은 공개용 머리다(도움 알약은 어느 변형에나 있다)', () => {
     expect(chromeFor(null).variant).toBe('public');
     expect(chromeFor('/nowhere').variant).toBe('public');

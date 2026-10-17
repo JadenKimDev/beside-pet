@@ -193,6 +193,17 @@ html[data-theme="ink"] {
 
 /* Theme-independent tokens: shape (tidy set), spacing, type scale, motion. */
 :root {
+  /* Theme swatches for the settings theme picker: each theme's light bg, accent, warm.
+     Fixed on purpose so every theme's preview is visible regardless of the active theme. */
+  --swatch-hanji-bg: #F7F3EA;
+  --swatch-hanji-accent: #24405C;
+  --swatch-hanji-warm: #E6C77E;
+  --swatch-night-bg: #F6F5F1;
+  --swatch-night-accent: #1F2C47;
+  --swatch-night-warm: #E3C98F;
+  --swatch-ink-bg: #FAFAF8;
+  --swatch-ink-accent: #1A1A1A;
+  --swatch-ink-warm: #E8C3B5;
   --r-sm: 4px;
   --r-md: 6px;
   --r-lg: 10px;
@@ -266,6 +277,15 @@ html[data-theme="ink"] {
   --color-crisis-fg: var(--crisis-fg);
   --color-crisis-ink: var(--crisis-ink);
   --color-overlay: var(--overlay);
+  --color-swatch-hanji-bg: var(--swatch-hanji-bg);
+  --color-swatch-hanji-accent: var(--swatch-hanji-accent);
+  --color-swatch-hanji-warm: var(--swatch-hanji-warm);
+  --color-swatch-night-bg: var(--swatch-night-bg);
+  --color-swatch-night-accent: var(--swatch-night-accent);
+  --color-swatch-night-warm: var(--swatch-night-warm);
+  --color-swatch-ink-bg: var(--swatch-ink-bg);
+  --color-swatch-ink-accent: var(--swatch-ink-accent);
+  --color-swatch-ink-warm: var(--swatch-ink-warm);
 
   /* Old names still used by the current screens; the next two PRDs replace them. */
   --color-background: var(--bg);

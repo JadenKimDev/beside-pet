@@ -11,9 +11,13 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   const chrome = chromeFor(usePathname());
   return (
     <>
-      <SiteHeader variant={chrome.variant} showLocale={chrome.showLocale} />
+      <SiteHeader
+        variant={chrome.variant}
+        showLocale={chrome.showLocale}
+        showHelp={chrome.crisis}
+      />
       {children}
-      <SiteFooter />
+      <SiteFooter showCrisis={chrome.crisis} />
     </>
   );
 }

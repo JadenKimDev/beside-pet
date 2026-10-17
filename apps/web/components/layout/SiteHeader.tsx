@@ -19,12 +19,15 @@ import { HelpPill } from './HelpPill';
 export function SiteHeader({
   variant,
   showLocale = false,
+  showHelp = true,
   start,
   center,
   end,
 }: {
   variant: HeaderVariant;
   showLocale?: boolean;
+  /** 도움 알약. 관리자 화면만 끈다(chrome.ts). */
+  showHelp?: boolean;
   start?: ReactNode;
   center?: ReactNode;
   end?: ReactNode;
@@ -87,7 +90,7 @@ export function SiteHeader({
         <span className="flex-1" />
         {variant === 'chat' && end}
         {variant === 'public' && showLocale && <LocaleSelect />}
-        <HelpPill />
+        {showHelp && <HelpPill />}
       </div>
     </header>
   );

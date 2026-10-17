@@ -52,16 +52,32 @@ fn the_system_prompt_is_the_ts_text() {
         "Do not use medical language such as treatment, diagnosis, or prescription. Use only the language of emotional support and companionship.",
         "Write each of the four sections below in 2-3 sentences. Each section MUST start with its marker:",
         "@@journey — Warmly acknowledge the steps of grief walked today as an achievement.",
-        "@@emotions — Acknowledge the feelings that surfaced in the conversation, and reassure them that these are natural feelings born of love.",
+        "@@emotions — On the first line right after the marker, write only 2-4 words naming the feelings that surfaced in the conversation, in Korean, separated by commas, with nothing else on that line. Then, from the next line, acknowledge those feelings and reassure them that these are natural feelings born of love.",
         "@@keepsake — Pick one memory of 보리 from what the user actually shared, and reflect it back as something to hold on to.",
         "@@encouragement — Close by honoring today and offering one line that helps them be gentle with themselves.",
-        "Output only the markers (@@journey etc.) and their bodies — no other headers, lists, or quotation marks.",
+        "Apart from that one line of feeling words, output only the markers (@@journey etc.) and their bodies — no other headers, lists, or quotation marks.",
     ]
     .join("\n");
     assert_eq!(
         report_system_prompt(&context(&profile, &[], false)),
         expected
     );
+}
+
+#[test]
+fn the_emotions_marker_asks_for_a_first_line_of_feeling_words_in_the_output_language() {
+    let english = GriefProfile {
+        preferred_language: Some(ChatLanguage::En),
+        ..profile()
+    };
+    let prompt = report_system_prompt(&context(&english, &[], false));
+    let emotions_line = prompt
+        .lines()
+        .find(|line| line.starts_with("@@emotions"))
+        .expect("the emotions marker line");
+    assert!(emotions_line.contains("On the first line right after the marker"));
+    assert!(emotions_line.contains("2-4 words"));
+    assert!(emotions_line.contains("in English, separated by commas"));
 }
 
 #[test]

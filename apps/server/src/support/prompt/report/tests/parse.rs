@@ -9,6 +9,7 @@ fn bodies(journey: &str, emotions: &str, keepsake: &str, encouragement: &str) ->
         emotions: emotions.to_owned(),
         keepsake: keepsake.to_owned(),
         encouragement: encouragement.to_owned(),
+        emotion_tags: Vec::new(),
     }
 }
 

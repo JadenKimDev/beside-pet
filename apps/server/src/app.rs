@@ -9,7 +9,9 @@ use axum::{Json, Router};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
-use crate::identity::{IdentityState, SharedAccountService, SharedAuthenticator};
+use crate::identity::{
+    IdentityState, SharedAccountService, SharedAuthenticator, SharedSessionPresence,
+};
 use crate::llm::SharedTextModel;
 use crate::shared::{Config, connect, connect_lazy, cors_layer, route_not_found};
 use crate::support::SharedSupportService;
@@ -21,6 +23,8 @@ pub struct Services {
     pub accounts: SharedAccountService,
     pub authenticator: SharedAuthenticator,
     pub support: SharedSupportService,
+    /// `/v1/auth/me` 의 `hasProfile`: identity 가 묻고 대화 기능(`support::session_presence`)이 답한다.
+    pub session_presence: SharedSessionPresence,
     /// 대화 기능(`support::SupportFlow`)이 발화, 위기 판정(`safety::assess_risk`), 리포트에 쓴다.
     pub text_model: SharedTextModel,
 }
@@ -32,6 +36,7 @@ impl Services {
             accounts: Arc::new(identity::Unimplemented),
             authenticator: Arc::new(identity::Unimplemented),
             support: Arc::new(support::Unimplemented),
+            session_presence: Arc::new(identity::Unimplemented),
             text_model: Arc::new(llm::Unimplemented),
         }
     }
@@ -101,6 +106,7 @@ impl AppState {
                 accounts: identity.clone(),
                 authenticator: identity,
                 support,
+                session_presence: support::session_presence(db.clone()),
                 ..base
             },
             config,
@@ -124,6 +130,7 @@ impl FromRef<AppState> for IdentityState {
         IdentityState {
             accounts: state.services.accounts.clone(),
             authenticator: state.services.authenticator.clone(),
+            sessions: state.services.session_presence.clone(),
             secure_cookies: state.config.secure_cookies(),
         }
     }

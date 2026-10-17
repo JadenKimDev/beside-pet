@@ -52,7 +52,9 @@ fn 장_순서() {
 
 #[test]
 fn 응답의_진행률은_도달_과제에서_구한다() {
-    let response = report().to_response();
+    let started = Utc.with_ymd_and_hms(2026, 10, 16, 8, 15, 0).unwrap();
+    let response = report().to_response(started);
+    assert_eq!(response.started_at, started, "시작 시각은 세션에서 받는다");
     assert_eq!(response.progress, 0.5);
     assert_eq!(response.reached_task, 3);
     assert_eq!(response.pet_name, "Mochi");
@@ -68,6 +70,10 @@ fn jsonb_로_오가도_같고_진행률은_싣지_않는다() {
     assert_eq!(value["reachedTask"], json!(3));
     assert_eq!(value["sections"][0]["key"], json!("journey"));
     assert!(value.get("progress").is_none());
+    assert!(
+        value.get("startedAt").is_none(),
+        "시작 시각은 리포트에 저장하지 않는다"
+    );
     let back: MindReport = serde_json::from_value(value).unwrap();
     assert_eq!(back, report());
 }

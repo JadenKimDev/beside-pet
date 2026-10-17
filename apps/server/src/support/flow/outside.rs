@@ -2,6 +2,7 @@
 //!
 //! 오류는 HTTP 겉의 `ApiError` 로 받는다. 저장의 원인(SQL 오류)은 구현이 로그에 남기고 종류만 올린다.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
@@ -9,7 +10,7 @@ use futures_util::future::BoxFuture;
 
 use crate::identity::ChatLanguage;
 use crate::shared::ApiError;
-use crate::support::session::SessionSnapshot;
+use crate::support::session::{MessageActivity, SessionSnapshot};
 
 /// 세션을 읽고 쓰는 곳.
 pub trait SessionRepository {
@@ -22,6 +23,11 @@ pub trait SessionRepository {
         owner_id: &'a str,
         limit: u32,
     ) -> BoxFuture<'a, Result<Vec<SessionSnapshot>, ApiError>>;
+    /// 세션들의 메시지 집계. 메시지가 없는 세션은 빠진다(부르는 쪽이 `Default` 로 본다).
+    fn message_activity<'a>(
+        &'a self,
+        session_ids: &'a [&'a str],
+    ) -> BoxFuture<'a, Result<HashMap<String, MessageActivity>, ApiError>>;
     /// 전사, 턴 분석, 리포트를 함께 지운다.
     fn delete<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<(), ApiError>>;
 }

@@ -5,7 +5,7 @@ use super::super::response::{
     StreamEvent, TurnResponse,
 };
 use super::super::rules::TurnAnalysis;
-use super::{Message, Session};
+use super::{Message, MessageActivity, Session};
 
 impl Session {
     /// 한 턴의 결과(지금 상태 + 답).
@@ -40,7 +40,8 @@ impl Session {
         }
     }
 
-    pub fn list_item(&self) -> SessionListItemResponse {
+    /// 목록 항목. 메시지 집계는 저장이 질의로 구해 넘긴다.
+    pub fn list_item(&self, activity: &MessageActivity) -> SessionListItemResponse {
         SessionListItemResponse {
             session_id: self.id.clone(),
             started_at: self.started_at,
@@ -50,6 +51,9 @@ impl Session {
             pet_name: self.grief_profile.pet_name.clone(),
             preferred_language: self.grief_profile.language(),
             report_available: self.report_available(),
+            last_message_at: activity.last_message_at,
+            duration_minutes: activity.duration_minutes,
+            message_count: activity.message_count,
         }
     }
 

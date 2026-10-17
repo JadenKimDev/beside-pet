@@ -14,16 +14,18 @@ use axum::{Json, Router};
 
 pub use extract::{AdminAccount, CurrentAccount};
 
-use super::{SharedAccountService, SharedAuthenticator, SignedIn};
+use super::{SharedAccountService, SharedAuthenticator, SharedSessionPresence, SignedIn};
 use crate::shared::{ApiError, JsonBody};
 use cookie::{clear_auth_cookie, set_auth_cookie};
-use response::{AccountResponse, SetupStatusResponse};
+use response::{AccountResponse, MeResponse, SetupStatusResponse};
 
 /// identity 라우터의 상태. `app.rs` 가 `FromRef` 로 꺼내 준다.
 #[derive(Clone)]
 pub struct IdentityState {
     pub accounts: SharedAccountService,
     pub authenticator: SharedAuthenticator,
+    /// `/me` 의 `hasProfile`(지금 남아 있는 세션의 유무)을 묻는 곳.
+    pub sessions: SharedSessionPresence,
     /// 쿠키에 Secure 를 붙이는가(`Config::secure_cookies()`).
     pub secure_cookies: bool,
 }
@@ -110,8 +112,17 @@ async fn logout() -> impl IntoResponse {
     (StatusCode::NO_CONTENT, [(SET_COOKIE, clear_auth_cookie())])
 }
 
-async fn me(CurrentAccount(account): CurrentAccount, State(state): State<IdentityState>) -> Reply {
-    Ok(Json(state.accounts.me(account.id).await?.into()))
+/// 계정과 `hasProfile`. 계정을 먼저 읽으므로 계정의 오류(404 등)가 그대로 나간다.
+async fn me(
+    CurrentAccount(account): CurrentAccount,
+    State(state): State<IdentityState>,
+) -> Result<Json<MeResponse>, ApiError> {
+    let found = state.accounts.me(account.id.clone()).await?;
+    let has_profile = state.sessions.has_sessions(&account.id).await?;
+    Ok(Json(MeResponse {
+        account: found.into(),
+        has_profile,
+    }))
 }
 
 async fn set_chat_language(

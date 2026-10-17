@@ -14,6 +14,7 @@ mod start;
 mod stream;
 mod voice;
 
+pub use adapters::session_presence;
 pub use service::SupportFlow;
 
 #[cfg(test)]

@@ -132,9 +132,17 @@ impl SupportFlow {
             .sessions
             .find_by_owner(&requester.account_id, SESSION_LIST_LIMIT)
             .await?;
+        let ids: Vec<&str> = snapshots
+            .iter()
+            .map(|snapshot| snapshot.id.as_str())
+            .collect();
+        let activity = self.parts.sessions.message_activity(&ids).await?;
         Ok(snapshots
             .into_iter()
-            .map(|snapshot| Session::rehydrate(snapshot).list_item())
+            .map(|snapshot| {
+                let counted = activity.get(&snapshot.id).copied().unwrap_or_default();
+                Session::rehydrate(snapshot).list_item(&counted)
+            })
             .collect())
     }
 }

@@ -1,4 +1,4 @@
-//! 조립한 라우터(`app::router`)의 통합 테스트: 28개 경로의 존재, 없는 경로의 404, 검증 문구, 401·403·501, SSE.
+//! 조립한 라우터(`app::router`)의 통합 테스트: 28개 경로의 존재, 없는 경로의 404, 검증 문구, 401·403·501, SSE, 응답의 새 칸.
 //! 기능의 trait 는 테스트 더블을 끼우므로 기능 PRD 가 구현을 채워도 그대로 통과한다.
 
 #[path = "routes/harness.rs"]
@@ -9,6 +9,9 @@ mod guards;
 
 #[path = "routes/sse.rs"]
 mod sse;
+
+#[path = "routes/fields.rs"]
+mod fields;
 
 use axum::http::{Method, StatusCode};
 use serde_json::{Value, json};

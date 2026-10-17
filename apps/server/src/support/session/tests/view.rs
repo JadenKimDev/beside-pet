@@ -4,7 +4,7 @@ use chrono::{DateTime, TimeZone, Utc};
 
 use crate::identity::ChatLanguage;
 use crate::support::rules::{GriefProfile, SupportLevel, Task};
-use crate::support::session::Session;
+use crate::support::session::{MessageActivity, Session};
 use crate::support::{GriefPath, MessageResponse, MessageRole, StreamEvent, TurnResponse};
 
 const ENGAGED: &str = "He waited at the door every evening for me.";
@@ -86,7 +86,10 @@ fn 상태와_목록_항목() {
     assert_eq!(state.task, 1);
     assert!(!state.closed);
     assert!(!state.report_available);
-    let item = open.list_item();
+    let item = open.list_item(&MessageActivity::default());
+    assert_eq!(item.last_message_at, None);
+    assert_eq!(item.duration_minutes, None);
+    assert_eq!(item.message_count, 0);
     assert_eq!(
         item.pet_name, None,
         "펫 이름이 없으면 칸을 뺀다(자리표시를 넣지 않는다)"
@@ -97,7 +100,15 @@ fn 상태와_목록_항목() {
 
     let closed = closed_at_two();
     assert!(closed.state_response().report_available);
-    let item = closed.list_item();
+    let activity = MessageActivity {
+        last_message_at: Some(t0() + chrono::Duration::minutes(3)),
+        duration_minutes: Some(3),
+        message_count: 6,
+    };
+    let item = closed.list_item(&activity);
+    assert_eq!(item.last_message_at, activity.last_message_at);
+    assert_eq!(item.duration_minutes, Some(3));
+    assert_eq!(item.message_count, 6);
     assert_eq!(item.pet_name.as_deref(), Some("Bori"));
     assert!(item.report_available);
     assert_eq!(item.progress, 0.25);

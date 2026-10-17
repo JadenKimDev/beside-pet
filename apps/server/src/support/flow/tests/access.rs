@@ -79,3 +79,23 @@ async fn 목록은_요청자의_세션만_최신순으로_20_개까지다() {
     assert!(items.iter().all(|item| item.session_id != "theirs"));
     assert_eq!(items[0].pet_name.as_deref(), Some("Biscuit"));
 }
+
+#[tokio::test]
+async fn 목록_항목은_세션마다_메시지_집계를_갖는다() {
+    let h = Harness::new();
+    h.onboard().await;
+    h.say(ENGAGED).await;
+    let snapshot = h.sessions.get(SESSION_ID).unwrap();
+    let last = snapshot.history.last().unwrap().at;
+    let first = snapshot.history.first().unwrap().at;
+
+    let items = h.flow.list(&owner()).await.unwrap();
+
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].message_count, 3, "인사, 답, 답글");
+    assert_eq!(items[0].last_message_at, Some(last));
+    assert_eq!(
+        items[0].duration_minutes,
+        Some(u32::try_from((last - first).num_minutes()).unwrap())
+    );
+}

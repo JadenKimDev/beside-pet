@@ -47,6 +47,15 @@ impl From<Account> for AccountResponse {
     }
 }
 
+/// `GET /v1/auth/me`: 계정의 칸에 `hasProfile`(그 계정에 지금 남아 있는 세션이 있는가)을 더한다(#15).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MeResponse {
+    #[serde(flatten)]
+    pub account: AccountResponse,
+    pub has_profile: bool,
+}
+
 /// `GET /v1/auth/setup`: 첫 설치가 아직 남았는가.
 #[derive(Debug, Serialize)]
 pub struct SetupStatusResponse {

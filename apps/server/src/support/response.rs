@@ -65,6 +65,16 @@ pub struct SessionListItemResponse {
     pub pet_name: Option<String>,
     pub preferred_language: ChatLanguage,
     pub report_available: bool,
+    /// 마지막 메시지의 시각. 메시지가 없으면 칸을 뺀다.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        with = "crate::shared::iso_millis_opt"
+    )]
+    pub last_message_at: Option<DateTime<Utc>>,
+    /// 첫 메시지에서 마지막 메시지까지의 분(내림). 메시지가 없으면 칸을 뺀다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration_minutes: Option<u32>,
+    pub message_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -222,6 +232,9 @@ pub struct MindReportSectionResponse {
 pub struct MindReportResponse {
     #[serde(with = "crate::shared::iso_millis")]
     pub at: DateTime<Utc>,
+    /// 세션을 시작한 시각. 저장된 리포트에는 없고 응답 때 세션에서 붙인다(#15).
+    #[serde(with = "crate::shared::iso_millis")]
+    pub started_at: DateTime<Utc>,
     pub pet_name: String,
     pub reached_task: u8,
     pub progress: f64,

@@ -1,5 +1,5 @@
 //! 테스트 더블: 부른 것을 적어 두고 정해 둔 계정을 돌려주는 `AccountService`,
-//! 토큰 글자로 계정을 고르는 `Authenticator`.
+//! 토큰 글자로 계정을 고르는 `Authenticator`, 정해 둔 답을 내는 `SessionPresence`.
 
 use std::sync::Mutex;
 
@@ -7,7 +7,8 @@ use chrono::{DateTime, Utc};
 
 use crate::identity::{
     Account, AccountService, AccountStatus, AuthenticatedAccount, Authenticator, BoxFuture,
-    ChatLanguage, CreateAccountInput, LoginInput, RegisterInput, Role, SetupInput, SignedIn,
+    ChatLanguage, CreateAccountInput, LoginInput, RegisterInput, Role, SessionPresence, SetupInput,
+    SignedIn,
 };
 use crate::shared::ApiError;
 
@@ -168,5 +169,31 @@ impl Authenticator for FakeAuthenticator {
             _ => Ok(None),
         };
         Box::pin(async move { result })
+    }
+}
+
+/// 세션 유무를 정해 둔 답으로 내고, 물은 계정을 적어 둔다.
+pub struct FakeSessions {
+    has_sessions: bool,
+    asked: Mutex<Vec<String>>,
+}
+
+impl FakeSessions {
+    pub fn answering(has_sessions: bool) -> FakeSessions {
+        FakeSessions {
+            has_sessions,
+            asked: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn asked(&self) -> Vec<String> {
+        self.asked.lock().unwrap().clone()
+    }
+}
+
+impl SessionPresence for FakeSessions {
+    fn has_sessions<'a>(&'a self, account_id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
+        self.asked.lock().unwrap().push(account_id.to_owned());
+        ready(self.has_sessions)
     }
 }

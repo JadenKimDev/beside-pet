@@ -4,13 +4,16 @@
 //! upsert 라 두 번 해도 같다. 계획·요약·진행률은 규칙으로 다시 구하므로 저장하지 않는다. 삭제는 한 트랜잭션으로
 //! turn_analyses → messages → sessions 순서로 지운다(ADR-0006). 시각은 timestamptz 라 마이크로초까지 남는다.
 
+use std::collections::HashMap;
 use std::fmt;
 
 use sqlx::{AssertSqlSafe, PgPool, Postgres, Transaction};
 
-use super::session::SessionSnapshot;
+use super::session::{MessageActivity, SessionSnapshot};
 use codec::{count_number, level_number, task_number, to_document};
-use rows::{AnalysisColumns, AnalysisRow, MessageColumns, MessageRow, SessionRow, Transcripts};
+use rows::{
+    ActivityRow, AnalysisColumns, AnalysisRow, MessageColumns, MessageRow, SessionRow, Transcripts,
+};
 
 mod codec;
 mod rows;
@@ -142,6 +145,38 @@ impl SessionStore {
             Some(i64::from(limit)),
         )
         .await
+    }
+
+    /// 세션들의 메시지 집계(마지막 시각, 첫·마지막 사이의 분, 수)를 한 질의로 구한다. 메시지가 없는 세션은 빠진다.
+    pub async fn message_activity(
+        &self,
+        session_ids: &[&str],
+    ) -> Result<HashMap<String, MessageActivity>, StoreError> {
+        if session_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let rows: Vec<ActivityRow> = sqlx::query_as(
+            "SELECT session_id, max(at) AS last_message_at, \
+                    floor(extract(epoch FROM max(at) - min(at)) / 60)::int4 AS duration_minutes, \
+                    count(*)::int4 AS message_count \
+             FROM messages WHERE session_id = ANY($1) GROUP BY session_id",
+        )
+        .bind(session_ids)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|row| Ok((row.session_id.clone(), row.into_activity()?)))
+            .collect()
+    }
+
+    /// 소유자에게 지금 남아 있는 세션이 있는가.
+    pub async fn has_sessions(&self, owner_id: &str) -> Result<bool, StoreError> {
+        let (exists,): (bool,) =
+            sqlx::query_as("SELECT EXISTS (SELECT 1 FROM sessions WHERE owner_id = $1)")
+                .bind(owner_id)
+                .fetch_one(&self.pool)
+                .await?;
+        Ok(exists)
     }
 
     /// 그 세션의 턴 분석, 메시지, 세션 행을 한 트랜잭션으로 지운다. 없는 id 는 아무것도 하지 않는다.

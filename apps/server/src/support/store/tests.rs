@@ -15,7 +15,7 @@ use super::super::response::{
 use super::super::rules::{
     GriefProfile, MindReport, RiskAssessment, SupportLevel, Task, TaskTransition, TurnAnalysis,
 };
-use super::super::session::{Message, SessionSnapshot};
+use super::super::session::{Message, MessageActivity, SessionSnapshot};
 use super::{SessionStore, StoreError};
 use crate::identity::ChatLanguage;
 use crate::shared::{MIGRATOR, test_database_url};
@@ -346,6 +346,72 @@ async fn 소유자별_목록은_최신순이고_상한까지다() {
         vec![other]
     );
     assert!(store.find_by_owner("owner-c", 20).await.unwrap().is_empty());
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 메시지_집계는_세션마다_마지막_시각과_내림한_분과_수다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    // 0·1·2 분의 메시지 셋: 2분, 3개.
+    store.save(&snapshot("s-a", "owner-a", 0)).await.unwrap();
+    // 10분과 100분 59초의 메시지 둘: 90분 59초 → 90분(내림), 2개.
+    let mut long = snapshot("s-b", "owner-a", 10);
+    long.history = vec![
+        message(MessageRole::Assistant, "made-up greeting", 1, 10),
+        Message {
+            at: minute(100) + Duration::seconds(59),
+            ..message(MessageRole::User, "made-up answer", 1, 0)
+        },
+    ];
+    long.analyses.truncate(1);
+    store.save(&long).await.unwrap();
+    let mut empty = snapshot("s-empty", "owner-a", 20);
+    empty.history.clear();
+    empty.analyses.clear();
+    store.save(&empty).await.unwrap();
+
+    let activity = store
+        .message_activity(&["s-a", "s-b", "s-empty", "s-nobody"])
+        .await
+        .unwrap();
+    assert_eq!(
+        activity.get("s-a"),
+        Some(&MessageActivity {
+            last_message_at: Some(minute(2)),
+            duration_minutes: Some(2),
+            message_count: 3,
+        })
+    );
+    assert_eq!(
+        activity.get("s-b"),
+        Some(&MessageActivity {
+            last_message_at: Some(minute(100) + Duration::seconds(59)),
+            duration_minutes: Some(90),
+            message_count: 2,
+        })
+    );
+    assert_eq!(activity.len(), 2, "메시지가 없거나 없는 세션은 빠진다");
+    assert!(store.message_activity(&[]).await.unwrap().is_empty());
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 세션_유무는_지금_남아_있는_세션으로_센다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    assert!(!store.has_sessions("owner-a").await.unwrap());
+    store.save(&snapshot("s-a", "owner-a", 0)).await.unwrap();
+    store.save(&snapshot("s-b", "owner-b", 0)).await.unwrap();
+    assert!(store.has_sessions("owner-a").await.unwrap());
+    assert!(!store.has_sessions("owner-c").await.unwrap());
+
+    store.delete("s-a").await.unwrap();
+    assert!(
+        !store.has_sessions("owner-a").await.unwrap(),
+        "세션을 다 지우면 없다"
+    );
+    assert!(store.has_sessions("owner-b").await.unwrap());
     db.close().await;
 }
 

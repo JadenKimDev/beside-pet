@@ -83,14 +83,29 @@ fn 상태와_목록() {
         pet_name: None,
         preferred_language: ChatLanguage::En,
         report_available: false,
+        last_message_at: None,
+        duration_minutes: None,
+        message_count: 0,
     };
     assert_eq!(
-        serde_json::to_value(item).unwrap(),
+        serde_json::to_value(item.clone()).unwrap(),
         json!({
             "sessionId": "s1", "startedAt": "2026-10-16T09:05:07.123Z", "closed": false,
-            "reachedTask": 1, "progress": 0.0, "preferredLanguage": "en", "reportAvailable": false
-        })
+            "reachedTask": 1, "progress": 0.0, "preferredLanguage": "en", "reportAvailable": false,
+            "messageCount": 0
+        }),
+        "메시지가 없으면 마지막 시각과 길이 칸을 뺀다"
     );
+    let busy = SessionListItemResponse {
+        last_message_at: Some(at()),
+        duration_minutes: Some(42),
+        message_count: 7,
+        ..item
+    };
+    let value = serde_json::to_value(busy).unwrap();
+    assert_eq!(value["lastMessageAt"], json!("2026-10-16T09:05:07.123Z"));
+    assert_eq!(value["durationMinutes"], json!(42));
+    assert_eq!(value["messageCount"], json!(7));
 }
 
 #[test]
@@ -229,6 +244,7 @@ fn 분석의_모든_칸() {
 fn 마음_리포트() {
     let report = MindReportResponse {
         at: at(),
+        started_at: Utc.with_ymd_and_hms(2026, 10, 16, 8, 30, 0).unwrap(),
         pet_name: "Bori".to_owned(),
         reached_task: 4,
         progress: 0.75,
@@ -249,8 +265,8 @@ fn 마음_리포트() {
     assert_eq!(
         serde_json::to_value(report).unwrap(),
         json!({
-            "at": "2026-10-16T09:05:07.123Z", "petName": "Bori", "reachedTask": 4, "progress": 0.75,
-            "locale": "ko",
+            "at": "2026-10-16T09:05:07.123Z", "startedAt": "2026-10-16T08:30:00.000Z",
+            "petName": "Bori", "reachedTask": 4, "progress": 0.75, "locale": "ko",
             "sections": [{ "key": "journey", "body": "j" }, { "key": "encouragement", "body": "e" }]
         })
     );

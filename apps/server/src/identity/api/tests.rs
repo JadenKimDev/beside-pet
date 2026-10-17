@@ -14,7 +14,7 @@ use serde_json::Value;
 use tower::ServiceExt;
 
 use super::{IdentityState, router};
-use doubles::{FakeAccounts, FakeAuthenticator};
+use doubles::{FakeAccounts, FakeAuthenticator, FakeSessions};
 
 struct Reply {
     status: StatusCode,
@@ -24,18 +24,35 @@ struct Reply {
 
 struct Harness {
     accounts: Arc<FakeAccounts>,
+    sessions: Arc<FakeSessions>,
     state: IdentityState,
 }
 
 impl Harness {
+    /// 세션이 남아 있는 계정으로 답한다.
     fn new(secure_cookies: bool) -> Harness {
+        Harness::build(secure_cookies, true)
+    }
+
+    /// `/me` 의 세션 유무를 정해 둔다.
+    fn with_sessions(has_sessions: bool) -> Harness {
+        Harness::build(false, has_sessions)
+    }
+
+    fn build(secure_cookies: bool, has_sessions: bool) -> Harness {
         let accounts = Arc::new(FakeAccounts::default());
+        let sessions = Arc::new(FakeSessions::answering(has_sessions));
         let state = IdentityState {
             accounts: accounts.clone(),
             authenticator: Arc::new(FakeAuthenticator),
+            sessions: sessions.clone(),
             secure_cookies,
         };
-        Harness { accounts, state }
+        Harness {
+            accounts,
+            sessions,
+            state,
+        }
     }
 
     fn calls(&self) -> Vec<String> {

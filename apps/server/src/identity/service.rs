@@ -95,10 +95,17 @@ pub trait Authenticator {
     ) -> BoxFuture<'a, Result<Option<AuthenticatedAccount>, ApiError>>;
 }
 
+/// 계정에 지금 남아 있는 대화 세션이 있는가(`/v1/auth/me` 의 `hasProfile`). 세션은 대화 기능의 것이라
+/// identity 는 묻기만 하고, 구현은 대화 기능이 하고 `app.rs` 가 끼운다.
+pub trait SessionPresence {
+    fn has_sessions<'a>(&'a self, account_id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>>;
+}
+
 pub type SharedAccountService = Arc<dyn AccountService + Send + Sync>;
+pub type SharedSessionPresence = Arc<dyn SessionPresence + Send + Sync>;
 pub type SharedAuthenticator = Arc<dyn Authenticator + Send + Sync>;
 
-/// 구현이 아직 없다: `AccountService` 는 모두 `501`, `Authenticator` 는 늘 `None`(→ 401).
+/// 구현이 아직 없다: `AccountService` 와 `SessionPresence` 는 모두 `501`, `Authenticator` 는 늘 `None`(→ 401).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Unimplemented;
 
@@ -161,5 +168,11 @@ impl Authenticator for Unimplemented {
         _: &'a str,
     ) -> BoxFuture<'a, Result<Option<AuthenticatedAccount>, ApiError>> {
         Box::pin(async { Ok(None) })
+    }
+}
+
+impl SessionPresence for Unimplemented {
+    fn has_sessions<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
+        not_implemented()
     }
 }

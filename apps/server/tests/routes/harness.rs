@@ -5,19 +5,20 @@ use std::sync::Arc;
 use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::http::{HeaderMap, Method, Request, StatusCode};
+use chrono::{DateTime, Utc};
 use futures_util::stream;
 use serde_json::Value;
 use tower::ServiceExt;
 
 use beside_pet_server::app::{AppState, Services, router};
 use beside_pet_server::identity::{
-    AuthenticatedAccount, Authenticator, BoxFuture, Role, SharedAuthenticator,
+    AuthenticatedAccount, Authenticator, BoxFuture, ChatLanguage, Role, SharedAuthenticator,
 };
 use beside_pet_server::shared::{ApiError, Config};
 use beside_pet_server::support::{
-    MessageResponse, MindReportResponse, Requester, SessionAnalysisResponse,
-    SessionListItemResponse, SessionStateResponse, SharedSupportService, StartSessionRequest,
-    StreamEvent, SupportService, TurnResponse, TurnStream,
+    MessageResponse, MindReportResponse, MindReportSectionResponse, ReportSectionKey, Requester,
+    SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse, SharedSupportService,
+    StartSessionRequest, StreamEvent, SupportService, TurnResponse, TurnStream,
 };
 
 pub use beside_pet_server::support::Unimplemented;
@@ -45,8 +46,64 @@ impl Authenticator for TokenAuthenticator {
     }
 }
 
-/// 스트림 턴은 `meta`, `token`, `done` 셋을 흘리고, 나머지는 `Unimplemented` 에 넘긴다.
-pub struct ThreeEvents;
+/// 스트림 턴은 `meta`, `token`, `done` 셋을 흘리고, 목록과 리포트는 지어낸 값을 내고, 나머지는 `Unimplemented` 에 넘긴다.
+pub struct Scripted;
+
+pub fn at(text: &str) -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339(text)
+        .unwrap()
+        .with_timezone(&Utc)
+}
+
+/// 메시지가 있는 세션과 없는 세션.
+pub fn list_items() -> Vec<SessionListItemResponse> {
+    let busy = SessionListItemResponse {
+        session_id: "s-busy".to_owned(),
+        started_at: at("2026-10-16T09:00:00Z"),
+        closed: true,
+        reached_task: 3,
+        progress: 0.5,
+        pet_name: Some("Dotori".to_owned()),
+        preferred_language: ChatLanguage::Ko,
+        report_available: true,
+        last_message_at: Some(at("2026-10-16T09:42:30.250Z")),
+        duration_minutes: Some(42),
+        message_count: 9,
+    };
+    let quiet = SessionListItemResponse {
+        session_id: "s-quiet".to_owned(),
+        closed: false,
+        report_available: false,
+        last_message_at: None,
+        duration_minutes: None,
+        message_count: 0,
+        ..busy.clone()
+    };
+    vec![busy, quiet]
+}
+
+pub fn mind_report() -> MindReportResponse {
+    MindReportResponse {
+        at: at("2026-10-16T10:00:00Z"),
+        started_at: at("2026-10-16T09:00:00Z"),
+        pet_name: "Dotori".to_owned(),
+        reached_task: 3,
+        progress: 0.5,
+        locale: ChatLanguage::Ko,
+        sections: vec![
+            MindReportSectionResponse {
+                key: ReportSectionKey::Journey,
+                body: "made-up journey".to_owned(),
+                tags: None,
+            },
+            MindReportSectionResponse {
+                key: ReportSectionKey::Emotions,
+                body: "made-up emotions".to_owned(),
+                tags: Some(vec!["그리움".to_owned(), "고마움".to_owned()]),
+            },
+        ],
+    }
+}
 
 pub fn three_events() -> Vec<StreamEvent> {
     vec![
@@ -75,7 +132,7 @@ fn turn_stream() -> TurnStream {
     Box::pin(stream::iter(three_events().into_iter().map(Ok)))
 }
 
-impl SupportService for ThreeEvents {
+impl SupportService for Scripted {
     fn start<'a>(
         &'a self,
         requester: &'a Requester,
@@ -113,9 +170,9 @@ impl SupportService for ThreeEvents {
     }
     fn list<'a>(
         &'a self,
-        requester: &'a Requester,
+        _: &'a Requester,
     ) -> futures_util::future::BoxFuture<'a, Result<Vec<SessionListItemResponse>, ApiError>> {
-        Unimplemented.list(requester)
+        Box::pin(async { Ok(list_items()) })
     }
     fn state<'a>(
         &'a self,
@@ -140,10 +197,10 @@ impl SupportService for ThreeEvents {
     }
     fn report<'a>(
         &'a self,
-        requester: &'a Requester,
-        session_id: &'a str,
+        _: &'a Requester,
+        _: &'a str,
     ) -> futures_util::future::BoxFuture<'a, Result<MindReportResponse, ApiError>> {
-        Unimplemented.report(requester, session_id)
+        Box::pin(async { Ok(mind_report()) })
     }
 }
 

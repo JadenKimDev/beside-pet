@@ -3,11 +3,11 @@
 use axum::http::{Method, StatusCode};
 use serde_json::json;
 
-use crate::harness::{Harness, ThreeEvents, three_events};
+use crate::harness::{Harness, Scripted, three_events};
 
 #[tokio::test]
 async fn sse_두_경로는_헤더_넷과_프레임_셋이다() {
-    let h = Harness::new(ThreeEvents);
+    let h = Harness::new(Scripted);
     let expected: String = three_events()
         .iter()
         .map(|event| format!("data: {}\n\n", serde_json::to_string(event).unwrap()))

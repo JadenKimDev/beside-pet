@@ -321,6 +321,39 @@ async fn me_는_토큰의_계정으로_부른다() {
 }
 
 #[tokio::test]
+async fn me_의_has_profile_은_남아_있는_세션의_유무다() {
+    for has_sessions in [true, false] {
+        let h = Harness::with_sessions(has_sessions);
+        let reply = h
+            .send(Method::GET, "/v1/auth/me", Some(&token("viewer")), None)
+            .await;
+        assert_eq!(reply.status, StatusCode::OK);
+        assert_eq!(reply.body["hasProfile"], json!(has_sessions));
+        assert_eq!(reply.body["id"], "viewer-id", "계정 칸은 그대로다");
+        assert_eq!(reply.body["username"], "maple");
+        assert_eq!(h.sessions.asked(), ["viewer-id"]);
+    }
+}
+
+#[tokio::test]
+async fn me_의_세션_유무가_구현이_없으면_501_이다() {
+    let h = Harness::new(false);
+    let state = IdentityState {
+        sessions: Arc::new(Unimplemented),
+        ..h.state.clone()
+    };
+    let reply = send_to(
+        state,
+        Method::GET,
+        "/v1/auth/me",
+        Some(&token("viewer")),
+        None,
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::NOT_IMPLEMENTED);
+}
+
+#[tokio::test]
 async fn chat_language_는_인증이_검증보다_먼저다() {
     let h = Harness::new(false);
     let reply = h
@@ -367,6 +400,7 @@ async fn unimplemented_는_501_이고_인증은_늘_401_이다() {
     let state = IdentityState {
         accounts: Arc::new(Unimplemented),
         authenticator: Arc::new(Unimplemented),
+        sessions: Arc::new(Unimplemented),
         secure_cookies: false,
     };
     let reply = send_to(

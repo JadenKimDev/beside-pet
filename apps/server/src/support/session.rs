@@ -16,10 +16,12 @@ use super::rules::{
 };
 use crate::identity::ChatLanguage;
 
+mod activity;
 mod message;
 mod snapshot;
 mod view;
 
+pub use activity::MessageActivity;
 pub use message::Message;
 pub use snapshot::SessionSnapshot;
 
@@ -148,6 +150,10 @@ impl Session {
 
     pub fn id(&self) -> &str {
         &self.id
+    }
+
+    pub fn started_at(&self) -> DateTime<Utc> {
+        self.started_at
     }
 
     pub fn owner_id(&self) -> &str {

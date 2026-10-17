@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 
 use super::super::rules::{RiskAssessment, TaskTransition, TurnAnalysis};
-use super::super::session::{Message, SessionSnapshot};
+use super::super::session::{Message, MessageActivity, SessionSnapshot};
 use super::codec::{
     KnowledgeDocument, SupervisionDocument, count_number, detector_text, from_document,
     level_number, parse_count, parse_detector, parse_level, parse_phase, parse_role, parse_task,
@@ -146,6 +146,28 @@ pub(super) struct AnalysisRow {
     retry_count: i32,
     knowledge: String,
     supervision: Option<String>,
+}
+
+/// 세션 하나의 메시지 집계 행(`GROUP BY session_id`). 메시지가 있는 세션만 행이 있다.
+#[derive(sqlx::FromRow)]
+pub(super) struct ActivityRow {
+    pub session_id: String,
+    last_message_at: DateTime<Utc>,
+    duration_minutes: i32,
+    message_count: i32,
+}
+
+impl ActivityRow {
+    pub(super) fn into_activity(self) -> Result<MessageActivity, sqlx::Error> {
+        Ok(MessageActivity {
+            last_message_at: Some(self.last_message_at),
+            duration_minutes: Some(parse_count(
+                "messages.duration_minutes",
+                self.duration_minutes,
+            )?),
+            message_count: parse_count("messages.message_count", self.message_count)?,
+        })
+    }
 }
 
 impl MessageRow {

@@ -19,7 +19,7 @@ use crate::safety::RISK_SYSTEM_PROMPT;
 use crate::shared::ApiError;
 use crate::support::knowledge::KnowledgeBase;
 use crate::support::rules::GriefProfile;
-use crate::support::session::SessionSnapshot;
+use crate::support::session::{MessageActivity, SessionSnapshot};
 use crate::support::{
     GriefPath, Requester, StartSessionRequest, StreamEvent, SupportService, TurnStream,
 };
@@ -39,7 +39,9 @@ pub const ENGAGED: &str = "We walked by the river every single morning.";
 pub const DUNNO: &str = "I don't know";
 
 pub const REPLY_CHUNKS: [&str; 3] = ["I'm here ", "with you. ", "What was Biscuit like?"];
-pub const REPORT_TEXT: &str = "@@journey You walked far today.\n@@emotions Your sadness is love.\n\
+pub const REPORT_TEXT: &str = "@@journey You walked far today.\n@@emotions sadness, love\nYour sadness is love.\n\
+@@keepsake The river walks stay with you.\n@@encouragement Be gentle with yourself.";
+pub const REPORT_TEXT_WITHOUT_TAGS: &str = "@@journey You walked far today.\n@@emotions Your sadness is love.\n\
 @@keepsake The river walks stay with you.\n@@encouragement Be gentle with yourself.";
 
 pub fn reply_text() -> String {
@@ -71,6 +73,7 @@ pub struct ScriptedModel {
     risk_answer: &'static str,
     hang: Hang,
     stream_fails: bool,
+    report_text: &'static str,
     calls: Mutex<Vec<Call>>,
 }
 
@@ -84,6 +87,7 @@ impl ScriptedModel {
             risk_answer: "NO",
             hang,
             stream_fails: false,
+            report_text: REPORT_TEXT,
             calls: Mutex::new(Vec::new()),
         }
     }
@@ -92,6 +96,14 @@ impl ScriptedModel {
     pub fn flagging() -> ScriptedModel {
         ScriptedModel {
             risk_answer: "YES",
+            ..ScriptedModel::new()
+        }
+    }
+
+    /// 리포트에 감정 낱말 줄이 없다(옛 프롬프트의 출력).
+    pub fn report_without_tags() -> ScriptedModel {
+        ScriptedModel {
+            report_text: REPORT_TEXT_WITHOUT_TAGS,
             ..ScriptedModel::new()
         }
     }
@@ -153,7 +165,8 @@ impl TextModel for ScriptedModel {
         }
         if request.max_tokens == 900 {
             self.push(Call::Report(request));
-            return Box::pin(async { Ok(REPORT_TEXT.to_owned()) });
+            let text = self.report_text.to_owned();
+            return Box::pin(async move { Ok(text) });
         }
         self.push(Call::Reply(request));
         if self.hang == Hang::Reply {
@@ -235,6 +248,31 @@ impl SessionRepository for MemorySessions {
             .collect();
         found.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.started_at));
         found.truncate(limit as usize);
+        Box::pin(async move { Ok(found) })
+    }
+
+    /// 저장이 질의로 구하는 집계를 전사에서 같은 규칙(마지막 시각, 첫·마지막 사이의 분 내림, 수)으로 구한다.
+    fn message_activity<'a>(
+        &'a self,
+        session_ids: &'a [&'a str],
+    ) -> BoxFuture<'a, Result<HashMap<String, MessageActivity>, ApiError>> {
+        let rows = self.rows.lock().unwrap();
+        let found: HashMap<String, MessageActivity> = session_ids
+            .iter()
+            .filter_map(|id| rows.get(*id))
+            .filter_map(|snapshot| {
+                let first = snapshot.history.first()?.at;
+                let last = snapshot.history.last()?.at;
+                Some((
+                    snapshot.id.clone(),
+                    MessageActivity {
+                        last_message_at: Some(last),
+                        duration_minutes: u32::try_from((last - first).num_minutes()).ok(),
+                        message_count: u32::try_from(snapshot.history.len()).unwrap(),
+                    },
+                ))
+            })
+            .collect();
         Box::pin(async move { Ok(found) })
     }
 

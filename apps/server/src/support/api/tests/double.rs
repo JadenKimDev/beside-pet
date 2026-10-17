@@ -163,6 +163,9 @@ impl SupportService for Echo {
                 pet_name: None,
                 preferred_language: ChatLanguage::Ko,
                 report_available: false,
+                last_message_at: Some(at()),
+                duration_minutes: Some(12),
+                message_count: 5,
             }])
         })
     }
@@ -219,6 +222,7 @@ impl SupportService for Echo {
         Box::pin(async move {
             Ok(MindReportResponse {
                 at: at(),
+                started_at: at(),
                 pet_name,
                 reached_task: 2,
                 progress: 0.25,

@@ -1,6 +1,6 @@
 // 마음 리포트(ADR-0008): 닫혔고 과제 2 이상일 때만, 처음 요청 때 한 번 쓰고 다음부터는 저장된 것을 돌려준다.
 
-use super::doubles::{DUNNO, Harness, SESSION_ID, owner};
+use super::doubles::{DUNNO, Harness, SESSION_ID, ScriptedModel, owner};
 use crate::shared::ApiError;
 use crate::support::{ReportSectionKey, SupportService};
 
@@ -60,6 +60,24 @@ async fn 리포트는_한_번_쓰고_다음엔_저장된_것을_돌려준다() {
     );
     assert_eq!(first.sections[0].body, "You walked far today.");
     assert_eq!(first.sections[3].body, "Be gentle with yourself.");
+    assert_eq!(first.sections[1].body, "Your sadness is love.");
+    assert_eq!(
+        first.sections[1].tags,
+        Some(vec!["sadness".to_owned(), "love".to_owned()]),
+        "emotions 구역은 모델이 쓴 감정 낱말을 tags 로 갖는다"
+    );
+    assert!(
+        [0, 2, 3]
+            .iter()
+            .all(|&index| first.sections[index].tags.is_none()),
+        "다른 구역은 tags 가 없다"
+    );
+    assert_eq!(
+        first.started_at,
+        h.sessions.last_save().started_at,
+        "시작 시각은 세션의 것이다"
+    );
+    assert_ne!(first.started_at, first.at);
     assert_eq!((first.reached_task, first.progress), (2, 0.25));
     assert_eq!(first.pet_name, "Biscuit");
     assert!(
@@ -77,4 +95,17 @@ async fn 리포트는_한_번_쓰고_다음엔_저장된_것을_돌려준다() {
         .unwrap();
     assert_eq!(request.max_tokens, 900);
     assert!(request.messages[0].text.contains("[Transcript]"));
+}
+
+#[tokio::test]
+async fn 감정_낱말_줄이_없으면_tags_는_없다() {
+    let h = Harness::with_model(ScriptedModel::report_without_tags());
+    h.onboard().await;
+    h.say(DUNNO).await;
+    h.say(DUNNO).await;
+    h.flow.close(&owner(), SESSION_ID).await.unwrap();
+
+    let report = h.flow.report(&owner(), SESSION_ID).await.unwrap();
+    assert!(report.sections.iter().all(|section| section.tags.is_none()));
+    assert_eq!(report.sections[1].body, "Your sadness is love.");
 }

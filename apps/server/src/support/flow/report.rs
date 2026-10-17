@@ -11,7 +11,7 @@ use crate::support::prompt::{
 };
 use crate::support::rules::{MindReport, REPORT_SECTION_ORDER};
 use crate::support::session::{Session, SessionError};
-use crate::support::{MindReportResponse, MindReportSectionResponse};
+use crate::support::{MindReportResponse, MindReportSectionResponse, ReportSectionKey};
 
 /// 리포트 한 번의 출력 상한(TS 의 `REPORT_MAX_TOKENS`).
 pub const REPORT_MAX_TOKENS: u32 = 900;
@@ -27,10 +27,10 @@ pub async fn report(
         ));
     }
     if let Some(stored) = session.report() {
-        return Ok(stored.to_response());
+        return Ok(stored.to_response(session.started_at()));
     }
     let report = write(parts, &session).await?;
-    let response = report.to_response();
+    let response = report.to_response(session.started_at());
     session
         .attach_report(report)
         .map_err(|error| session_conflict(session.id(), error))?;
@@ -68,8 +68,13 @@ async fn write(parts: &FlowParts, session: &Session) -> Result<MindReport, ApiEr
             .map(|&key| MindReportSectionResponse {
                 key,
                 body: bodies.get(key).to_owned(),
-                tags: None,
+                tags: section_tags(key, &bodies.emotion_tags),
             })
             .collect(),
     })
+}
+
+/// 감정 낱말은 emotions 구역에만 둔다. 모델이 낱말 줄을 쓰지 않았으면 없다.
+fn section_tags(key: ReportSectionKey, emotion_tags: &[String]) -> Option<Vec<String>> {
+    (key == ReportSectionKey::Emotions && !emotion_tags.is_empty()).then(|| emotion_tags.to_vec())
 }

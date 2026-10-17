@@ -42,10 +42,11 @@ pub struct MindReport {
 }
 
 impl MindReport {
-    /// 응답 모양. 진행률은 도달 과제에서 구한다.
-    pub fn to_response(&self) -> MindReportResponse {
+    /// 응답 모양. 진행률은 도달 과제에서 구하고, 시작 시각은 세션에서 받는다(리포트에 저장하지 않는다).
+    pub fn to_response(&self, started_at: DateTime<Utc>) -> MindReportResponse {
         MindReportResponse {
             at: self.at,
+            started_at,
             pet_name: self.pet_name.clone(),
             reached_task: self.reached_task.number(),
             progress: self.reached_task.progress(),

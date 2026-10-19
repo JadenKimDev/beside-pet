@@ -61,7 +61,30 @@ async fn generate_posts_messages_with_key_version_and_body() {
                 { "role": "assistant", "content": "가짜 대답 하나" },
                 { "role": "user", "content": "가짜 질문 둘" },
             ],
+            "thinking": { "type": "disabled" },
         })
+    );
+}
+
+/// 생각을 스스로 시작하는 모델(Haiku 5.5 등)이 고정된 max_tokens 를 생각에 다 써서 답이 비는 것을 막는다.
+/// 비스트림과 스트림 모두 `thinking: {type: disabled}` 를 늘 싣는다.
+#[tokio::test]
+async fn both_calls_always_disable_thinking() {
+    let server = json_server(StatusCode::OK, MESSAGE_JSON).await;
+    provider(&server.base_url)
+        .generate(MODEL, sample_request())
+        .await
+        .unwrap();
+    assert_eq!(
+        server.only_request().body["thinking"],
+        json!({ "type": "disabled" })
+    );
+
+    let server = sse_server(SSE_CHUNKS).await;
+    collect(provider(&server.base_url).stream(MODEL, sample_request())).await;
+    assert_eq!(
+        server.only_request().body["thinking"],
+        json!({ "type": "disabled" })
     );
 }
 

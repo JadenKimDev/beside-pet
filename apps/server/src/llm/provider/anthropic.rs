@@ -46,6 +46,7 @@ impl AnthropicProvider {
                 })
                 .collect(),
             stream,
+            thinking: Thinking::DISABLED,
         };
         self.client
             .post(&self.endpoint)
@@ -105,6 +106,18 @@ struct MessagesBody<'a> {
     messages: Vec<WireMessage<'a>>,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     stream: bool,
+    /// 늘 끈다. 생각을 스스로 시작하는 모델(Haiku 5.5 등)이 고정된 `max_tokens` 를 생각에 다 써서
+    /// 답이 비는 것을 막는다(ADR-0016). Ollama 의 `think: false` 와 같은 뜻이다.
+    thinking: Thinking,
+}
+
+#[derive(Serialize)]
+struct Thinking {
+    r#type: &'static str,
+}
+
+impl Thinking {
+    const DISABLED: Thinking = Thinking { r#type: "disabled" };
 }
 
 #[derive(Serialize)]

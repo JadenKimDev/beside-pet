@@ -6,9 +6,10 @@ fn close(a: f64, b: f64) -> bool {
 }
 
 #[test]
-fn 단가표의_세_모델은_백만_토큰당_단가로_센다() {
-    // TS 의 model-pricing.ts 와 같은 표: (입력, 출력) USD/MTok.
+fn 단가표의_네_모델은_백만_토큰당_단가로_센다() {
+    // (입력, 출력) USD/MTok. haiku-5-5 는 프롬프트 10만 토큰 이하의 값(platform.claude.com/docs/en/about-claude/pricing).
     let cases = [
+        ("claude-haiku-5-5", 0.10, 0.50),
         ("claude-haiku-4-5", 1.0, 5.0),
         ("claude-sonnet-5", 3.0, 15.0),
         ("claude-opus-4-8", 5.0, 25.0),

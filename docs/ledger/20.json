@@ -1,0 +1,171 @@
+{
+  "issue": 20,
+  "title": "진행 중인 답에 다시 붙고, 실패한 답을 다시 받고, 전송을 중단한다(중단한 턴은 저장하되 보이지 않는다)",
+  "prd": "docs/prd/20-turn-resume-cancel.md",
+  "depends_on": [
+    19
+  ],
+  "created_at": "2026-10-20T01:51:26.143Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "세션과 저장: 턴 상태 `streaming`·`cancelled`, 숨은 턴을 거르는 `history()`, 부분 답 기록, 스냅샷은 숨은 행까지, 상태 응답의 `activeTurn`·`failedTurn` 계산",
+      "scope": [
+        "apps/server/src/support/session.rs",
+        "apps/server/src/support/session/",
+        "apps/server/src/support/store.rs",
+        "apps/server/src/support/store/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm test:stack"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "진행 중 턴 등록부: 모은 글, 구독 채널, 중단 토큰, 단위 테스트",
+      "scope": [
+        "apps/server/src/support/flow/active.rs",
+        "apps/server/src/support/flow/active/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm test:stack"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "흐름: 발화를 등록부에 올리고 중단 토큰을 보며, 중단 때 부분 답 저장과 `cancelled` 이벤트, 실패 턴 retry, 다시 붙는 스트림, `SupportService` 의 세 메서드",
+      "scope": [
+        "apps/server/src/support/flow/",
+        "apps/server/src/support/service.rs",
+        "apps/server/src/support/response.rs"
+      ],
+      "depends_on": [
+        "S1",
+        "S2"
+      ],
+      "verify": [
+        "pnpm test:stack"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "API: 세 엔드포인트, 상태 응답 칸, 기록 응답에서 숨은 턴 제외, 라우트 테스트",
+      "scope": [
+        "apps/server/src/support/api.rs",
+        "apps/server/src/support/api/",
+        "apps/server/src/support/mod.rs",
+        "apps/server/tests/"
+      ],
+      "depends_on": [
+        "S3"
+      ],
+      "verify": [
+        "pnpm test:stack"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S5",
+      "title": "웹: 중단 버튼과 입력창 되돌리기, 다시 붙기, 답 다시 받기, 상태 테스트, 문구",
+      "scope": [
+        "apps/web/lib/api/",
+        "apps/web/features/session/",
+        "apps/web/components/chat/",
+        "apps/web/app/session/",
+        "apps/web/i18n/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S6",
+      "title": "새 ADR: 턴의 상태와 중단, 숨김, 등록부, 재시작, 자동 재시도 없음",
+      "scope": [
+        "docs/adr/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S7",
+      "title": "`apps/server/CLAUDE.md` 설계 결정 한 줄: 중단한 턴의 메시지는 지우지 않고 숨긴다",
+      "scope": [
+        "apps/server/CLAUDE.md"
+      ],
+      "depends_on": [
+        "S6"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

@@ -19,5 +19,6 @@ pub use text_model::{
     TextModel, TextStream, Unimplemented,
 };
 pub use usage::{
-    CallErrorKind, CallOutcome, CallRecord, InMemoryUsageSink, SharedUsageSink, UsageSink,
+    CallErrorKind, CallOutcome, CallRecord, InMemoryUsageSink, PostgresUsageSink, SharedUsageSink,
+    UsageSink,
 };

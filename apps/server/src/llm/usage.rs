@@ -9,6 +9,10 @@ use chrono::{DateTime, Utc};
 
 use super::{CallPurpose, LlmProvider};
 
+mod postgres;
+
+pub use postgres::PostgresUsageSink;
+
 /// 실패한 호출의 종류. 원인의 글은 싣지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CallErrorKind {

@@ -1,0 +1,67 @@
+# Beside Pet 의 production 과 sandbox. 파일 하나를 프로젝트 이름으로 갈라 쓴다(README.md).
+#   production: docker compose -f infra/docker/compose.yaml -p beside-production --profile full up -d --build
+#   sandbox:    DB_PORT=5433 docker compose -f infra/docker/compose.yaml -p beside-sandbox up -d db
+# name: 을 고정하지 않는다. 프로젝트 이름마다 볼륨(<프로젝트>_dbdata)과 컨테이너가 따로 생긴다.
+# 호스트 포트는 루프백(127.0.0.1)에만 연다.
+
+services:
+  # PostgreSQL + pgvector.
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: beside
+      POSTGRES_PASSWORD: beside
+      POSTGRES_DB: besidepet
+    ports:
+      - "127.0.0.1:${DB_PORT:-5434}:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beside -d besidepet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Rust 서버(apps/server/Dockerfile). --profile full 일 때만 뜬다.
+  api:
+    profiles: ["full"]
+    build:
+      context: ../..
+      dockerfile: apps/server/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    # 비밀과 모델 설정(JWT_SECRET, LLM_PROVIDER, LLM_MODEL, ANTHROPIC_API_KEY 등)은 이 파일에서 받는다(gitignore).
+    # 아래 environment 의 값이 이 파일의 같은 이름보다 앞선다.
+    env_file:
+      - path: ../../apps/server/.env.production
+        required: false
+    environment:
+      APP_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://beside:beside@db:5432/besidepet
+      # http 루프백에서는 브라우저가 Secure 쿠키를 돌려보내지 않는다. 로그인을 유지하려고 기본으로 끈다.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    # Linux 호스트에서도 host.docker.internal 로 호스트의 Ollama 에 닿게 한다.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:3000"
+
+  # 대화 웹(apps/web/Dockerfile). --profile full 일 때만 뜬다.
+  web:
+    profiles: ["full"]
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+      args:
+        # 빌드 때 굽는 값이다. 웹과 서버가 같은 호스트 이름(127.0.0.1)이어야 SameSite 쿠키가 실린다.
+        NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:${API_PORT:-8000}
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8001}:3001"
+
+volumes:
+  dbdata:

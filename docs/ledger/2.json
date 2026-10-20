@@ -19,7 +19,7 @@
         "pnpm test:stack"
       ],
       "tdd": true,
-      "red_at": null,
+      "red_at": "2026-10-20T01:09:04.185Z",
       "status": "doing",
       "passes": false,
       "retries": 0,

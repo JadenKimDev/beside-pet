@@ -38,6 +38,10 @@ pnpm deploy:prod
 
 이 Mac 이 api 와 web 이미지를 arm64 로 빌드해 ECR 에 올리고(태그는 git sha), 인스턴스에 SSM 명령을 보내 새 이미지를 당겨 올린다. 인스턴스 id 와 레지스트리는 `pulumi stack output`(`instanceId`, `ecrRegistry`)에서 읽는다.
 
+## 호스트의 두 파일 갱신
+
+user-data 는 인스턴스의 첫 부팅에만 돈다. `/opt/beside-pet/` 의 `compose.host.yaml` 과 `host-deploy.sh` 는 그때 레포의 `infra/docker/` 에서 놓인다. DB 데이터가 루트 EBS 에 있어 인스턴스를 교체하면 데이터가 사라지므로, `host.ts` 는 user-data 와 AMI 의 변경을 무시하고(`ignoreChanges`) 인스턴스를 `protect` 로 둔다. 그래서 두 파일을 바꿔도 `pulumi up` 은 인스턴스에 손대지 않는다. 바꾼 파일은 SSM Run Command(`AWS-RunShellScript`)나 Session Manager 로 `/opt/beside-pet/` 에 다시 놓는다(스크립트는 0755).
+
 ## 출력
 
 | 이름 | 뜻 |

@@ -1,7 +1,0 @@
-config:
-  beside-pet:awsWebOwnership: external
-  beside-pet:awsRegion: ap-northeast-2
-  beside-pet:awsEcrRegistry: 765899425598.dkr.ecr.ap-northeast-2.amazonaws.com
-  beside-pet:chatUrl: https://d15ettyoui1eeh.cloudfront.net/
-  beside-pet:awsInstanceId: i-017447a758c5d0fba
-  beside-pet:landingUrl: https://besidepet.com

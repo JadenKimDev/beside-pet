@@ -1,6 +1,6 @@
-import { awsWebOutputs } from "./aws-web";
-import { environment, landingUrl } from "./config";
+import { awsProfile, awsRegion, domain, instanceType, stack } from "./config";
+import { apiRepository, ecrRegistry, webRepository } from "./ecr";
 
-export const stack = environment;
-export const chat = awsWebOutputs;
-export const landing = { url: landingUrl, ownership: "external" };
+export { awsProfile, awsRegion, domain, ecrRegistry, instanceType, stack };
+export const apiRepositoryUrl = apiRepository.repositoryUrl;
+export const webRepositoryUrl = webRepository.repositoryUrl;

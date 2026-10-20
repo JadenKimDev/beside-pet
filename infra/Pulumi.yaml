@@ -3,4 +3,4 @@ runtime:
   name: nodejs
   options:
     packagemanager: pnpm
-description: Beside Pet infrastructure and existing deployment references
+description: Beside Pet production on AWS (EC2 Docker host, CloudFront, ECR)

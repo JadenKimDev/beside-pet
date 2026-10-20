@@ -11,21 +11,22 @@
       "scope": [
         "apps/server/migrations/",
         "apps/server/tests/schema.rs",
-        "apps/server/tests/schema/"
+        "apps/server/tests/schema/",
+        "apps/server/src/shared/db/tests.rs"
       ],
       "depends_on": [],
       "verify": [
         "pnpm test:stack"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "doing",
-      "passes": false,
-      "retries": 0,
+      "red_at": "2026-10-20T02:34:15.024Z",
+      "status": "done",
+      "passes": true,
+      "retries": 2,
       "started_at": "2026-10-20T02:25:43.326Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-20T02:37:22.532Z",
+      "active_ms": 699206,
+      "verify_ms": 8280
     },
     {
       "id": "S2",
@@ -41,14 +42,14 @@
         "pnpm test:stack"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "doing",
-      "passes": false,
-      "retries": 0,
+      "red_at": "2026-10-20T02:34:23.343Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
       "started_at": "2026-10-20T02:25:49.509Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-20T02:37:34.536Z",
+      "active_ms": 705027,
+      "verify_ms": 5255
     },
     {
       "id": "S3",
@@ -114,14 +115,14 @@
         "pnpm test:stack"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "doing",
-      "passes": false,
-      "retries": 0,
+      "red_at": "2026-10-20T02:33:54.081Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
       "started_at": "2026-10-20T02:25:49.812Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-20T02:37:34.967Z",
+      "active_ms": 705155,
+      "verify_ms": 4855
     },
     {
       "id": "S6",

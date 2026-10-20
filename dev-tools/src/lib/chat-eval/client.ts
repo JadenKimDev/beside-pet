@@ -17,7 +17,7 @@ export const DEFAULT_API = "http://127.0.0.1:3000";
 export const QA_ACCOUNT_FILE = "data/qa/account.json";
 /** 서버가 없을 때 알리는 띄우는 명령(레포 루트에서). */
 export const SERVER_START_COMMAND =
-  "cd apps/server && NODE_ENV=development ../../dev-tools/scripts/cargo.sh run -p beside-pet-server";
+  "cd apps/server && APP_ENV=sandbox ../../dev-tools/scripts/cargo.sh run -p beside-pet-server";
 const AUTH_COOKIE = "beside-pet.token";
 /** 모델 답을 기다리는 요청의 상한. 로컬 Ollama 는 한 턴에 수십 초가 걸린다. */
 const MODEL_TIMEOUT_MS = 300_000;

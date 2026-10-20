@@ -9,9 +9,9 @@ model: opus
 ## 이 프로젝트의 QA 설정
 
 - **QA 계정**: 관리자 `qa-admin` 과 일반(viewer) `qa-viewer` 둘이다. 접속 정보는 gitignore 된 `data/qa/account.json` 에 있고 이 문서에는 적지 않는다. 관리자는 빈 DB 로 서버를 띄웠을 때 로그에 찍히는 1회용 setup 토큰으로 `POST /v1/auth/setup`(또는 웹의 첫 화면)에서 만들고, viewer 는 관리자로 로그인해 `/admin` 에서 발급한다. 두 계정 모두 지어낸 값이고 실제 사용자가 아니다.
-- **제품 주소**: 대화 웹 `http://localhost:3001`, API `http://localhost:3000`(경로는 `/v1` 아래). 웹이 API 를 `localhost:3000` 으로 부르므로 화면도 `localhost` 로 열어야 SameSite=Lax 쿠키가 실린다(`127.0.0.1` 로 열면 로그인이 유지되지 않는다). 서버는 Rust(`dev-tools/scripts/cargo.sh run -p beside-pet-server`, 작업 디렉터리 `apps/server`)이고 웹은 `pnpm -F @beside-pet/web dev` 다. 이 머신의 5432 는 다른 프로젝트의 Postgres 라 개발 DB 는 `DB_PORT=5433 pnpm db:up` 으로 띄우고 `DATABASE_URL` 도 5433 을 쓴다.
-- **상태를 맞추는 법**: 개발 DB 에는 지어낸 데이터만 있으므로 상태는 SQL 로 맞춘다. 비우기: `TRUNCATE turn_analyses, messages, sessions, accounts` (그 뒤 서버를 다시 띄우면 setup 토큰이 다시 찍힌다). 세션 상태(단계, 닫힘)는 제품 API 로 만들고, 행 수 확인은 `SELECT count(*)` 로만 하며 본문 칸은 읽지 않는다(루트 `CLAUDE.md` "읽지 않는 것").
-- **건드리지 않는 것**: 운영 환경은 없다(2026-10-16 내림). 개발 DB 밖의 어떤 DB 에도 붙지 않고, 실제 모델 호출은 항목이 요구할 때만 한다(비용). 메일, 결제, 바깥 서비스는 없다.
+- **제품 주소**: 대화 웹 `http://localhost:3001`, API `http://localhost:3000`(경로는 `/v1` 아래). 웹이 API 를 `localhost:3000` 으로 부르므로 화면도 `localhost` 로 열어야 SameSite=Lax 쿠키가 실린다(`127.0.0.1` 로 열면 로그인이 유지되지 않는다). 서버는 Rust(`APP_ENV=sandbox dev-tools/scripts/cargo.sh run -p beside-pet-server`, 작업 디렉터리 `apps/server`)이고 웹은 `pnpm -F @beside-pet/web dev` 다(둘을 함께 띄우는 것이 `pnpm dev`). sandbox DB 는 `pnpm sandbox:up`(127.0.0.1:5433)으로 띄우고 `apps/server/.env.sandbox` 의 `DATABASE_URL` 이 그것을 가리킨다. production 은 `pnpm prod:up` 으로 이 머신의 Docker 에 뜬다(웹 `http://127.0.0.1:8001`, API `http://127.0.0.1:8000`, DB 5434). production 의 웹과 API 는 같은 호스트 이름 `127.0.0.1` 이라 화면도 `127.0.0.1` 로 연다.
+- **상태를 맞추는 법**: sandbox DB 에는 지어낸 데이터와 본문을 지운 production 복사본(`pnpm sandbox:reset`)만 있으므로 상태는 SQL 로 맞춘다. 비우기: `TRUNCATE turn_analyses, messages, sessions, accounts` (그 뒤 서버를 다시 띄우면 setup 토큰이 다시 찍힌다). 세션 상태(단계, 닫힘)는 제품 API 로 만들고, 행 수 확인은 `SELECT count(*)` 로만 하며 본문 칸은 읽지 않는다(루트 `CLAUDE.md` "읽지 않는 것").
+- **건드리지 않는 것**: 클라우드의 운영 자원은 없다(2026-10-16 내림). production 은 이 머신의 Docker 이고, PRD 의 "사람이 할 일"이 명시해 요구할 때만 QA 계정으로 그 화면과 API 에 붙으며 production DB 에는 SQL 로 붙지 않는다(행 수도 sandbox 에서 센다). sandbox DB 밖의 어떤 DB 에도 SQL 로 붙지 않고, 실제 모델 호출은 항목이 요구할 때만 한다(비용). 메일, 결제, 바깥 서비스는 없다.
 
 ## 쓰는 것
 

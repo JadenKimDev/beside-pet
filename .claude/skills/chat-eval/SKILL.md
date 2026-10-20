@@ -18,7 +18,7 @@ description: "대화 기능의 품질을 지어낸 인물로 실측한다. `pnpm
 - **계정은 QA 계정뿐이다.** 도구가 gitignore 된 QA 계정 파일을 스스로 읽어 로그인하므로 에이전트는 그 파일을 열지 않는다. 실제 사용자의 계정에는 어떤 경로로도 닿지 않는다.
 - **비밀번호를 보고서와 대화에 싣지 않는다.** 도구 출력에 비밀번호가 보이면 멈추고 팀장(`main`)에게 알린다.
 - **보고서는 `outputs/`(gitignore)에만 둔다.** 커밋하지 않는다. 인물과 반려동물은 모두 지어낸 것이라 전사를 그대로 실어도 된다.
-- **운영 환경은 없다.** 주소는 로컬 서버(`CHAT_EVAL_API`, 기본 `http://127.0.0.1:3000`)뿐이다.
+- **production 에는 닿지 않는다.** 주소는 sandbox 서버(`CHAT_EVAL_API`, 기본 `http://127.0.0.1:3000`, `pnpm dev` 또는 아래 명령)뿐이다. production(`pnpm prod:up`, 8000)을 상대로 돌리지 않는다.
 - 루트 `CLAUDE.md` "지키는 선"과 "읽지 않는 것"이 그대로 적용된다. DB 에서 상담 메시지 본문을 읽지 않는다. 전사는 도구가 API 로 받은 QA 대화에서만 본다.
 
 ## 1. 서버를 띄운다
@@ -26,12 +26,12 @@ description: "대화 기능의 품질을 지어낸 인물로 실측한다. `pnpm
 판정할 코드로 띄운다. PRD 의 마감 전이면 그 PRD 의 워크트리(`prd/<이슈>` 브랜치)의 커밋, 모델 교체 전의 기준이면 main 의 커밋이다. 띄운 커밋의 sha 를 보고서에 적는다.
 
 ```bash
-DB_PORT=5433 pnpm db:up              # 이 머신의 5432 는 다른 프로젝트의 Postgres 다
+pnpm sandbox:up                      # sandbox DB(127.0.0.1:5433). pnpm db:up 도 같다
 git rev-parse --short HEAD           # 띄울 커밋을 확인해 적어 둔다
-cd apps/server && NODE_ENV=development ../../dev-tools/scripts/cargo.sh run -p beside-pet-server
+cd apps/server && APP_ENV=sandbox ../../dev-tools/scripts/cargo.sh run -p beside-pet-server
 ```
 
-- 서버 명령은 루트 `CLAUDE.md` "명령"의 것이다. `apps/server/.env.development` 의 `DATABASE_URL` 이 5433 을 가리켜야 한다(값은 읽지 않는다. 뜨지 않으면 오류 문구만 본다).
+- 서버 명령은 루트 `CLAUDE.md` "명령"의 것이다. `apps/server/.env.sandbox` 의 `DATABASE_URL` 이 5433 을 가리켜야 한다(값은 읽지 않는다. 뜨지 않으면 오류 문구만 본다).
 - 도구는 시작할 때 `/v1/health` 를 본다. 서버가 없으면 띄우는 명령을 알리고 1 로 끝난다.
 - QA 계정이 아직 없으면 `.claude/agents/qa.md` 의 "QA 설정"대로 만든다.
 

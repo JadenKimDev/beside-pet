@@ -4,10 +4,11 @@
 #   dev-tools/scripts/dev.sh
 #
 # - 서버는 `dev-tools/scripts/cargo.sh run -p beside-pet-server`, 웹은 `pnpm --filter ./apps/web dev`(next 가 127.0.0.1 에만 연다).
-# - 서버의 설정은 NODE_ENV=development 일 때 `.env.development` 이고, 레포 루트(띄운 디렉터리)에서 먼저 찾고
+# - 환경은 APP_ENV(기본 sandbox)이고 서버에 export 한다. 서버는 APP_ENV 를 프로세스 환경에서만 읽는다.
+#   서버의 설정 파일은 `.env.${APP_ENV}`(기본 `.env.sandbox`)이고, 레포 루트(띄운 디렉터리)에서 먼저 찾고
 #   없으면 apps/server/ 에서 찾는다(apps/server/.env.example 머리 주석). 둘 다 없고 환경에 DATABASE_URL 도 없으면
 #   만드는 법을 알리고 멈춘다. 이 스크립트는 .env 파일의 값을 읽거나 출력하지 않는다(있는지만 본다).
-# - DB 는 따로 띄운다(`pnpm db:up`). 여기서는 띄우지 않는다.
+# - DB 는 따로 띄운다(`pnpm db:up` 또는 `pnpm sandbox:up`, 127.0.0.1:5433). 여기서는 띄우지 않는다.
 # - 3000 이나 3001 을 이미 누가 듣고 있으면 그 프로세스를 알리고 멈춘다. 대신 내리지 않는다.
 # - 둘 중 하나가 끝나면(또는 Ctrl-C) 나머지도 내린다.
 
@@ -18,19 +19,15 @@ cd "$REPO_ROOT"
 
 SERVER_PORT=3000
 WEB_PORT=3001
-export NODE_ENV="${NODE_ENV:-development}"
+export APP_ENV="${APP_ENV:-sandbox}"
 
 # --- 서버 설정 파일이 있는가(값은 보지 않는다) ---
-if [ "$NODE_ENV" = "development" ]; then
-  env_name=.env.development
-else
-  env_name=.env
-fi
+env_name=".env.${APP_ENV}"
 if [ ! -f "$REPO_ROOT/$env_name" ] && [ ! -f "$REPO_ROOT/apps/server/$env_name" ] && [ -z "${DATABASE_URL:-}" ]; then
   {
     echo "서버 설정이 없다: $env_name 가 레포 루트에도 apps/server/ 에도 없고, 환경에 DATABASE_URL 도 없다."
     echo "  cp apps/server/.env.example apps/server/$env_name   # 만든 뒤 DATABASE_URL 과 모델 설정을 채운다"
-    echo "  (pnpm db:up 의 DB 는 127.0.0.1:\${DB_PORT:-5432} 이다. 포트를 바꿨으면 DATABASE_URL 도 맞춘다)"
+    echo "  (pnpm db:up 의 sandbox DB 는 127.0.0.1:\${DB_PORT:-5433} 이다. 포트를 바꿨으면 DATABASE_URL 도 맞춘다)"
   } >&2
   exit 1
 fi

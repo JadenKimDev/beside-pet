@@ -1,0 +1,132 @@
+{
+  "issue": 25,
+  "title": "좁은 화면(390px)에서 로그인부터 대화와 리포트까지 한 사이클이 깨지지 않게 한다",
+  "prd": "docs/prd/25-mobile-width-full-cycle.md",
+  "depends_on": [
+    24
+  ],
+  "created_at": "2026-10-20T11:28:04.092Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "390px 사이클 실측과 발견 목록: 첫 화면·신청·온보딩·대화(흐름, 위기 카드, 마침 카드)·리포트·목록·설정·`/help` 를 터미널 브라우저로 돌며 스크린샷과 발견을 `outputs/design/mobile-390/findings.md` 에 적는다(디자인 팀원)",
+      "scope": [
+        "apps/web"
+      ],
+      "depends_on": [],
+      "verify": [
+        "test -f outputs/design/mobile-390/findings.md && grep -q '^## ' outputs/design/mobile-390/findings.md"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "바탕: `viewport` 메타, 대화 화면의 `100dvh`, 입력 글자 16px, 머리·바닥(도움 알약, 위기 띠, 면책)의 좁은 폭 배치, 공용 컴포넌트의 터치 타깃",
+      "scope": [
+        "apps/web/app/layout.tsx",
+        "apps/web/app/session/page.tsx",
+        "apps/web/components/layout/",
+        "apps/web/components/ui/",
+        "apps/web/components/chat/"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "첫 화면·계정 신청·온보딩의 좁은 폭 배치(한 열, 삽화 작은 크기, 선택지 줄바꿈) — S1 의 발견대로",
+      "scope": [
+        "apps/web/app/page.tsx",
+        "apps/web/app/onboarding/",
+        "apps/web/features/auth/",
+        "apps/web/features/landing/",
+        "apps/web/features/onboarding/"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "목록·리포트·설정·`/help` 의 좁은 폭 배치 — S1 의 발견대로",
+      "scope": [
+        "apps/web/app/sessions/",
+        "apps/web/app/settings/",
+        "apps/web/app/help/",
+        "apps/web/features/session-archive/",
+        "apps/web/features/report/",
+        "apps/web/features/settings/",
+        "apps/web/features/safety/"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S5",
+      "title": "`open-web` 스킬에 \"좁은 폭으로 보기\" 절, `qa.md` 에 화면 PRD 는 390px 도 본다는 한 줄",
+      "scope": [
+        ".claude/skills/open-web/SKILL.md",
+        ".claude/agents/qa.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "grep -q 'set viewport' .claude/skills/open-web/SKILL.md && grep -q '390' .claude/agents/qa.md"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

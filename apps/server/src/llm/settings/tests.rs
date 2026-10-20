@@ -7,6 +7,9 @@ fn settings(pairs: &[(&str, &str)]) -> ModelSettings {
         if name == "DATABASE_URL" {
             return Some("postgres://u:p@h/db".to_owned());
         }
+        if name == "APP_ENV" {
+            return Some("sandbox".to_owned());
+        }
         pairs
             .iter()
             .find(|(key, _)| *key == name)

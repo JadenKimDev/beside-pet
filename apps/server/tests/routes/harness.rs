@@ -221,6 +221,7 @@ impl Harness {
     pub fn new(support: impl SupportService + Send + Sync + 'static) -> Harness {
         let config = Config::from_lookup(|name| match name {
             "DATABASE_URL" => Some("postgres://u:p@127.0.0.1:1/none".to_owned()),
+            "APP_ENV" => Some("sandbox".to_owned()),
             _ => None,
         })
         .unwrap();

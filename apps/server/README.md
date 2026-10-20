@@ -6,17 +6,24 @@
 
 ## 띄우기
 
+환경은 둘이고 `APP_ENV`(`production` | `sandbox`)가 고른다. `APP_ENV` 가 없거나 다른 값이면 서버는 기동하지 않는다. `NODE_ENV` 는 읽지 않는다.
+
+| 환경 | 쓰임 | 설정 파일 | 듣는 주소 |
+|---|---|---|---|
+| `production` | 실제로 쓰는 환경. 지금은 이 머신의 Docker 에 띄운다(`pnpm prod:up`) | `.env.production` | 모든 주소(0.0.0.0). `JWT_SECRET` 필수 |
+| `sandbox` | 개발, 테스트, 실측. DB 는 production 을 복사해 본문을 지운 것(`pnpm sandbox:reset`) | `.env.sandbox` | 두 루프백(127.0.0.1, ::1) |
+
 ```bash
-pnpm db:up                                            # 로컬 PostgreSQL (127.0.0.1:${DB_PORT:-5432})
-cp apps/server/.env.example apps/server/.env.development   # 처음 한 번. DATABASE_URL 과 모델 설정을 채운다
-pnpm dev                                              # 서버(127.0.0.1:3000)와 대화 웹(127.0.0.1:3001)을 함께
+pnpm sandbox:up                                       # sandbox PostgreSQL (127.0.0.1:${DB_PORT:-5433}). pnpm db:up 도 같다
+cp apps/server/.env.example apps/server/.env.sandbox  # 처음 한 번. DATABASE_URL 과 모델 설정을 채운다
+pnpm dev                                              # APP_ENV=sandbox 로 서버(127.0.0.1:3000)와 대화 웹(127.0.0.1:3001)을 함께
 curl 127.0.0.1:3000/v1/health                         # {"status":"ok"}
 ```
 
-- 설정 파일은 `NODE_ENV=development` 이면 `.env.development`, 그 밖이면 `.env` 다. 띄운 디렉터리(레포 루트)에서 먼저 찾고 없으면 `apps/server/` 에서 찾는다. 이미 프로세스 환경에 있는 값은 파일이 덮지 않는다. 읽는 이름은 [`.env.example`](.env.example) 에 모두 있다.
-- 다른 Postgres 가 5432 를 쓰면 `DB_PORT=5433 pnpm db:up` 처럼 띄우고 `DATABASE_URL` 의 포트도 맞춘다.
+- 설정 파일은 `APP_ENV` 가 고른 `.env.<APP_ENV>` 하나다. 띄운 디렉터리(레포 루트)에서 먼저 찾고 없으면 `apps/server/` 에서 찾는다. 파일 이름을 `APP_ENV` 가 정하므로 `APP_ENV` 는 프로세스 환경에서만 읽는다. 이미 프로세스 환경에 있는 값은 파일이 덮지 않고, 파일이 없으면 프로세스 환경만 쓴다. 읽는 이름은 [`.env.example`](.env.example) 에 모두 있다.
+- DB 포트는 `DB_PORT` 로 바꿀 수 있다. 바꾸면 `DATABASE_URL` 의 포트도 맞춘다.
 - `pnpm dev` 는 `dev-tools/scripts/dev.sh` 다. 3000 이나 3001 을 이미 누가 듣고 있으면 그 프로세스를 보이고 멈추며(대신 내리지 않는다), 서버와 웹 중 하나가 끝나거나 Ctrl-C 를 누르면 둘 다 내린다. 설정 파일도 `DATABASE_URL` 도 없으면 만드는 법을 알리고 멈춘다.
-- 서버만 띄울 때는 `dev-tools/scripts/cargo.sh run -p beside-pet-server` 다. 이 머신의 PATH 에는 cargo 가 없어 래퍼로 부른다.
+- 서버만 띄울 때는 `APP_ENV=sandbox dev-tools/scripts/cargo.sh run -p beside-pet-server` 다. 이 머신의 PATH 에는 cargo 가 없어 래퍼로 부른다.
 - 화면은 루프백(127.0.0.1)에만 연다.
 
 기동할 때 서버는 `DATABASE_URL` 에 붙어 `migrations/` 의 마이그레이션을 돌린다. `DATABASE_URL` 이 없거나 붙지 못하면 기동하지 않는다. 대화 기록이 제품의 실체라, DB 없이 조용히 돌기보다 처음부터 분명하게 실패한다.
@@ -30,18 +37,19 @@ pnpm test:stack    # clippy(-D warnings)와 cargo test
 pnpm test          # biome, 전 워크스페이스, 레포 검사, 그리고 test:stack
 ```
 
-`cargo test` 는 DB 테스트를 품으므로 `DATABASE_URL` 과 떠 있는 Postgres 가 필요하다. 없으면 이유를 적고 실패한다(건너뛰지 않는다). 테스트 하나만 돌릴 때 필터 여럿은 `--` 뒤에 둔다.
+`cargo test` 는 DB 테스트를 품으므로 sandbox DB 가 떠 있어야 한다. 주소는 환경의 `DATABASE_URL`, 없으면 `apps/server/.env.sandbox` 의 것을 쓴다. 없으면 이유를 적고 실패한다(건너뛰지 않는다). 테스트 하나만 돌릴 때 필터 여럿은 `--` 뒤에 둔다.
 
 ## 컨테이너
 
 ```bash
-docker compose -f apps/server/docker-compose.yml --profile full up --build
-curl 127.0.0.1:3000/v1/health
+pnpm prod:up       # production 의 db, api, web 을 Docker 에 (프로젝트 beside-production, --profile full)
+curl 127.0.0.1:8000/v1/health
+pnpm prod:down
 ```
 
-- 서비스는 `db`(pgvector/pgvector:pg16, `127.0.0.1:${DB_PORT:-5432}`, DB `besidepet`, 사용자 `beside`)와 `api`(프로필 `full`, `127.0.0.1:3000`, 레포 루트를 빌드 문맥으로 `apps/server/Dockerfile`)다. 프로필 없이 띄우면 `db` 만 뜬다. `pnpm db:up` 이 그것이다. compose 프로젝트 이름은 `beside-pet` 으로 고정해 워크트리마다 같은 DB 를 함께 쓴다.
-- 컨테이너의 서버는 `.env` 파일을 읽지 않는다. `NODE_ENV=production`, `COOKIE_SECURE=false`, `DATABASE_URL`(compose 안의 `db`)은 compose 가 고정하고, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY`, `OLLAMA_BASE_URL`(기본 `http://host.docker.internal:11434`), `JWT_SECRET` 은 띄우는 셸의 환경에서 받는다.
-- 로그인 쿠키의 `Secure` 는 `COOKIE_SECURE` 가 정하고, 없으면 `NODE_ENV=production` 일 때 붙는다. compose 는 http 루프백에서 로그인이 유지되도록 `COOKIE_SECURE=false` 를 둔다. HTTPS 앞단 뒤에 올릴 때는 이 값을 빼거나 `true` 로 둔다.
+- compose 파일은 `infra/docker/compose.yaml` 하나이고 프로젝트 이름으로 두 환경을 가른다(`beside-production`, `beside-sandbox`). 서비스와 포트는 [`infra/docker/README.md`](../../infra/docker/README.md) 에 있다.
+- 컨테이너의 서버는 `APP_ENV=production` 이다. `APP_ENV`, `PORT`, `DATABASE_URL`(compose 안의 `db`), `COOKIE_SECURE`(기본 `false`), `OLLAMA_BASE_URL`(기본 `http://host.docker.internal:11434`)은 compose 가 고정하고, 나머지(`JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` 등)는 `env_file` 로 `apps/server/.env.production` 에서 받는다. 비밀 값은 compose 파일에 쓰지 않는다.
+- 로그인 쿠키의 `Secure` 는 `COOKIE_SECURE` 가 정하고, 없으면 `APP_ENV=production` 일 때 붙는다. compose 는 http 루프백에서 로그인이 유지되도록 `COOKIE_SECURE=false` 를 둔다. HTTPS 앞단 뒤에 올릴 때는 이 값을 빼거나 `true` 로 둔다.
 
 ## 엔드포인트
 

@@ -6,7 +6,7 @@ pub const AUTH_COOKIE: &str = "beside-pet.token";
 
 const MAX_AGE_SECONDS: i64 = 7 * 24 * 60 * 60;
 
-/// 7일짜리 httpOnly, SameSite=Lax 쿠키. `secure` 는 운영(`NODE_ENV=production`)에서만 참이다.
+/// 7일짜리 httpOnly, SameSite=Lax 쿠키. `secure` 는 설정이 정한다(`COOKIE_SECURE`, 없으면 `APP_ENV=production` 일 때 참).
 pub fn set_auth_cookie(token: &str, secure: bool) -> String {
     let expires =
         (Utc::now() + Duration::seconds(MAX_AGE_SECONDS)).format("%a, %d %b %Y %H:%M:%S GMT");

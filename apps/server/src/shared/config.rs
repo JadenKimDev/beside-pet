@@ -4,8 +4,8 @@ use std::fmt;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 
-/// 이 서버가 읽는 환경 변수의 이름. TS API(`apps/api`)와 같은 이름이다.
-/// 모델 쪽 이름의 해석은 `llm` 이, `JWT_*` 는 identity 가 맡는다.
+/// 이 서버가 읽는 환경 변수의 이름. TS API(`apps/api`)와 같은 이름이고, 환경을 고르는 `APP_ENV` 만 예외다
+/// (TS API 의 `NODE_ENV` 는 더 읽지 않는다). 모델 쪽 이름의 해석은 `llm` 이, `JWT_*` 는 identity 가 맡는다.
 pub const ENV_NAMES: [&str; 14] = [
     "PORT",
     "DATABASE_URL",
@@ -19,16 +19,51 @@ pub const ENV_NAMES: [&str; 14] = [
     "ANTHROPIC_BASE_URL",
     "OLLAMA_BASE_URL",
     "OLLAMA_THINK",
-    "NODE_ENV",
+    "APP_ENV",
     "COOKIE_SECURE",
 ];
 
 const DEFAULT_PORT: u16 = 3000;
-/// `JWT_SECRET` 이 없을 때 개발에서 쓰는 값(TS API 와 같다). production 에서는 쓰지 않고 기동을 막는다.
+/// `JWT_SECRET` 이 없을 때 sandbox 에서 쓰는 값(TS API 와 같다). production 에서는 쓰지 않고 기동을 막는다.
 const DEV_JWT_SECRET: &str = "dev-insecure-secret-change-me";
 
 /// `LLM_PROVIDER` 가 받는 값.
 const KNOWN_PROVIDERS: [&str; 2] = ["anthropic", "ollama"];
+
+/// 서버가 도는 환경. `APP_ENV` 가 고르고, 없거나 모르는 값이면 기동하지 않는다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AppEnv {
+    /// 실제로 쓰는 환경. `JWT_SECRET` 이 필수이고 모든 주소에 연다.
+    Production,
+    /// 개발, 테스트, 실측 환경. 두 루프백에만 연다.
+    Sandbox,
+}
+
+impl AppEnv {
+    /// `APP_ENV` 의 값(앞뒤 공백은 걷는다)을 읽는다. 문구에는 이름만 싣는다.
+    fn parse(raw: Option<String>) -> Result<AppEnv, ConfigError> {
+        match trimmed(raw).as_deref() {
+            Some("production") => Ok(AppEnv::Production),
+            Some("sandbox") => Ok(AppEnv::Sandbox),
+            Some(_) => Err(ConfigError(
+                "APP_ENV must be production or sandbox".to_owned(),
+            )),
+            None => Err(ConfigError(
+                "APP_ENV is not set — set APP_ENV=production or APP_ENV=sandbox \
+                 (NODE_ENV is not read)"
+                    .to_owned(),
+            )),
+        }
+    }
+
+    /// 이 환경에서 읽을 env 파일의 이름.
+    pub fn env_file_name(self) -> &'static str {
+        match self {
+            AppEnv::Production => ".env.production",
+            AppEnv::Sandbox => ".env.sandbox",
+        }
+    }
+}
 
 /// 기동에 필요한 설정. 값은 로그에 싣지 않는다.
 #[derive(Clone)]
@@ -36,14 +71,14 @@ pub struct Config {
     pub port: u16,
     pub database_url: String,
     pub database_ssl: bool,
-    pub node_env: Option<String>,
+    pub app_env: AppEnv,
     pub model: ModelEnv,
     /// 로그인 토큰의 서명 비밀 값.
     pub jwt_secret: String,
     /// 로그인 토큰의 수명 글(`7d`, `12h`, 단위 없는 숫자는 초). 없거나 비면 `None` 이고 기본값(`7d`)과
     /// 글의 해석은 identity 의 몫이다. 읽지 못하는 글이면 기동 때 identity 가 막는다.
     pub jwt_ttl: Option<String>,
-    /// `COOKIE_SECURE` 의 값. 없으면 `None` 이고 `NODE_ENV` 가 정한다(`secure_cookies`).
+    /// `COOKIE_SECURE` 의 값. 없으면 `None` 이고 `APP_ENV` 가 정한다(`secure_cookies`).
     pub cookie_secure: Option<bool>,
 }
 
@@ -78,7 +113,7 @@ impl fmt::Debug for Config {
             .field("port", &self.port)
             .field("database_url", &"<hidden>")
             .field("database_ssl", &self.database_ssl)
-            .field("node_env", &self.node_env)
+            .field("app_env", &self.app_env)
             .field("model", &self.model)
             .field("jwt_secret", &"<hidden>")
             .field("jwt_ttl", &self.jwt_ttl)
@@ -105,7 +140,7 @@ impl fmt::Debug for ModelEnv {
 }
 
 impl Config {
-    /// `NODE_ENV` 가 고른 env 파일을 먼저 올린 뒤(이미 있는 값은 덮지 않는다) 프로세스 환경에서 읽는다.
+    /// `APP_ENV`(프로세스 환경)가 고른 env 파일을 먼저 올린 뒤(이미 있는 값은 덮지 않는다) 프로세스 환경에서 읽는다.
     /// 기동 조건(기본 공급자의 설정)까지 본다.
     pub fn from_env() -> Result<Config, ConfigError> {
         load_env_file();
@@ -120,7 +155,7 @@ impl Config {
         let database_url = trimmed(lookup("DATABASE_URL")).ok_or_else(|| {
             ConfigError(
                 "DATABASE_URL is not set — the server needs PostgreSQL (local: pnpm db:up, \
-                     then set DATABASE_URL in apps/server/.env.development or the environment)"
+                     then set DATABASE_URL in apps/server/.env.sandbox or the environment)"
                     .to_owned(),
             )
         })?;
@@ -131,7 +166,7 @@ impl Config {
                 .map_err(|_| ConfigError("PORT must be a port number (1-65535)".to_owned()))?,
         };
         let database_ssl = lookup("DATABASE_SSL").is_some_and(|v| v == "true");
-        let node_env = lookup("NODE_ENV").filter(|v| !v.is_empty());
+        let app_env = AppEnv::parse(lookup("APP_ENV"))?;
         let model = ModelEnv {
             provider: trimmed(lookup("LLM_PROVIDER")),
             model: trimmed(lookup("LLM_MODEL")),
@@ -148,12 +183,12 @@ impl Config {
                 "LLM_PROVIDER must be anthropic or ollama".to_owned(),
             ));
         }
-        let production = is_production(node_env.as_deref());
+        let production = app_env == AppEnv::Production;
         let jwt_secret = match lookup("JWT_SECRET").filter(|v| !v.trim().is_empty()) {
             Some(secret) => secret,
             None if production => {
                 return Err(ConfigError(
-                    "JWT_SECRET is not set — required when NODE_ENV=production".to_owned(),
+                    "JWT_SECRET is not set — required when APP_ENV=production".to_owned(),
                 ));
             }
             None => DEV_JWT_SECRET.to_owned(),
@@ -175,7 +210,7 @@ impl Config {
             port,
             database_url,
             database_ssl,
-            node_env,
+            app_env,
             model,
             jwt_secret,
             jwt_ttl,
@@ -201,8 +236,8 @@ impl Config {
         }
     }
 
-    /// 듣는 주소들. 개발에서는 두 루프백(127.0.0.1, ::1)에만 연다. `localhost` 가 어느 쪽으로 먼저 풀려도 붙게
-    /// 하려는 것이다. `NODE_ENV=production`(컨테이너)이면 모든 주소(0.0.0.0) 하나에 연다.
+    /// 듣는 주소들. sandbox 에서는 두 루프백(127.0.0.1, ::1)에만 연다. `localhost` 가 어느 쪽으로 먼저 풀려도 붙게
+    /// 하려는 것이다. `APP_ENV=production`(컨테이너)이면 모든 주소(0.0.0.0) 하나에 연다.
     pub fn listen_addresses(&self) -> Vec<SocketAddr> {
         if self.is_production() {
             vec![SocketAddr::from((Ipv4Addr::UNSPECIFIED, self.port))]
@@ -214,12 +249,12 @@ impl Config {
         }
     }
 
-    /// `NODE_ENV=production` 이면 참.
+    /// `APP_ENV=production` 이면 참.
     pub fn is_production(&self) -> bool {
-        is_production(self.node_env.as_deref())
+        self.app_env == AppEnv::Production
     }
 
-    /// 로그인 쿠키에 Secure 를 붙이는가. `COOKIE_SECURE` 가 있으면 그 값, 없으면 production 일 때 참이다.
+    /// 로그인 쿠키에 Secure 를 붙이는가. `COOKIE_SECURE` 가 있으면 그 값, 없으면 `APP_ENV=production` 일 때 참이다.
     /// http 루프백의 컨테이너(`compose --profile full`)는 `COOKIE_SECURE=false` 로 로그인을 유지한다.
     pub fn secure_cookies(&self) -> bool {
         self.cookie_secure.unwrap_or_else(|| self.is_production())
@@ -231,22 +266,15 @@ fn trimmed(value: Option<String>) -> Option<String> {
     value.map(|v| v.trim().to_owned()).filter(|v| !v.is_empty())
 }
 
-fn is_production(node_env: Option<&str>) -> bool {
-    node_env == Some("production")
-}
-
-/// `NODE_ENV` 에 따라 읽을 env 파일의 이름(TS API 와 같다).
-pub fn env_file_name(node_env: Option<&str>) -> &'static str {
-    if node_env == Some("development") {
-        ".env.development"
-    } else {
-        ".env"
-    }
-}
-
-/// env 파일을 서버를 띄운 디렉터리에서 먼저 찾고, 없으면 이 크레이트의 디렉터리에서 찾는다.
+/// `APP_ENV` 가 고른 env 파일을 서버를 띄운 디렉터리에서 먼저 찾고, 없으면 이 크레이트의 디렉터리에서 찾는다.
+/// 파일 이름을 `APP_ENV` 가 정하므로 `APP_ENV` 는 프로세스 환경에서만 읽는다(파일 안의 `APP_ENV` 는 덮지 않는다).
+/// `APP_ENV` 가 없거나 모르는 값이면 파일을 올리지 않고, `from_lookup` 이 이름을 적고 기동을 막는다.
+/// 파일이 없으면 프로세스 환경만 쓴다(컨테이너는 값을 환경으로 받는다).
 fn load_env_file() {
-    let name = env_file_name(std::env::var("NODE_ENV").ok().as_deref());
+    let Ok(app_env) = AppEnv::parse(std::env::var("APP_ENV").ok()) else {
+        return;
+    };
+    let name = app_env.env_file_name();
     let candidates = [
         PathBuf::from(name),
         Path::new(env!("CARGO_MANIFEST_DIR")).join(name),
@@ -268,11 +296,11 @@ fn error_kind(error: &dotenvy::Error) -> &'static str {
     }
 }
 
-/// 테스트가 `DATABASE_URL` 을 찾을 env 파일들(앞의 것이 먼저). 테스트는 `NODE_ENV` 없이 돌기 쉬우므로 서버
-/// 기동의 규칙(`env_file_name`)을 따르지 않고 `.env.development` 다음 `.env` 를 이 크레이트의 디렉터리에서 찾는다.
+/// 테스트가 `DATABASE_URL` 을 찾을 env 파일들(앞의 것이 먼저). 테스트는 `APP_ENV` 없이 돌기 쉽고 sandbox DB 에서만
+/// 돌므로, 서버 기동의 규칙을 따르지 않고 이 크레이트의 디렉터리의 `.env.sandbox` 만 찾는다.
 #[cfg(test)]
-fn test_env_files(crate_dir: &Path) -> [PathBuf; 2] {
-    [crate_dir.join(".env.development"), crate_dir.join(".env")]
+fn test_env_files(crate_dir: &Path) -> [PathBuf; 1] {
+    [crate_dir.join(".env.sandbox")]
 }
 
 /// DB 를 쓰는 테스트가 붙을 주소. 환경에 없으면 `test_env_files` 의 순서로 찾는다. 그래도 없으면 이유를 적고
@@ -296,7 +324,7 @@ pub fn test_database_url() -> String {
         })
         .expect(
             "DATABASE_URL 이 없다: DB 테스트는 로컬 Postgres 가 필요하다. pnpm db:up 으로 띄우고 \
-             DATABASE_URL 을 환경이나 apps/server/.env.development(또는 .env) 에 둔다",
+             DATABASE_URL 을 환경이나 apps/server/.env.sandbox 에 둔다",
         )
 }
 

@@ -1,13 +1,23 @@
 use std::collections::HashMap;
 
-use super::{Config, ENV_NAMES, env_file_name, test_env_files};
+use super::{AppEnv, Config, ENV_NAMES, test_env_files};
 
-fn lookup(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
+/// 주어진 값만 있는 환경.
+fn exact(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
     let map: HashMap<String, String> = pairs
         .iter()
         .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
         .collect();
     move |name| map.get(name).cloned()
+}
+
+/// 주어진 값에 `APP_ENV` 가 없으면 `sandbox` 를 더한 환경.
+fn lookup(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
+    let mut pairs = pairs.to_vec();
+    if !pairs.iter().any(|(k, _)| *k == "APP_ENV") {
+        pairs.push(("APP_ENV", "sandbox"));
+    }
+    exact(&pairs)
 }
 
 #[test]
@@ -37,7 +47,7 @@ fn 값을_읽는다() {
         ("DATABASE_URL", "postgres://u:p@h/db"),
         ("PORT", "4100"),
         ("DATABASE_SSL", "true"),
-        ("NODE_ENV", "production"),
+        ("APP_ENV", "production"),
         ("JWT_SECRET", "fixture-secret"),
     ]))
     .unwrap();
@@ -47,7 +57,7 @@ fn 값을_읽는다() {
 }
 
 #[test]
-fn 개발에서는_두_루프백에_연다() {
+fn sandbox_에서는_두_루프백에_연다() {
     let dev = Config::from_lookup(lookup(&[
         ("DATABASE_URL", "postgres://u:p@h/db"),
         ("PORT", "4100"),
@@ -65,7 +75,7 @@ fn 개발에서는_두_루프백에_연다() {
 fn production_에서는_모든_주소_하나에_연다() {
     let prod = Config::from_lookup(lookup(&[
         ("DATABASE_URL", "postgres://u:p@h/db"),
-        ("NODE_ENV", "production"),
+        ("APP_ENV", "production"),
         ("JWT_SECRET", "fixture-secret"),
     ]))
     .unwrap();
@@ -110,19 +120,70 @@ fn 오류_문구에_값을_싣지_않는다() {
 }
 
 #[test]
-fn node_env_가_env_파일을_고른다() {
-    assert_eq!(env_file_name(Some("development")), ".env.development");
-    assert_eq!(env_file_name(Some("production")), ".env");
-    assert_eq!(env_file_name(None), ".env");
+fn app_env_가_env_파일을_고른다() {
+    assert_eq!(AppEnv::Production.env_file_name(), ".env.production");
+    assert_eq!(AppEnv::Sandbox.env_file_name(), ".env.sandbox");
 }
 
 #[test]
-fn 테스트는_node_env_없이도_env_development_를_먼저_읽고_그다음_env_를_읽는다() {
+fn app_env_는_production_과_sandbox_를_받는다() {
+    let prod = Config::from_lookup(exact(&[
+        DB,
+        ("APP_ENV", "production"),
+        ("JWT_SECRET", "fixture-secret"),
+    ]))
+    .unwrap();
+    assert_eq!(prod.app_env, AppEnv::Production);
+    assert!(prod.is_production());
+    let sandbox = Config::from_lookup(exact(&[DB, ("APP_ENV", "sandbox")])).unwrap();
+    assert_eq!(sandbox.app_env, AppEnv::Sandbox);
+    assert!(!sandbox.is_production());
+}
+
+#[test]
+fn app_env_가_없으면_이름을_적고_기동하지_않는다() {
+    for pairs in [vec![DB], vec![DB, ("APP_ENV", "")], vec![DB, ("APP_ENV", "  ")]] {
+        let err = Config::from_lookup(exact(&pairs)).unwrap_err();
+        assert!(err.to_string().contains("APP_ENV"), "{err}");
+    }
+}
+
+#[test]
+fn 모르는_app_env_는_이름만_적고_기동하지_않는다() {
+    for value in ["development", "Production", "prod", "secret-env-fixture"] {
+        let err = Config::from_lookup(exact(&[DB, ("APP_ENV", value)])).unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("APP_ENV"), "{text}");
+        assert!(!text.contains("secret-env-fixture"), "{text}");
+    }
+}
+
+#[test]
+fn node_env_만_있으면_app_env_가_없는_것으로_보고_기동하지_않는다() {
+    for value in ["production", "development"] {
+        let err = Config::from_lookup(exact(&[
+            DB,
+            ("NODE_ENV", value),
+            ("JWT_SECRET", "fixture-secret"),
+        ]))
+        .unwrap_err();
+        assert!(err.to_string().contains("APP_ENV"), "{err}");
+    }
+}
+
+#[test]
+fn node_env_는_읽지_않는다() {
+    assert!(!ENV_NAMES.contains(&"NODE_ENV"));
+    assert!(ENV_NAMES.contains(&"APP_ENV"));
+    let source = include_str!("../config.rs");
+    assert!(!source.contains("lookup(\"NODE_ENV\")"));
+    assert!(!source.contains("var(\"NODE_ENV\")"));
+}
+
+#[test]
+fn 테스트는_env_sandbox_만_읽는다() {
     let dir = std::path::Path::new("/crate");
-    assert_eq!(
-        test_env_files(dir),
-        [dir.join(".env.development"), dir.join(".env")]
-    );
+    assert_eq!(test_env_files(dir), [dir.join(".env.sandbox")]);
 }
 
 #[test]
@@ -311,7 +372,7 @@ fn jwt_설정을_읽는다() {
         ("DATABASE_URL", "postgres://u:p@h/db"),
         ("JWT_SECRET", "fixture-secret"),
         ("JWT_TTL", "12h"),
-        ("NODE_ENV", "production"),
+        ("APP_ENV", "production"),
     ]))
     .unwrap();
     assert_eq!(config.jwt_secret, "fixture-secret");
@@ -323,7 +384,7 @@ fn production_에서_jwt_secret_이_없으면_기동하지_않는다() {
     for secret in [None, Some(""), Some("  ")] {
         let mut pairs = vec![
             ("DATABASE_URL", "postgres://u:p@h/db"),
-            ("NODE_ENV", "production"),
+            ("APP_ENV", "production"),
         ];
         if let Some(secret) = secret {
             pairs.push(("JWT_SECRET", secret));
@@ -349,7 +410,7 @@ fn debug_에_jwt_secret_을_싣지_않는다() {
 fn prod_with(extra: &[(&str, &str)]) -> Result<Config, super::ConfigError> {
     let mut pairs = vec![
         ("DATABASE_URL", "postgres://u:p@h/db"),
-        ("NODE_ENV", "production"),
+        ("APP_ENV", "production"),
         ("JWT_SECRET", "fixture-secret"),
     ];
     pairs.extend_from_slice(extra);
@@ -359,8 +420,8 @@ fn prod_with(extra: &[(&str, &str)]) -> Result<Config, super::ConfigError> {
 #[test]
 fn cookie_secure_가_없으면_production_에서만_secure_쿠키다() {
     assert!(prod_with(&[]).unwrap().secure_cookies());
-    let dev = Config::from_lookup(lookup(&[("DATABASE_URL", "postgres://u:p@h/db")])).unwrap();
-    assert!(!dev.secure_cookies());
+    let sandbox = Config::from_lookup(lookup(&[("DATABASE_URL", "postgres://u:p@h/db")])).unwrap();
+    assert!(!sandbox.secure_cookies());
 }
 
 #[test]

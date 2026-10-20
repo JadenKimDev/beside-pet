@@ -10,6 +10,7 @@
       "title": "서버의 환경 고르기를 `APP_ENV` 로 바꾼다: 설정 모듈과 테스트, env 파일 이름, 테스트 DB 주소 도우미, 듣는 주소, 쿠키 `Secure`, `.env.example`, README",
       "scope": [
         "apps/server/src/",
+        "apps/server/tests/",
         "apps/server/.env.example",
         "apps/server/README.md"
       ],
@@ -19,10 +20,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-20T01:05:47.796Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -41,13 +42,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-20T01:05:54.754Z",
+      "finished_at": "2026-10-20T01:08:35.795Z",
+      "active_ms": 161041,
+      "verify_ms": 94
     },
     {
       "id": "S3",
@@ -86,13 +87,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-20T01:05:55.086Z",
+      "finished_at": "2026-10-20T01:08:18.895Z",
+      "active_ms": 143809,
+      "verify_ms": 1335
     },
     {
       "id": "S5",

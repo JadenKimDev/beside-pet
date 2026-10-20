@@ -13,9 +13,10 @@ use crate::identity::{
     IdentityState, SharedAccountService, SharedAuthenticator, SharedSessionPresence,
 };
 use crate::llm::SharedTextModel;
+use crate::metrics::SharedMetricsSource;
 use crate::shared::{Config, connect, connect_lazy, cors_layer, route_not_found};
 use crate::support::SharedSupportService;
-use crate::{identity, llm, safety, support};
+use crate::{identity, llm, metrics, safety, support};
 
 /// 기능이 바깥에 묻는 trait 의 구현들. 구현이 생기면 `Services::unimplemented` 의 칸 하나를 바꾼다.
 #[derive(Clone)]
@@ -27,6 +28,8 @@ pub struct Services {
     pub session_presence: SharedSessionPresence,
     /// 대화 기능(`support::SupportFlow`)이 발화, 위기 판정(`safety::assess_risk`), 리포트에 쓴다.
     pub text_model: SharedTextModel,
+    /// 계측 API 가 기간의 집계를 읽는 저장.
+    pub metrics: SharedMetricsSource,
 }
 
 impl Services {
@@ -38,19 +41,24 @@ impl Services {
             support: Arc::new(support::Unimplemented),
             session_presence: Arc::new(identity::Unimplemented),
             text_model: Arc::new(llm::Unimplemented),
+            metrics: Arc::new(metrics::Unimplemented),
         }
     }
 
     /// 설정만으로 만드는 조립: 모델은 설정의 기본 모델로 고르는 라우터(사용량은 메모리 싱크), 나머지는 아직 `unimplemented`.
-    /// DB 가 필요한 구현(계정, 대화)은 `AppState::connect` 가 끼운다.
+    /// DB 가 필요한 구현(계정, 대화, 호출 기록, 계측)은 `AppState::connect` 가 끼운다.
     pub fn for_config(config: &Config) -> Services {
+        Services::with_usage(config, Arc::new(llm::InMemoryUsageSink::default()))
+    }
+
+    /// `for_config` 와 같되 모델 호출 기록을 `usage` 에 넘긴다.
+    pub fn with_usage(config: &Config, usage: llm::SharedUsageSink) -> Services {
         let settings = llm::ModelSettings::from_config(config);
         tracing::info!(
             provider = settings.default_model.provider.as_str(),
             model = %settings.default_model.model,
             "default model"
         );
-        let usage: llm::SharedUsageSink = Arc::new(llm::InMemoryUsageSink::default());
         Services {
             text_model: Arc::new(llm::ModelRouter::from_settings(&settings, usage)),
             ..Services::unimplemented()
@@ -98,7 +106,8 @@ impl AppState {
             .await
             .map_err(ConnectError::Identity)?,
         );
-        let base = Services::for_config(&config);
+        let usage: llm::SharedUsageSink = Arc::new(llm::PostgresUsageSink::spawn(db.clone()));
+        let base = Services::with_usage(&config, usage);
         let support =
             support::SupportFlow::live(db.clone(), base.text_model.clone(), identity.clone());
         Ok(AppState {
@@ -107,6 +116,7 @@ impl AppState {
                 authenticator: identity,
                 support,
                 session_presence: support::session_presence(db.clone()),
+                metrics: metrics::PostgresMetrics::shared(db.clone()),
                 ..base
             },
             config,
@@ -148,6 +158,12 @@ impl FromRef<AppState> for SharedSupportService {
     }
 }
 
+impl FromRef<AppState> for SharedMetricsSource {
+    fn from_ref(state: &AppState) -> SharedMetricsSource {
+        state.services.metrics.clone()
+    }
+}
+
 /// 모든 경로는 `/v1` 아래다. 없는 경로와 메서드가 맞지 않는 경로는 Nest(Express)와 같이 `404 Cannot <METHOD> <path>` 다.
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -155,6 +171,7 @@ pub fn router(state: AppState) -> Router {
         .merge(safety::router())
         .merge(identity::router())
         .merge(support::router())
+        .merge(metrics::router())
         .fallback(route_not_found)
         .method_not_allowed_fallback(route_not_found)
         .layer(cors_layer())

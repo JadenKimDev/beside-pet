@@ -14,6 +14,7 @@ use beside_pet_server::app::{AppState, Services, router};
 use beside_pet_server::identity::{
     AuthenticatedAccount, Authenticator, BoxFuture, ChatLanguage, Role, SharedAuthenticator,
 };
+use beside_pet_server::metrics::SharedMetricsSource;
 use beside_pet_server::shared::{ApiError, Config};
 use beside_pet_server::support::{
     MessageResponse, MindReportResponse, MindReportSectionResponse, ReportSectionKey, Requester,
@@ -212,13 +213,26 @@ pub struct Reply {
     pub body: Value,
 }
 
-/// 계정 서비스와 모델은 `Unimplemented`, 인증은 `TokenAuthenticator`, 대화 서비스는 고른 것.
+/// 계정 서비스와 모델은 `Unimplemented`, 인증은 `TokenAuthenticator`, 대화 서비스와 계측 저장은 고른 것.
 pub struct Harness {
     app: Router,
 }
 
 impl Harness {
+    /// 계측 저장은 `Unimplemented`.
     pub fn new(support: impl SupportService + Send + Sync + 'static) -> Harness {
+        Harness::build(
+            Arc::new(support),
+            Arc::new(beside_pet_server::metrics::Unimplemented),
+        )
+    }
+
+    /// 대화 서비스는 `Unimplemented`, 계측 저장은 고른 것.
+    pub fn with_metrics(metrics: SharedMetricsSource) -> Harness {
+        Harness::build(Arc::new(Unimplemented), metrics)
+    }
+
+    fn build(support: SharedSupportService, metrics: SharedMetricsSource) -> Harness {
         let config = Config::from_lookup(|name| match name {
             "DATABASE_URL" => Some("postgres://u:p@127.0.0.1:1/none".to_owned()),
             "APP_ENV" => Some("sandbox".to_owned()),
@@ -226,10 +240,10 @@ impl Harness {
         })
         .unwrap();
         let authenticator: SharedAuthenticator = Arc::new(TokenAuthenticator);
-        let support: SharedSupportService = Arc::new(support);
         let services = Services {
             authenticator,
             support,
+            metrics,
             ..Services::unimplemented()
         };
         let state = AppState::lazy(Arc::new(config), services).unwrap();

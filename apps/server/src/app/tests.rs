@@ -91,3 +91,15 @@ async fn cors_사전_요청을_받는다() {
         .to_ascii_lowercase();
     assert!(allowed.contains("content-type"), "{allowed}");
 }
+
+#[tokio::test]
+async fn 계측_경로는_조립되어_인증을_묻는다() {
+    for path in [
+        "/v1/admin/metrics/models",
+        "/v1/admin/metrics/conversations",
+    ] {
+        let (status, _, body) = call(Request::get(path).body(Body::empty()).unwrap()).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{path}");
+        assert_eq!(body["message"], "Not authenticated");
+    }
+}

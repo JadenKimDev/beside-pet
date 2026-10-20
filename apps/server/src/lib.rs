@@ -3,6 +3,7 @@
 pub mod app;
 pub mod identity;
 pub mod llm;
+pub mod metrics;
 pub mod safety;
 pub mod shared;
 pub mod support;

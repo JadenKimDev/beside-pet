@@ -14,7 +14,7 @@ use super::super::deadline::CallLimits;
 use super::super::outside::{ChatLanguages, Clock, SessionRepository};
 use super::super::{FlowParts, SupportFlow};
 use crate::identity::ChatLanguage;
-use crate::llm::{GenerationRequest, TextModel, TextStream};
+use crate::llm::{CallContext, GenerationRequest, TextModel, TextStream};
 use crate::safety::RISK_SYSTEM_PROMPT;
 use crate::shared::ApiError;
 use crate::support::knowledge::KnowledgeBase;
@@ -75,6 +75,8 @@ pub struct ScriptedModel {
     stream_fails: bool,
     report_text: &'static str,
     calls: Mutex<Vec<Call>>,
+    /// 받은 요청의 호출 맥락(부른 순서).
+    contexts: Mutex<Vec<CallContext>>,
 }
 
 impl ScriptedModel {
@@ -89,6 +91,7 @@ impl ScriptedModel {
             stream_fails: false,
             report_text: REPORT_TEXT,
             calls: Mutex::new(Vec::new()),
+            contexts: Mutex::new(Vec::new()),
         }
     }
 
@@ -118,6 +121,10 @@ impl ScriptedModel {
 
     pub fn calls(&self) -> Vec<Call> {
         self.calls.lock().unwrap().clone()
+    }
+
+    pub fn contexts(&self) -> Vec<CallContext> {
+        self.contexts.lock().unwrap().clone()
     }
 
     /// 발화를 쓴 호출(동기와 스트림)의 수.
@@ -154,6 +161,7 @@ impl ScriptedModel {
 
 impl TextModel for ScriptedModel {
     fn generate(&self, request: GenerationRequest) -> BoxFuture<'_, Result<String, ApiError>> {
+        self.contexts.lock().unwrap().push(request.context.clone());
         if request.system.as_deref() == Some(RISK_SYSTEM_PROMPT) {
             let text = request.messages[0].text.clone();
             self.push(Call::Risk(text));
@@ -177,6 +185,7 @@ impl TextModel for ScriptedModel {
     }
 
     fn stream(&self, request: GenerationRequest) -> TextStream {
+        self.contexts.lock().unwrap().push(request.context.clone());
         self.push(Call::StreamReply(request));
         if self.stream_fails {
             return Box::pin(stream::iter([

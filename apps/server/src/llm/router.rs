@@ -1,18 +1,20 @@
-//! 모델 라우터(`TextModel` 구현): 기본 `ModelRef` 의 공급자에 호출을 보내고, 쓴 토큰에 비용과 시각을 붙여 사용량으로 적는다.
+//! 모델 라우터(`TextModel` 구현): 기본 `ModelRef` 의 공급자에 호출을 보내고, 호출 한 번마다 기록 하나를 싱크에 남긴다.
 //!
 //! TS 의 `ModelRouter` 를 옮겼다. 지금 `GenerationRequest` 에는 모델 칸이 없어 생성 때 받은 기본 모델로 고른다.
-//! 스트리밍은 글 조각만 밖으로 흘리고 마지막 사용량 이벤트는 싱크에 적는다.
+//! 성공, 실패, 부른 쪽이 버린 호출 모두 기록이 남는다. 스트리밍은 글 조각만 밖으로 흘리고 사용량 이벤트는 기록에 싣는다.
+
+mod meter;
 
 use std::collections::HashMap;
 
-use chrono::Utc;
 use futures_util::future::{self, BoxFuture};
 use futures_util::stream::{self, StreamExt};
 
+use self::meter::CallMeter;
 use super::{
-    AnthropicProvider, GenerationRequest, LlmProvider, ModelRef, ModelSettings, OllamaProvider,
-    SharedUsageSink, StreamEvent, TextModel, TextModelProvider, TextStream, TokenUsage,
-    UsageRecord, cost_usd,
+    AnthropicProvider, CallContext, CallErrorKind, GenerationRequest, LlmProvider, ModelRef,
+    ModelSettings, OllamaProvider, SharedUsageSink, StreamEvent, TextModel, TextModelProvider,
+    TextStream,
 };
 use crate::shared::ApiError;
 
@@ -74,48 +76,77 @@ impl ModelRouter {
     }
 }
 
-/// 토큰 수에 비용과 지금 시각을 붙인다.
-fn priced(provider: LlmProvider, model: &str, tokens: TokenUsage) -> UsageRecord {
-    UsageRecord {
-        provider,
-        model: model.to_owned(),
-        input_tokens: tokens.input_tokens,
-        output_tokens: tokens.output_tokens,
-        cost_usd: cost_usd(provider, model, tokens.input_tokens, tokens.output_tokens),
-        at: Utc::now(),
+impl ModelRouter {
+    fn meter(&self, provider: LlmProvider, context: &CallContext) -> CallMeter {
+        CallMeter::start(
+            self.usage.clone(),
+            provider,
+            &self.default_model.model,
+            context.clone(),
+        )
+    }
+
+    /// 공급자를 찾지 못한 호출도 기록으로 남긴다.
+    fn resolve_metered(
+        &self,
+        context: &CallContext,
+    ) -> Result<(&dyn TextModelProvider, CallMeter), ApiError> {
+        match self.resolve() {
+            Ok(provider) => Ok((provider, self.meter(provider.provider(), context))),
+            Err(error) => {
+                self.meter(self.default_model.provider, context)
+                    .fail(CallErrorKind::Unavailable);
+                Err(error)
+            }
+        }
     }
 }
 
 impl TextModel for ModelRouter {
     fn generate(&self, request: GenerationRequest) -> BoxFuture<'_, Result<String, ApiError>> {
         Box::pin(async move {
-            let provider = self.resolve()?;
-            let model = &self.default_model.model;
-            let generation = provider.generate(model, request).await?;
-            self.usage
-                .record(priced(provider.provider(), model, generation.usage));
-            Ok(generation.text)
+            let (provider, mut meter) = self.resolve_metered(&request.context)?;
+            // 이 future 가 끝나기 전에 버려지면 `meter` 가 취소로 남긴다.
+            match provider.generate(&self.default_model.model, request).await {
+                Ok(generation) => {
+                    meter.usage(generation.usage);
+                    meter.succeed();
+                    Ok(generation.text)
+                }
+                Err(error) => {
+                    meter.fail(CallErrorKind::Provider);
+                    Err(error)
+                }
+            }
         })
     }
 
     fn stream(&self, request: GenerationRequest) -> TextStream {
-        let provider = match self.resolve() {
-            Ok(provider) => provider,
+        let (provider, meter) = match self.resolve_metered(&request.context) {
+            Ok(found) => found,
             Err(error) => return Box::pin(stream::once(future::ready(Err(error)))),
         };
-        let kind = provider.provider();
-        let model = self.default_model.model.clone();
-        let usage = self.usage.clone();
-        let events = provider.stream(&model, request);
-        Box::pin(events.filter_map(move |event| {
-            future::ready(match event {
-                Ok(StreamEvent::Text(text)) => Some(Ok(text)),
-                Ok(StreamEvent::Usage(tokens)) => {
-                    usage.record(priced(kind, &model, tokens));
-                    None
+        let events = provider.stream(&self.default_model.model, request);
+        // 상태: 남은 이벤트와 계량기. 오류나 끝에서 계량기를 닫고 `None` 으로 멈춘다. 중간에 버려지면 계량기가 취소로 남긴다.
+        Box::pin(stream::unfold(Some((events, meter)), |state| async move {
+            let (mut events, mut meter) = state?;
+            loop {
+                match events.next().await {
+                    Some(Ok(StreamEvent::Text(text))) => {
+                        meter.token();
+                        return Some((Ok(text), Some((events, meter))));
+                    }
+                    Some(Ok(StreamEvent::Usage(tokens))) => meter.usage(tokens),
+                    Some(Err(error)) => {
+                        meter.fail(CallErrorKind::Provider);
+                        return Some((Err(error), None));
+                    }
+                    None => {
+                        meter.succeed();
+                        return None;
+                    }
                 }
-                Err(error) => Some(Err(error)),
-            })
+            }
         }))
     }
 }

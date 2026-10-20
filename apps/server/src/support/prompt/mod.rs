@@ -7,5 +7,11 @@ mod reply;
 mod report;
 mod transcript;
 
-pub use reply::{PreviousSession, ReplyContext, reply_messages, reply_system_prompt};
-pub use report::{ReportContext, parse_report_bodies, report_system_prompt, report_user_prompt};
+pub use reply::{
+    PROMPT_VERSION as REPLY_PROMPT_VERSION, PreviousSession, ReplyContext, reply_messages,
+    reply_system_prompt,
+};
+pub use report::{
+    PROMPT_VERSION as REPORT_PROMPT_VERSION, ReportContext, parse_report_bodies,
+    report_system_prompt, report_user_prompt,
+};

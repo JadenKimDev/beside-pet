@@ -5,11 +5,13 @@
 
 use super::parts::FlowParts;
 use super::voice::Voice;
-use crate::llm::GenerationRequest;
+use crate::llm::{CallContext, CallPurpose, GenerationRequest};
 use crate::safety::{assess_risk, crisis_reply};
 use crate::shared::ApiError;
 use crate::support::knowledge::{KNOWLEDGE_LIMIT, KnowledgeChunk};
-use crate::support::prompt::{PreviousSession, ReplyContext, reply_messages, reply_system_prompt};
+use crate::support::prompt::{
+    PreviousSession, REPLY_PROMPT_VERSION, ReplyContext, reply_messages, reply_system_prompt,
+};
 use crate::support::rules::SupportLevel;
 use crate::support::session::{Message, Session};
 use crate::support::{KnowledgeRefResponse, ReplyPhase, SessionSummaryResponse, TurnResponse};
@@ -55,7 +57,8 @@ pub async fn handle(
     voice: &Voice<'_>,
 ) -> Result<TurnResponse, ApiError> {
     // 1) 안전 확인: 키워드 ∪ 모델 판정.
-    let level = SupportLevel::from(assess_risk(text, parts.model.as_ref()).await);
+    let level =
+        SupportLevel::from(assess_risk(text, Some(session.id()), parts.model.as_ref()).await);
     // 2) 과제 전이(위기면 여기서 닫힌다).
     let step = session
         .apply_user_turn(text, level, parts.clock.now())
@@ -108,6 +111,11 @@ fn reply_request(
         system: Some(reply_system_prompt(&context)),
         messages: reply_messages(&context),
         max_tokens: REPLY_MAX_TOKENS,
+        context: CallContext {
+            purpose: CallPurpose::Reply,
+            prompt_version: REPLY_PROMPT_VERSION,
+            session_id: Some(session.id().to_owned()),
+        },
     }
 }
 

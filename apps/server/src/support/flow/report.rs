@@ -4,10 +4,11 @@
 
 use super::access::session_conflict;
 use super::parts::FlowParts;
-use crate::llm::{GenerationRequest, PromptMessage, PromptRole};
+use crate::llm::{CallContext, CallPurpose, GenerationRequest, PromptMessage, PromptRole};
 use crate::shared::ApiError;
 use crate::support::prompt::{
-    ReportContext, parse_report_bodies, report_system_prompt, report_user_prompt,
+    REPORT_PROMPT_VERSION, ReportContext, parse_report_bodies, report_system_prompt,
+    report_user_prompt,
 };
 use crate::support::rules::{MindReport, REPORT_SECTION_ORDER};
 use crate::support::session::{Session, SessionError};
@@ -55,6 +56,11 @@ async fn write(parts: &FlowParts, session: &Session) -> Result<MindReport, ApiEr
                 text: report_user_prompt(&context),
             }],
             max_tokens: REPORT_MAX_TOKENS,
+            context: CallContext {
+                purpose: CallPurpose::Report,
+                prompt_version: REPORT_PROMPT_VERSION,
+                session_id: Some(session.id().to_owned()),
+            },
         })
         .await?;
     let bodies = parse_report_bodies(&raw);

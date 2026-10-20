@@ -8,7 +8,7 @@ mod ollama;
 use futures_util::StreamExt;
 
 use super::{ProviderStream, StreamEvent};
-use crate::llm::{GenerationRequest, PromptMessage, PromptRole};
+use crate::llm::{CallContext, CallPurpose, GenerationRequest, PromptMessage, PromptRole};
 use crate::shared::ApiError;
 
 /// 시스템 글과 두 턴이 있는 지어낸 요청.
@@ -30,6 +30,11 @@ fn sample_request() -> GenerationRequest {
             },
         ],
         max_tokens: 123,
+        context: CallContext {
+            purpose: CallPurpose::Reply,
+            prompt_version: "0.1.0",
+            session_id: None,
+        },
     }
 }
 

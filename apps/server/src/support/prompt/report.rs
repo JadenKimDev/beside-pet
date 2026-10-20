@@ -12,6 +12,10 @@ use crate::support::ReportSectionKey;
 use crate::support::rules::{GriefProfile, Task};
 use crate::support::session::Message;
 
+/// 이 프롬프트의 버전(`x.y.z`). 문구를 바꾸는 커밋이 같은 커밋에서 올린다: major 는 실측 기준선을 새로 잡는 변경,
+/// minor 는 같은 기준선에서 비교할 수 있는 문구 변경, patch 는 오탈자와 다듬기.
+pub const PROMPT_VERSION: &str = "0.1.0";
+
 /// 리포트 한 번을 쓰는 데 필요한 것. 펫 이름과 언어는 프로필에서 구한다.
 #[derive(Debug, Clone, Copy)]
 pub struct ReportContext<'a> {

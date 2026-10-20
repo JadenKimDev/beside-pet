@@ -1,3 +1,12 @@
 {
-  "model": "fable"
+  "model": "fable",
+  "permissions": {
+    "allow": [
+      "Bash(curl -s* http://localhost:3000/*)",
+      "Bash(curl -s* -b * http://localhost:3000/*)",
+      "Bash(jq * data/qa/account.json*)",
+      "Bash(docker exec beside-sandbox-db-1 psql -U beside -d besidepet *)",
+      "Bash(docker compose -f infra/docker/compose.yaml -p beside-sandbox ps*)"
+    ]
+  }
 }

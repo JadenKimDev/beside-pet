@@ -14,9 +14,9 @@ Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원
 
 ## 지키는 선
 
-- 실행 환경은 production 과 sandbox 둘이다(ADR-0021). production 은 실제로 쓰는 환경이고 지금은 이 머신의 Docker(`pnpm prod:up`)에 있다. sandbox 는 개발, 테스트, 실측용이고 `pnpm dev`, `pnpm test`, `pnpm chat:eval` 이 보는 DB 다.
+- 실행 환경은 production 과 sandbox 둘이다(ADR-0021). production 은 실제로 쓰는 환경이고 AWS 의 EC2 한 대(앞에 CloudFront, `https://app.besidepet.com`)에 있다(ADR-0023). `pnpm prod:up` 은 같은 compose 를 이 머신에서 미리 돌려 보는 것이고, 배포는 `pnpm deploy:prod` 다. sandbox 는 개발, 테스트, 실측용이고 `pnpm dev`, `pnpm test`, `pnpm chat:eval` 이 보는 DB 다.
 - 실제 사용자의 데이터(상담 내용, 반려동물 정보, 계정)는 sandbox DB 와 테스트 픽스처에 넣지 않는다. sandbox 에 들어가는 production 의 복사본은 `pnpm sandbox:reset` 이 본문을 자리 표시자로 바꾼 것뿐이고, 바꾸는 칸의 목록은 `infra/docker/scripts/sandbox-scrub.sql` 한 곳에 둔다. 사용자가 쓰는 본문 칸을 더하면 그 목록에도 더한다. 픽스처는 지어낸 값으로 만든다.
-- 클라우드에는 운영 자원이 없다(2026-10-16 AWS 자원을 모두 내렸다). production 을 인스턴스로 옮길 때는 `infra/` 코드로 만들고, 클라우드 계정에 자원을 만들거나 바꾸는 명령은 사용자가 그때그때 승인한 것만 보낸다. AWS 의 `default`, `memoriq` 프로필은 다른 회사 계정이므로 쓰지 않는다.
+- 클라우드의 운영 자원은 모두 `infra/` 의 Pulumi 코드로 만들고 손으로 만들지 않는다. 클라우드 계정에 자원을 만들거나 바꾸는 명령(`pulumi up`, `aws ssm put-parameter` 등)은 사용자가 돌리거나 그때그때 승인한 것만 보낸다. 이 제품의 AWS 프로필은 `old-admin` 하나다. `default`, `memoriq` 프로필은 다른 회사 계정이므로 쓰지 않는다. 서버의 비밀은 SSM 파라미터 `/beside-pet/production/server-env` 에 있고 에이전트는 그 값을 읽지 않는다.
 - memoriq 의 코드와 자료는 이 레포에 들이지 않는다.
 
 ## 읽지 않는 것
@@ -75,8 +75,9 @@ Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원
 pnpm test           # biome, 전 워크스페이스 typecheck 와 테스트(레포 검사 포함), 그리고 스택의 테스트(test:stack: clippy 와 cargo test)
 pnpm lint           # biome 만
 pnpm db:up          # sandbox PostgreSQL(127.0.0.1:5433)을 띄운다 (db:down, db:status). pnpm sandbox:up 과 같다
-pnpm prod:up        # production 의 DB(5434), 서버(8000), 대화 웹(8001)을 Docker 에 띄운다 (prod:down 은 멈추기만 하고 볼륨은 남긴다). apps/server/.env.production 이 필요하다
-pnpm sandbox:reset  # production DB 를 sandbox DB 에 다시 복원하고 본문을 자리 표시자로 바꾼다. 이전 sandbox 데이터는 버린다
+pnpm prod:up        # production 과 같은 compose(DB 5434, 서버 8000, 대화 웹 8001)를 이 머신의 Docker 에 미리 돌려 본다 (prod:down 은 멈추기만 하고 볼륨은 남긴다). apps/server/.env.production 이 필요하다
+pnpm deploy:prod    # 이 Mac 에서 arm64 이미지를 빌드해 ECR 에 올리고 EC2 에 SSM 으로 배포한다 (infra/README.md). 작업 트리가 더러우면 멈춘다
+pnpm sandbox:reset  # 이 머신의 production(prod:up) DB 를 sandbox DB 에 다시 복원하고 본문을 자리 표시자로 바꾼다. 이전 sandbox 데이터는 버린다
 pnpm browser:tab <주소>  # herdr 의 따로 된 탭에 터미널 브라우저를 연다 (herdr 가 있을 때만)
 pnpm chat:eval run --persona <이름>  # QA 계정으로 인물 대본의 대화를 돌려 outputs/chat-eval/<날짜>/ 에 전사와 자동 검사를 남긴다 (--all, --interactive, --stream, --baseline <날짜>. 절차는 chat-eval 스킬)
 ```
@@ -129,7 +130,7 @@ herdr 는 선택이다. 없으면 워크트리는 git worktree 로만 만들고,
 | `docs/research/` | Markdown | 조사 보고서 | 로컬, gitignore |
 | `.claude/agents/` | Markdown | 팀원 정의 | 있음 |
 | `.claude/skills/` | Markdown | 작업 흐름의 절차 | 있음 |
-| `infra/` | TypeScript (Pulumi) | 인프라 정의. 손으로 만든 자원 대신 코드로 둔다 | 있음 |
+| `infra/` | TypeScript (Pulumi) | production 의 인프라 정의(EC2, CloudFront, ECR, ADR-0023). 손으로 만든 자원 대신 코드로 둔다 | 있음 |
 | `outputs/`, `data/` | - | 실측 산출물, QA 보고서, 로컬 상태 | 로컬, gitignore |
 
 ## 데이터를 두는 원칙

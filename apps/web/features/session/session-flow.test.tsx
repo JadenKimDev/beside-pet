@@ -247,7 +247,8 @@ class FakeResizeObserver {
   static live = new Set<FakeResizeObserver>();
   private targets: Element[] = [];
 
-  constructor(private readonly callback: ResizeObserverCallback) {}
+  /** Composer 는 인자 없는 measure 를 넘기므로 엔트리는 만들지 않는다. */
+  constructor(private readonly callback: () => void) {}
 
   observe(target: Element): void {
     this.targets.push(target);
@@ -265,8 +266,7 @@ class FakeResizeObserver {
   }
 
   notify(): void {
-    const entries = this.targets.map((target) => ({ target }) as unknown as ResizeObserverEntry);
-    this.callback(entries, this as unknown as ResizeObserver);
+    if (this.targets.length > 0) this.callback();
   }
 }
 

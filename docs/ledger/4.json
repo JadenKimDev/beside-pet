@@ -66,10 +66,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-20T02:40:13.647Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null

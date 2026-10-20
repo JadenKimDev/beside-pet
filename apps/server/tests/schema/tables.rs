@@ -77,6 +77,7 @@ async fn views_have_their_columns() {
     assert_eq!(
         columns(&schema, "model_prices").await,
         [
+            "provider",
             "model",
             "input_usd_per_mtok",
             "output_usd_per_mtok",
@@ -90,8 +91,8 @@ async fn views_have_their_columns() {
 async fn model_prices_hold_the_current_four() {
     let schema = TestSchema::open().await;
     let rows = sqlx::query(
-        "SELECT model::text, input_usd_per_mtok::text, output_usd_per_mtok::text, effective_from::text \
-         FROM model_prices ORDER BY model",
+        "SELECT provider || '/' || model, input_usd_per_mtok::text, output_usd_per_mtok::text, effective_from::text \
+         FROM model_prices ORDER BY provider, model",
     )
     .fetch_all(&schema.pool)
     .await
@@ -111,10 +112,10 @@ async fn model_prices_hold_the_current_four() {
     assert_eq!(
         got,
         [
-            row("claude-haiku-4-5", "1.00", "5.00"),
-            row("claude-haiku-5-5", "0.10", "0.50"),
-            row("claude-opus-4-8", "5.00", "25.00"),
-            row("claude-sonnet-5", "3.00", "15.00"),
+            row("anthropic/claude-haiku-4-5", "1.00", "5.00"),
+            row("anthropic/claude-haiku-5-5", "0.10", "0.50"),
+            row("anthropic/claude-opus-4-8", "5.00", "25.00"),
+            row("anthropic/claude-sonnet-5", "3.00", "15.00"),
         ]
     );
     schema.close().await;

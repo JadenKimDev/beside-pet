@@ -47,8 +47,8 @@ async fn cost_is_tokens_times_the_price_in_effect() {
     // 지어낸 새 단가: 11월부터 haiku-5-5 가 두 배.
     schema
         .exec(
-            "INSERT INTO model_prices (model, input_usd_per_mtok, output_usd_per_mtok, effective_from) \
-             VALUES ('claude-haiku-5-5', 0.20, 1.00, '2026-11-01')",
+            "INSERT INTO model_prices (provider, model, input_usd_per_mtok, output_usd_per_mtok, effective_from) \
+             VALUES ('anthropic', 'claude-haiku-5-5', 0.20, 1.00, '2026-11-01')",
         )
         .await;
     for sql in [
@@ -87,6 +87,14 @@ async fn cost_is_tokens_times_the_price_in_effect() {
             "gemma4",
             (Some(5000), Some(800)),
         ),
+        // 같은 모델 이름이라도 Ollama 로 부르면 Anthropic 단가를 매기지 않는다.
+        call(
+            "call-ollama-haiku",
+            "2026-10-20T12:30:00Z",
+            "ollama",
+            "claude-haiku-4-5",
+            (Some(5000), Some(800)),
+        ),
         call(
             "call-failed",
             "2026-10-20T13:00:00Z",
@@ -115,6 +123,7 @@ async fn cost_is_tokens_times_the_price_in_effect() {
     );
     close(cost(&schema, "call-before").await, 0.0);
     close(cost(&schema, "call-ollama").await, 0.0);
+    close(cost(&schema, "call-ollama-haiku").await, 0.0);
     close(cost(&schema, "call-failed").await, 900.0 * 5.0 / 1e6);
     close(cost(&schema, "call-no-usage").await, 0.0);
 

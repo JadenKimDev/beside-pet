@@ -22,22 +22,23 @@ CREATE INDEX "idx_llm_calls_at" ON "llm_calls" ("at");
 CREATE INDEX "idx_llm_calls_model_purpose" ON "llm_calls" ("model", "purpose");
 
 -- 모델 단가(USD / 백만 토큰). 단가는 이 테이블 한 곳에만 둔다. 값이 바뀌면 새 effective_from 의 행을 더하고 옛 행은 남긴다.
--- 단가가 없는 모델(Ollama 같은 로컬 모델)의 비용은 0 이다.
+-- 단가는 공급자와 모델로 찾는다. 같은 모델 이름이 다른 공급자(예: Ollama)로 불려도 그 공급자의 단가가 없으면 비용은 0 이다.
 CREATE TABLE "model_prices" (
+  "provider" varchar NOT NULL,
   "model" varchar NOT NULL,
   "input_usd_per_mtok" numeric NOT NULL,
   "output_usd_per_mtok" numeric NOT NULL,
   "effective_from" date NOT NULL,
-  PRIMARY KEY ("model", "effective_from")
+  PRIMARY KEY ("provider", "model", "effective_from")
 );
 -- 출처: platform.claude.com/docs/en/about-claude/pricing (프롬프트 길이로 갈리는 모델은 10만 토큰 이하의 값). 옛 llm/pricing.rs 의 값이다.
-INSERT INTO "model_prices" ("model", "input_usd_per_mtok", "output_usd_per_mtok", "effective_from") VALUES
-  ('claude-haiku-5-5', 0.10, 0.50, '2026-10-16'),
-  ('claude-haiku-4-5', 1.00, 5.00, '2026-10-16'),
-  ('claude-sonnet-5', 3.00, 15.00, '2026-10-16'),
-  ('claude-opus-4-8', 5.00, 25.00, '2026-10-16');
+INSERT INTO "model_prices" ("provider", "model", "input_usd_per_mtok", "output_usd_per_mtok", "effective_from") VALUES
+  ('anthropic', 'claude-haiku-5-5', 0.10, 0.50, '2026-10-16'),
+  ('anthropic', 'claude-haiku-4-5', 1.00, 5.00, '2026-10-16'),
+  ('anthropic', 'claude-sonnet-5', 3.00, 15.00, '2026-10-16'),
+  ('anthropic', 'claude-opus-4-8', 5.00, 25.00, '2026-10-16');
 
--- 호출마다의 비용: 호출 시각(UTC 날짜)에 유효한 가장 최근 단가 × 토큰 / 1,000,000. 단가가 없으면 0, 빈 토큰은 0 으로 센다.
+-- 호출마다의 비용: 같은 공급자·모델의, 호출 시각(UTC 날짜)에 유효한 가장 최근 단가 × 토큰 / 1,000,000. 단가가 없으면 0, 빈 토큰은 0 으로 센다.
 CREATE VIEW "llm_call_costs" AS
 SELECT
   c.*,
@@ -50,7 +51,8 @@ FROM "llm_calls" c
 LEFT JOIN LATERAL (
   SELECT mp."input_usd_per_mtok", mp."output_usd_per_mtok"
   FROM "model_prices" mp
-  WHERE mp."model" = c."model"
+  WHERE mp."provider" = c."provider"
+    AND mp."model" = c."model"
     AND mp."effective_from" <= (c."at" AT TIME ZONE 'UTC')::date
   ORDER BY mp."effective_from" DESC
   LIMIT 1

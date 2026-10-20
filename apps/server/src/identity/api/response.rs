@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-use crate::identity::{Account, AccountStatus, ChatLanguage, Role};
+use crate::identity::{Account, AccountActivity, AccountStatus, ChatLanguage, Role};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,6 +43,31 @@ impl From<Account> for AccountResponse {
             created_at: account.created_at,
             last_login_at: account.last_login_at,
             chat_language: account.chat_language,
+        }
+    }
+}
+
+/// `GET /v1/admin/accounts` 의 항목: 계정의 칸에 `sessionCount`(지금 남아 있는 세션 수)와
+/// `lastActiveAt`(그 세션들의 마지막 메시지 시각, 없으면 칸을 뺀다)을 더한다(#4).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminAccountResponse {
+    #[serde(flatten)]
+    pub account: AccountResponse,
+    pub session_count: u32,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        with = "crate::shared::iso_millis_opt"
+    )]
+    pub last_active_at: Option<DateTime<Utc>>,
+}
+
+impl AdminAccountResponse {
+    pub fn new(account: Account, activity: AccountActivity) -> AdminAccountResponse {
+        AdminAccountResponse {
+            account: account.into(),
+            session_count: activity.session_count,
+            last_active_at: activity.last_active_at,
         }
     }
 }

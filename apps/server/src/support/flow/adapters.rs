@@ -8,7 +8,9 @@ use futures_util::future::BoxFuture;
 
 use super::access::NOT_OWNER;
 use super::outside::{ChatLanguages, Clock, SessionRepository};
-use crate::identity::{ChatLanguage, SessionPresence, SharedAccountService, SharedSessionPresence};
+use crate::identity::{
+    AccountActivity, ChatLanguage, SessionPresence, SharedAccountService, SharedSessionPresence,
+};
 use crate::shared::ApiError;
 use crate::support::session::{MessageActivity, SessionSnapshot};
 use crate::support::store::{SessionStore, StoreError};
@@ -77,11 +79,22 @@ impl SessionRepository for SessionStore {
     }
 }
 
-/// `/v1/auth/me` 의 `hasProfile`: 그 계정에 지금 남아 있는 세션이 있는가.
+/// `/v1/auth/me` 의 `hasProfile` 과 관리자 계정 목록의 계정별 활동.
 impl SessionPresence for SessionStore {
     fn has_sessions<'a>(&'a self, account_id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
         Box::pin(async move {
             SessionStore::has_sessions(self, account_id)
+                .await
+                .map_err(store_error)
+        })
+    }
+
+    fn activity_by_account<'a>(
+        &'a self,
+        account_ids: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, AccountActivity>, ApiError>> {
+        Box::pin(async move {
+            SessionStore::activity_by_owner(self, account_ids)
                 .await
                 .map_err(store_error)
         })

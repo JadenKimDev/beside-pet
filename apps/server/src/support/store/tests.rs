@@ -17,7 +17,7 @@ use super::super::rules::{
 };
 use super::super::session::{Message, MessageActivity, SessionSnapshot};
 use super::{SessionStore, StoreError};
-use crate::identity::ChatLanguage;
+use crate::identity::{AccountActivity, ChatLanguage};
 use crate::shared::{MIGRATOR, test_database_url};
 
 /// 테스트 하나의 스키마. `pool` 은 그 스키마만 본다.
@@ -393,6 +393,54 @@ async fn 메시지_집계는_세션마다_마지막_시각과_내림한_분과_�
     );
     assert_eq!(activity.len(), 2, "메시지가 없거나 없는 세션은 빠진다");
     assert!(store.message_activity(&[]).await.unwrap().is_empty());
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 계정별_활동은_세션_수와_그_세션들의_마지막_메시지_시각이다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    // owner-a: 0·1·2 분의 메시지가 있는 세션과 메시지가 없는 세션.
+    store.save(&snapshot("s-a", "owner-a", 0)).await.unwrap();
+    let mut empty = snapshot("s-a-empty", "owner-a", 50);
+    empty.history.clear();
+    empty.analyses.clear();
+    store.save(&empty).await.unwrap();
+    // owner-b: 10·11·12 분과 30·31·32 분의 세션 둘.
+    store.save(&snapshot("s-b1", "owner-b", 10)).await.unwrap();
+    store.save(&snapshot("s-b2", "owner-b", 30)).await.unwrap();
+    // owner-c: 메시지가 없는 세션 하나.
+    let mut quiet = snapshot("s-c", "owner-c", 0);
+    quiet.history.clear();
+    quiet.analyses.clear();
+    store.save(&quiet).await.unwrap();
+
+    let owners = ["owner-a", "owner-b", "owner-c", "owner-nobody"].map(String::from);
+    let activity = store.activity_by_owner(&owners).await.unwrap();
+    assert_eq!(
+        activity.get("owner-a"),
+        Some(&AccountActivity {
+            session_count: 2,
+            last_active_at: Some(minute(2)),
+        })
+    );
+    assert_eq!(
+        activity.get("owner-b"),
+        Some(&AccountActivity {
+            session_count: 2,
+            last_active_at: Some(minute(32)),
+        })
+    );
+    assert_eq!(
+        activity.get("owner-c"),
+        Some(&AccountActivity {
+            session_count: 1,
+            last_active_at: None,
+        }),
+        "메시지가 없으면 시각이 없다"
+    );
+    assert_eq!(activity.len(), 3, "세션이 없는 계정은 빠진다");
+    assert!(store.activity_by_owner(&[]).await.unwrap().is_empty());
     db.close().await;
 }
 

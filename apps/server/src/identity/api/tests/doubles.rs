@@ -1,14 +1,15 @@
 //! 테스트 더블: 부른 것을 적어 두고 정해 둔 계정을 돌려주는 `AccountService`,
-//! 토큰 글자로 계정을 고르는 `Authenticator`, 정해 둔 답을 내는 `SessionPresence`.
+//! 토큰 글자로 계정을 고르는 `Authenticator`, 정해 둔 답(세션 유무, 계정별 활동)을 내는 `SessionPresence`.
 
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 use chrono::{DateTime, Utc};
 
 use crate::identity::{
-    Account, AccountService, AccountStatus, AuthenticatedAccount, Authenticator, BoxFuture,
-    ChatLanguage, CreateAccountInput, LoginInput, RegisterInput, Role, SessionPresence, SetupInput,
-    SignedIn,
+    Account, AccountActivity, AccountService, AccountStatus, AuthenticatedAccount, Authenticator,
+    BoxFuture, ChatLanguage, CreateAccountInput, LoginInput, RegisterInput, Role, SessionPresence,
+    SetupInput, SignedIn,
 };
 use crate::shared::ApiError;
 
@@ -172,10 +173,19 @@ impl Authenticator for FakeAuthenticator {
     }
 }
 
-/// 세션 유무를 정해 둔 답으로 내고, 물은 계정을 적어 둔다.
+/// 계정 `b` 의 활동: 세션 둘, 마지막 메시지 `2026-10-18T12:34:56.789Z`. 다른 계정은 세션이 없다(맵에서 빠진다).
+pub fn activity_of_b() -> AccountActivity {
+    AccountActivity {
+        session_count: 2,
+        last_active_at: Some(at("2026-10-18T21:34:56.789+09:00")),
+    }
+}
+
+/// 세션 유무와 활동을 정해 둔 답으로 내고, 물은 계정을 적어 둔다.
 pub struct FakeSessions {
     has_sessions: bool,
     asked: Mutex<Vec<String>>,
+    activity_asked: Mutex<Vec<Vec<String>>>,
 }
 
 impl FakeSessions {
@@ -183,11 +193,17 @@ impl FakeSessions {
         FakeSessions {
             has_sessions,
             asked: Mutex::new(Vec::new()),
+            activity_asked: Mutex::new(Vec::new()),
         }
     }
 
     pub fn asked(&self) -> Vec<String> {
         self.asked.lock().unwrap().clone()
+    }
+
+    /// `activity_by_account` 를 부를 때마다 넘긴 계정 id 들.
+    pub fn activity_asked(&self) -> Vec<Vec<String>> {
+        self.activity_asked.lock().unwrap().clone()
     }
 }
 
@@ -195,5 +211,21 @@ impl SessionPresence for FakeSessions {
     fn has_sessions<'a>(&'a self, account_id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
         self.asked.lock().unwrap().push(account_id.to_owned());
         ready(self.has_sessions)
+    }
+
+    fn activity_by_account<'a>(
+        &'a self,
+        account_ids: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, AccountActivity>, ApiError>> {
+        self.activity_asked
+            .lock()
+            .unwrap()
+            .push(account_ids.to_vec());
+        let answer = account_ids
+            .iter()
+            .filter(|id| id.as_str() == "b")
+            .map(|id| (id.clone(), activity_of_b()))
+            .collect();
+        ready(answer)
     }
 }

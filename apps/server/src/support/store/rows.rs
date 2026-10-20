@@ -11,6 +11,7 @@ use super::codec::{
     level_number, parse_count, parse_detector, parse_level, parse_phase, parse_role, parse_task,
     phase_text, role_text, task_number, to_document,
 };
+use crate::identity::AccountActivity;
 
 /// `messages` 에 한 번에 쓰는 칸들(`UNNEST` 의 배열). 자리 i 가 순번 i 다.
 pub(super) struct MessageColumns<'a> {
@@ -155,6 +156,23 @@ pub(super) struct ActivityRow {
     last_message_at: DateTime<Utc>,
     duration_minutes: i32,
     message_count: i32,
+}
+
+/// 소유자 하나의 세션 집계 행(`GROUP BY owner_id`). 세션이 있는 소유자만 행이 있다.
+#[derive(sqlx::FromRow)]
+pub(super) struct OwnerActivityRow {
+    pub owner_id: String,
+    session_count: i32,
+    last_active_at: Option<DateTime<Utc>>,
+}
+
+impl OwnerActivityRow {
+    pub(super) fn into_activity(self) -> Result<AccountActivity, sqlx::Error> {
+        Ok(AccountActivity {
+            session_count: parse_count("sessions.session_count", self.session_count)?,
+            last_active_at: self.last_active_at,
+        })
+    }
 }
 
 impl ActivityRow {

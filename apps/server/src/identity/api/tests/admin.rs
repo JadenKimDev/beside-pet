@@ -150,6 +150,50 @@ async fn 계정_목록은_배열이다() {
 }
 
 #[tokio::test]
+async fn 계정_목록의_항목에_세션_수와_마지막_활동_시각이_붙는다() {
+    let h = Harness::new(false);
+    let reply = h
+        .send(
+            Method::GET,
+            "/v1/admin/accounts",
+            Some(&token("admin")),
+            None,
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK);
+    assert_eq!(
+        reply.body[0]["sessionCount"], 0,
+        "세션이 없는 계정도 칸이 있다"
+    );
+    assert!(
+        reply.body[0].get("lastActiveAt").is_none(),
+        "메시지가 없으면 칸을 뺀다"
+    );
+    assert_eq!(reply.body[1]["sessionCount"], 2);
+    assert_eq!(reply.body[1]["lastActiveAt"], "2026-10-18T12:34:56.789Z");
+    // 기존 칸은 그대로다.
+    assert_eq!(reply.body[1]["id"], "b");
+    assert_eq!(reply.body[1]["username"], "maple");
+    assert_eq!(reply.body[1]["lastLoginAt"], "2026-10-15T14:59:59.999Z");
+}
+
+#[tokio::test]
+async fn 계정_목록의_활동은_한_번에_묻는다() {
+    let h = Harness::new(false);
+    h.send(
+        Method::GET,
+        "/v1/admin/accounts",
+        Some(&token("admin")),
+        None,
+    )
+    .await;
+    assert_eq!(
+        h.sessions.activity_asked(),
+        vec![vec!["a".to_owned(), "b".to_owned()]]
+    );
+}
+
+#[tokio::test]
 async fn 상태_바꾸기_넷은_200_이고_경로의_id_로_부른다() {
     let h = Harness::new(false);
     for action in ["approve", "revoke", "soft-delete", "reactivate"] {

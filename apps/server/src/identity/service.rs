@@ -1,8 +1,11 @@
 //! identity 가 바깥에 보이는 trait(계정 동작, 토큰 확인)와 그 구현의 자리(`IdentityService`, 구현 없음의 `Unimplemented`).
 
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+
+use chrono::{DateTime, Utc};
 
 use super::{Account, AuthenticatedAccount, ChatLanguage, Role};
 use crate::shared::ApiError;
@@ -95,10 +98,25 @@ pub trait Authenticator {
     ) -> BoxFuture<'a, Result<Option<AuthenticatedAccount>, ApiError>>;
 }
 
-/// 계정에 지금 남아 있는 대화 세션이 있는가(`/v1/auth/me` 의 `hasProfile`). 세션은 대화 기능의 것이라
+/// 한 계정의 대화 활동(`GET /v1/admin/accounts` 의 `sessionCount`, `lastActiveAt`). 저장하지 않고 물을 때 구한다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AccountActivity {
+    /// 지금 남아 있는 세션의 수.
+    pub session_count: u32,
+    /// 그 세션들의 마지막 메시지 시각. 메시지가 없으면 `None`.
+    pub last_active_at: Option<DateTime<Utc>>,
+}
+
+/// 계정의 대화 세션에 대해 identity 가 묻는 것. 세션은 대화 기능의 것이라
 /// identity 는 묻기만 하고, 구현은 대화 기능이 하고 `app.rs` 가 끼운다.
 pub trait SessionPresence {
+    /// 계정에 지금 남아 있는 대화 세션이 있는가(`/v1/auth/me` 의 `hasProfile`).
     fn has_sessions<'a>(&'a self, account_id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>>;
+    /// 여러 계정의 활동을 한 번에 구한다. 세션이 없는 계정은 맵에서 빠진다(= `AccountActivity::default()`).
+    fn activity_by_account<'a>(
+        &'a self,
+        account_ids: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, AccountActivity>, ApiError>>;
 }
 
 pub type SharedAccountService = Arc<dyn AccountService + Send + Sync>;
@@ -173,6 +191,12 @@ impl Authenticator for Unimplemented {
 
 impl SessionPresence for Unimplemented {
     fn has_sessions<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
+        not_implemented()
+    }
+    fn activity_by_account<'a>(
+        &'a self,
+        _: &'a [String],
+    ) -> BoxFuture<'a, Result<HashMap<String, AccountActivity>, ApiError>> {
         not_implemented()
     }
 }

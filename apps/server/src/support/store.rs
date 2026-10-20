@@ -10,9 +10,11 @@ use std::fmt;
 use sqlx::{AssertSqlSafe, PgPool, Postgres, Transaction};
 
 use super::session::{MessageActivity, SessionSnapshot};
+use crate::identity::AccountActivity;
 use codec::{count_number, level_number, task_number, to_document};
 use rows::{
-    ActivityRow, AnalysisColumns, AnalysisRow, MessageColumns, MessageRow, SessionRow, Transcripts,
+    ActivityRow, AnalysisColumns, AnalysisRow, MessageColumns, MessageRow, OwnerActivityRow,
+    SessionRow, Transcripts,
 };
 
 mod codec;
@@ -166,6 +168,28 @@ impl SessionStore {
         .await?;
         rows.into_iter()
             .map(|row| Ok((row.session_id.clone(), row.into_activity()?)))
+            .collect()
+    }
+
+    /// 소유자마다 지금 남아 있는 세션의 수와 그 세션들의 마지막 메시지 시각. 세션이 없는 소유자는 빠진다.
+    pub async fn activity_by_owner(
+        &self,
+        owner_ids: &[String],
+    ) -> Result<HashMap<String, AccountActivity>, StoreError> {
+        if owner_ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let rows: Vec<OwnerActivityRow> = sqlx::query_as(
+            "SELECT s.owner_id, count(*)::int4 AS session_count, max(m.last_at) AS last_active_at \
+             FROM sessions s \
+             LEFT JOIN LATERAL (SELECT max(at) AS last_at FROM messages WHERE session_id = s.id) m ON true \
+             WHERE s.owner_id = ANY($1) GROUP BY s.owner_id",
+        )
+        .bind(owner_ids)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|row| Ok((row.owner_id.clone(), row.into_activity()?)))
             .collect()
     }
 

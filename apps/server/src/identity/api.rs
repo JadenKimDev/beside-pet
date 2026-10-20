@@ -17,14 +17,14 @@ pub use extract::{AdminAccount, CurrentAccount};
 use super::{SharedAccountService, SharedAuthenticator, SharedSessionPresence, SignedIn};
 use crate::shared::{ApiError, JsonBody};
 use cookie::{clear_auth_cookie, set_auth_cookie};
-use response::{AccountResponse, MeResponse, SetupStatusResponse};
+use response::{AccountResponse, AdminAccountResponse, MeResponse, SetupStatusResponse};
 
 /// identity 라우터의 상태. `app.rs` 가 `FromRef` 로 꺼내 준다.
 #[derive(Clone)]
 pub struct IdentityState {
     pub accounts: SharedAccountService,
     pub authenticator: SharedAuthenticator,
-    /// `/me` 의 `hasProfile`(지금 남아 있는 세션의 유무)을 묻는 곳.
+    /// `/me` 의 `hasProfile`(지금 남아 있는 세션의 유무)과 계정 목록의 대화 활동을 묻는 곳.
     pub sessions: SharedSessionPresence,
     /// 쿠키에 Secure 를 붙이는가(`Config::secure_cookies()`).
     pub secure_cookies: bool,
@@ -148,12 +148,23 @@ async fn create_account(
     Ok((StatusCode::CREATED, Json(account.into())))
 }
 
+/// 계정마다 대화 활동을 붙인다. 활동은 계정 목록 전체를 한 번에 묻는다.
 async fn list_accounts(
     _: AdminAccount,
     State(state): State<IdentityState>,
-) -> Result<Json<Vec<AccountResponse>>, ApiError> {
+) -> Result<Json<Vec<AdminAccountResponse>>, ApiError> {
     let accounts = state.accounts.list_accounts().await?;
-    Ok(Json(accounts.into_iter().map(Into::into).collect()))
+    let ids: Vec<String> = accounts.iter().map(|account| account.id.clone()).collect();
+    let mut activity = state.sessions.activity_by_account(&ids).await?;
+    Ok(Json(
+        accounts
+            .into_iter()
+            .map(|account| {
+                let found = activity.remove(&account.id).unwrap_or_default();
+                AdminAccountResponse::new(account, found)
+            })
+            .collect(),
+    ))
 }
 
 async fn approve(

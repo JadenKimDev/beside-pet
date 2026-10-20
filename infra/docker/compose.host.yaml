@@ -1,0 +1,78 @@
+# Beside Pet 의 production. AWS 의 EC2 인스턴스 안 /opt/beside-pet/ 에서만 쓴다(README.md).
+#   IMAGE_TAG=<git sha> ECR_REGISTRY=<계정>.dkr.ecr.<리전>.amazonaws.com \
+#     docker compose -f /opt/beside-pet/compose.host.yaml up -d --wait
+# 보통은 같은 디렉터리의 host-deploy.sh <IMAGE_TAG> 가 부른다.
+#
+# compose.yaml 과 같은 세 서비스이되 이미지는 빌드하지 않고 ECR 에서 받는다(Mac 에서 arm64 로 빌드해 민다).
+# 호스트 한 곳에서만 쓰므로 프로젝트 이름을 고정한다. DB 데이터는 볼륨 beside-production_dbdata(루트 EBS)에 있다.
+# api(8000)와 web(8001)은 모든 주소에 연다. 앞의 보안 그룹이 CloudFront 에서 오는 것만 들인다.
+# db(5432)는 호스트에 열지 않는다.
+
+name: beside-production
+
+services:
+  # PostgreSQL + pgvector.
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: beside
+      POSTGRES_PASSWORD: beside
+      POSTGRES_DB: besidepet
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beside -d besidepet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Rust 서버. 이미지가 distroless 라 셸도 curl 도 없어 healthcheck 를 두지 않는다.
+  # 대신 web 의 healthcheck 가 이 서버의 /v1/health 까지 본다.
+  api:
+    image: ${ECR_REGISTRY:?ECR_REGISTRY 가 필요하다}/beside-pet-api:${IMAGE_TAG:?IMAGE_TAG 가 필요하다}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # 비밀과 모델 설정(JWT_SECRET, LLM_PROVIDER, LLM_MODEL, ANTHROPIC_API_KEY 등)은 이 파일에서 받는다.
+    # host-deploy.sh 가 SSM 파라미터 /beside-pet/production/server-env 를 0600 으로 내려 쓴다.
+    # required: false 는 레포에서 `compose config` 로 파일을 검사할 수 있게 하려는 것이다.
+    # 인스턴스에서는 host-deploy.sh 가 up 전에 이 파일을 반드시 쓰고, 못 쓰면 멈춘다.
+    # 아래 environment 의 값이 이 파일의 같은 이름보다 앞선다.
+    env_file:
+      - path: .env.production
+        required: false
+    # COOKIE_SECURE 는 두지 않는다. APP_ENV=production 의 기본(Secure)을 쓴다(https 는 CloudFront 가 끝낸다).
+    environment:
+      APP_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://beside:beside@db:5432/besidepet
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "0.0.0.0:8000:3000"
+
+  # 대화 웹. 이미지는 NEXT_PUBLIC_API_BASE_URL= 빈 값(같은 출처 상대 경로)으로 빌드돼 있다.
+  web:
+    image: ${ECR_REGISTRY:?ECR_REGISTRY 가 필요하다}/beside-pet-web:${IMAGE_TAG:?IMAGE_TAG 가 필요하다}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "0.0.0.0:8001:3001"
+    # 웹 자신과 api 의 /v1/health 가 둘 다 200 이어야 healthy 다. up --wait 가 이것을 기다린다.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "Promise.all(['http://127.0.0.1:3001/','http://api:3000/v1/health'].map(u=>fetch(u).then(r=>{if(!r.ok)throw r.status}))).then(()=>process.exit(0),()=>process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+volumes:
+  dbdata:

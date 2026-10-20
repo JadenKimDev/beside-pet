@@ -3,7 +3,7 @@
   "title": "발화의 상투 표현을 줄인다 — 상투구를 시키는 지시문을 걷어 내고, 이번 턴의 화법을 코드 규칙이 정한다",
   "prd": "docs/prd/18-reply-cliche-turn-style.md",
   "depends_on": [],
-  "created_at": "2026-10-19T14:36:47.513Z",
+  "created_at": "2026-10-20T02:25:01.764Z",
   "tasks": [
     {
       "id": "S1",
@@ -98,9 +98,9 @@
     },
     {
       "id": "S5",
-      "title": "ADR-0021(발화의 화법은 코드 규칙 층이 턴마다 정하고, 지시문에 금지 목록을 넣지 않으며, 모델 계획 호출을 두지 않는다; ADR-0018 의 \"TS 문구 그대로\"를 잇는다)과 `apps/server/CLAUDE.md` 설계 결정 한 줄(\"발화 지시문에 금지 표현 목록과 BAD 예시를 넣지 않는다. 상투구는 `support/rules/turn_style.rs` 가 이미 쓴 것만 넘긴다\")",
+      "title": "새 ADR(번호는 그때 비어 있는 것. 발화의 화법은 코드 규칙 층이 턴마다 정하고, 지시문에 금지 목록을 넣지 않으며, 모델 계획 호출을 두지 않는다; ADR-0018 의 \"TS 문구 그대로\"를 잇는다)과 `apps/server/CLAUDE.md` 설계 결정 한 줄(\"발화 지시문에 금지 표현 목록과 BAD 예시를 넣지 않는다. 상투구는 `support/rules/turn_style.rs` 가 이미 쓴 것만 넘긴다\")",
       "scope": [
-        "docs/adr/0021-reply-turn-style-code-rules.md",
+        "docs/adr/",
         "apps/server/CLAUDE.md"
       ],
       "depends_on": [],

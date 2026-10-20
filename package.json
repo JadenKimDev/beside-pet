@@ -21,6 +21,7 @@
     "db:status": "dev-tools/scripts/db.sh status",
     "prod:up": "infra/docker/scripts/prod-up.sh",
     "prod:down": "infra/docker/scripts/prod-down.sh",
+    "deploy:prod": "infra/scripts/deploy.sh",
     "sandbox:up": "infra/docker/scripts/sandbox-up.sh",
     "sandbox:down": "infra/docker/scripts/sandbox-down.sh",
     "sandbox:reset": "infra/docker/scripts/sandbox-reset.sh",

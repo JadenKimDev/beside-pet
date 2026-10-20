@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cx, Icon } from '@/components/ui';
 import { useTranslations } from '@/i18n/I18nProvider';
+import { COMPOSER_HEIGHT_VAR, composerHost } from './composer-height';
 
 /** Hard cap per message; the counter below the field shows usage against it. */
 const MAX_MESSAGE_LENGTH = 500;
@@ -16,6 +17,7 @@ const MAX_FIELD_HEIGHT_PX = 168;
  * - `busy`: 답이 흐르는 중. 보내기만 잠기고 입력은 계속 할 수 있다(다음 말을 미리 적어 둘 수 있게).
  * - `disabled`: 입력까지 막는다.
  * 화면 아래에 붙고(sticky), 위로 `bg` 그라데이션이 말풍선을 덮어 경계를 만든다.
+ * 덮는 높이를 재어 `--composer-height` 로 알리고(목록이 그만큼 위에서 멈춘다), 사라질 때 0 으로 되돌린다.
  */
 export function Composer({
   disabled = false,
@@ -31,6 +33,7 @@ export function Composer({
   const translations = useTranslations();
   const [text, setText] = useState('');
   const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   /** Set on send so the field can reclaim focus once the reply finishes. */
   const refocusPending = useRef(false);
   const locked = disabled || busy;
@@ -43,6 +46,24 @@ export function Composer({
       fieldRef.current?.focus();
     }
   }, [locked]);
+
+  // 자기 높이를 재어 목록에 알린다. textarea 가 자라면 ResizeObserver 가 다시 잰다.
+  useLayoutEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const host = composerHost(form);
+    const measure = () => {
+      host.style.setProperty(COMPOSER_HEIGHT_VAR, `${form.getBoundingClientRect().height}px`);
+    };
+    measure();
+    const observer =
+      typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+    observer?.observe(form);
+    return () => {
+      observer?.disconnect();
+      host.style.setProperty(COMPOSER_HEIGHT_VAR, '0px');
+    };
+  }, []);
 
   const resize = (): void => {
     const field = fieldRef.current;
@@ -65,6 +86,7 @@ export function Composer({
 
   return (
     <form
+      ref={formRef}
       className="sticky bottom-0 z-10 mx-auto w-full max-w-read bg-[linear-gradient(to_bottom,transparent,var(--color-bg)_28px)] px-4 pt-7 pb-4"
       onSubmit={(event) => {
         event.preventDefault();

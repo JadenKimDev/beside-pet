@@ -11,16 +11,20 @@ import {
 } from 'react';
 import { Icon } from '@/components/ui';
 import { useLocale, useTranslations } from '@/i18n/I18nProvider';
+import { readComposerHeight } from './composer-height';
 import { MessageBubble } from './MessageBubble';
 import { buildTimeline } from './timeline';
 import type { Message } from './types';
 
-/** 바닥에서 이만큼 안이면 "바닥 근처"로 보고 새 답을 따라 내려간다(컴포저 높이를 품는다). */
+/** 입력창 위 경계에서 이만큼 안이면 "바닥 근처"로 보고 새 답을 따라 내려간다. */
 const NEAR_BOTTOM_PX = 220;
 
-/** 끝 표시가 화면 아래 끝에서 얼마나 떨어져 있는가. 창(window)이 스크롤된다. */
+/**
+ * 끝 표시가 보이는 바닥(화면 아래 끝에서 입력창이 덮는 높이를 뺀 자리)에서 얼마나 떨어져 있는가.
+ * 창(window)이 스크롤된다. 입력창에 가린 만큼은 아직 바닥에 닿지 않은 것으로 본다.
+ */
 function distanceToBottom(end: HTMLElement): number {
-  return end.getBoundingClientRect().bottom - window.innerHeight;
+  return end.getBoundingClientRect().bottom - (window.innerHeight - readComposerHeight(end));
 }
 
 /**
@@ -95,7 +99,7 @@ export function MessageList({
         aria-live="polite"
         aria-busy={streaming}
         lang={lang}
-        className="mx-auto grid w-full max-w-read gap-4 px-4 pt-6 pb-8"
+        className="mx-auto grid w-full max-w-read gap-4 px-4 pt-6 pb-[calc(var(--composer-height,0px)+2rem)]"
       >
         {buildTimeline(messages).map((row) => {
           if (row.kind === 'date') {
@@ -132,10 +136,15 @@ export function MessageList({
           );
         })}
         {footer}
-        <div ref={endRef} />
+        {/* 입력창이 덮는 만큼 위에서 멈춘다(scrollIntoView 의 block: 'end'). */}
+        <div
+          ref={endRef}
+          data-message-end
+          style={{ scrollMarginBottom: 'var(--composer-height, 0px)' }}
+        />
       </div>
       {newReply && (
-        <div className="pointer-events-none sticky bottom-[var(--composer-height,132px)] z-10 flex justify-center">
+        <div className="pointer-events-none sticky bottom-[var(--composer-height,0px)] z-10 flex justify-center">
           <button
             type="button"
             onClick={() => scrollToEnd(true)}

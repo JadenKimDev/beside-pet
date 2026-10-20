@@ -238,3 +238,160 @@ describe('대화 화면의 상태 전환', () => {
     expect(actions).toContain(ko.crisis.toHelp);
   });
 });
+
+/** 지어낸 입력창 높이. 실제 값은 글에 따라 자라므로 테스트에서만 숫자로 둔다. */
+const COMPOSER_HEIGHT = 126;
+
+/** jsdom 에 없는 ResizeObserver 의 가짜. observe 하면 곧바로 한 번 알리고, resizeAll() 로 다시 알린다. */
+class FakeResizeObserver {
+  static live = new Set<FakeResizeObserver>();
+  private targets: Element[] = [];
+
+  constructor(private readonly callback: ResizeObserverCallback) {}
+
+  observe(target: Element): void {
+    this.targets.push(target);
+    FakeResizeObserver.live.add(this);
+    this.notify();
+  }
+
+  unobserve(target: Element): void {
+    this.targets = this.targets.filter((item) => item !== target);
+  }
+
+  disconnect(): void {
+    this.targets = [];
+    FakeResizeObserver.live.delete(this);
+  }
+
+  notify(): void {
+    const entries = this.targets.map((target) => ({ target }) as unknown as ResizeObserverEntry);
+    this.callback(entries, this as unknown as ResizeObserver);
+  }
+}
+
+const endMarker = (): HTMLElement => {
+  const end = document.querySelector<HTMLElement>('[data-message-end]');
+  if (!end) throw new Error('end marker not found');
+  return end;
+};
+
+const composerVar = (): string =>
+  document.querySelector('main')?.style.getPropertyValue('--composer-height') ?? '';
+
+const newReplyPill = (): HTMLButtonElement | undefined =>
+  Array.from(document.querySelectorAll('button')).find(
+    (button) => button.textContent === ko.chat.newReply,
+  );
+
+describe('대화 화면의 스크롤과 입력창 높이', () => {
+  /** 끝 표시의 bottom 을 정한다. 기본은 입력창 위 경계에 맞춘 자리. */
+  let endBottom = 0;
+  const scrollIntoView = vi.fn();
+  const originalRect = Element.prototype.getBoundingClientRect;
+
+  beforeEach(() => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    endBottom = window.innerHeight - COMPOSER_HEIGHT;
+    scrollIntoView.mockClear();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
+      if (this instanceof HTMLFormElement) {
+        return { ...originalRect.call(this), height: COMPOSER_HEIGHT } as DOMRect;
+      }
+      if (this instanceof HTMLElement && this.hasAttribute('data-message-end')) {
+        return { ...originalRect.call(this), top: endBottom, bottom: endBottom } as DOMRect;
+      }
+      return originalRect.call(this);
+    };
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    FakeResizeObserver.live.clear();
+    Element.prototype.getBoundingClientRect = originalRect;
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+  });
+
+  async function openGreeting(): Promise<{ stream: FakeStream; pending: Promise<void> }> {
+    mounted = mount(
+      <I18nProvider initialLocale="ko">
+        <SessionPage />
+      </I18nProvider>,
+    );
+    let pending!: Promise<void>;
+    act(() => {
+      pending = useSessionStore
+        .getState()
+        .startSession({ griefPath: 'afterLoss', petName: '보리' });
+    });
+    await flush(0);
+    const stream = streams[0];
+    if (!stream) throw new Error('greeting stream not opened');
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    stream.push({ kind: 'token', text: '다시 와 주셔서 ' });
+    await flush();
+    return { stream, pending };
+  }
+
+  it('답이 자랄 때 끝 표시로 스크롤하고, 끝 표시는 입력창 높이만큼 위에서 멈춘다', async () => {
+    await openGreeting();
+    expect(composerVar()).toBe(`${COMPOSER_HEIGHT}px`);
+    expect(endMarker().style.scrollMarginBottom).toBe('var(--composer-height, 0px)');
+
+    scrollIntoView.mockClear();
+    streams[0]?.push({ kind: 'token', text: '반가워요.' });
+    await flush();
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(newReplyPill()).toBeUndefined();
+  });
+
+  it('끝 표시가 입력창 높이만큼 가려진 상태(입력창 위 경계에서 220px 안)는 새 답을 따라 내려간다', async () => {
+    const { stream } = await openGreeting();
+
+    endBottom = window.innerHeight;
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+    scrollIntoView.mockClear();
+    stream.push({ kind: 'token', text: '반가워요.' });
+    await flush();
+
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(newReplyPill()).toBeUndefined();
+  });
+
+  it('끝 표시가 입력창 위 경계보다 220px 넘게 아래면 따라가지 않고 새 답 알약을 띄운다', async () => {
+    const { stream } = await openGreeting();
+
+    // 뷰포트 바닥에서는 220px 안이지만, 입력창 위 경계에서는 220px 넘게 아래다.
+    endBottom = window.innerHeight + 150;
+    act(() => {
+      window.dispatchEvent(new Event('scroll'));
+    });
+    scrollIntoView.mockClear();
+    stream.push({ kind: 'token', text: '반가워요.' });
+    await flush();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(newReplyPill()).toBeDefined();
+  });
+
+  it('입력창이 없는 화면(마침)에서는 입력창 높이가 0 이다', async () => {
+    const { stream, pending } = await openGreeting();
+    expect(composerVar()).toBe(`${COMPOSER_HEIGHT}px`);
+
+    stream.push({
+      kind: 'done',
+      result: { reply: '다시 와 주셔서 ', task: 4, progress: 1, supportLevel: 1, done: true },
+    });
+    stream.end();
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(document.querySelector('textarea')).toBeNull();
+    expect(composerVar()).toBe('0px');
+  });
+});

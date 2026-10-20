@@ -14,8 +14,9 @@ Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원
 
 ## 지키는 선
 
-- 실제 사용자의 데이터(상담 내용, 반려동물 정보, 계정)는 개발 DB 와 테스트 픽스처에 넣지 않는다. 픽스처는 지어낸 값으로 만든다.
-- 지금은 운영 환경이 없다(2026-10-16 AWS 자원을 모두 내렸다). 다시 올릴 때는 `infra/` 코드로 만들고, 클라우드 계정에 자원을 만들거나 바꾸는 명령은 사용자가 그때그때 승인한 것만 보낸다. AWS 의 `default`, `memoriq` 프로필은 다른 회사 계정이므로 쓰지 않는다.
+- 실행 환경은 production 과 sandbox 둘이다(ADR-0021). production 은 실제로 쓰는 환경이고 지금은 이 머신의 Docker(`pnpm prod:up`)에 있다. sandbox 는 개발, 테스트, 실측용이고 `pnpm dev`, `pnpm test`, `pnpm chat:eval` 이 보는 DB 다.
+- 실제 사용자의 데이터(상담 내용, 반려동물 정보, 계정)는 sandbox DB 와 테스트 픽스처에 넣지 않는다. sandbox 에 들어가는 production 의 복사본은 `pnpm sandbox:reset` 이 본문을 자리 표시자로 바꾼 것뿐이고, 바꾸는 칸의 목록은 `infra/docker/scripts/sandbox-scrub.sql` 한 곳에 둔다. 사용자가 쓰는 본문 칸을 더하면 그 목록에도 더한다. 픽스처는 지어낸 값으로 만든다.
+- 클라우드에는 운영 자원이 없다(2026-10-16 AWS 자원을 모두 내렸다). production 을 인스턴스로 옮길 때는 `infra/` 코드로 만들고, 클라우드 계정에 자원을 만들거나 바꾸는 명령은 사용자가 그때그때 승인한 것만 보낸다. AWS 의 `default`, `memoriq` 프로필은 다른 회사 계정이므로 쓰지 않는다.
 - memoriq 의 코드와 자료는 이 레포에 들이지 않는다.
 
 ## 읽지 않는 것
@@ -73,17 +74,19 @@ Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원
 ```bash
 pnpm test           # biome, 전 워크스페이스 typecheck 와 테스트(레포 검사 포함), 그리고 스택의 테스트(test:stack: clippy 와 cargo test)
 pnpm lint           # biome 만
-pnpm db:up          # 로컬 PostgreSQL 을 띄운다 (db:down, db:status). 다른 Postgres 가 5432 를 쓰면 DB_PORT=5433 처럼 바꾸고 DATABASE_URL 도 맞춘다
+pnpm db:up          # sandbox PostgreSQL(127.0.0.1:5433)을 띄운다 (db:down, db:status). pnpm sandbox:up 과 같다
+pnpm prod:up        # production 의 DB(5434), 서버(8000), 대화 웹(8001)을 Docker 에 띄운다 (prod:down 은 멈추기만 하고 볼륨은 남긴다). apps/server/.env.production 이 필요하다
+pnpm sandbox:reset  # production DB 를 sandbox DB 에 다시 복원하고 본문을 자리 표시자로 바꾼다. 이전 sandbox 데이터는 버린다
 pnpm browser:tab <주소>  # herdr 의 따로 된 탭에 터미널 브라우저를 연다 (herdr 가 있을 때만)
 pnpm chat:eval run --persona <이름>  # QA 계정으로 인물 대본의 대화를 돌려 outputs/chat-eval/<날짜>/ 에 전사와 자동 검사를 남긴다 (--all, --interactive, --stream, --baseline <날짜>. 절차는 chat-eval 스킬)
 ```
 
 ```bash
-pnpm dev            # Rust 서버(3000)와 대화 웹(3001)을 함께 띄운다. 서버는 apps/server/.env.development 와 PostgreSQL 이 필요하다
-dev-tools/scripts/cargo.sh run -p beside-pet-server   # Rust 서버(3000). cargo 는 이 머신의 PATH 에 없어 래퍼로 부른다. DATABASE_URL 이 없으면 뜨지 않는다
+pnpm dev            # Rust 서버(3000)와 대화 웹(3001)을 sandbox 로 띄운다(APP_ENV=sandbox). 서버는 apps/server/.env.sandbox 와 sandbox PostgreSQL 이 필요하다
+APP_ENV=sandbox dev-tools/scripts/cargo.sh run -p beside-pet-server   # Rust 서버(3000)만. cargo 는 이 머신의 PATH 에 없어 래퍼로 부른다. APP_ENV 와 DATABASE_URL 이 없으면 뜨지 않는다
 ```
 
-화면은 루프백(127.0.0.1)에만 연다. `test:stack` 의 `cargo test` 는 DB 테스트를 품으므로 `DATABASE_URL` 과 떠 있는 Postgres 가 필요하고, 없으면 이유를 적고 실패한다.
+화면은 루프백(127.0.0.1)에만 연다. `test:stack` 의 `cargo test` 는 DB 테스트를 품으므로 `DATABASE_URL`(환경 또는 `apps/server/.env.sandbox`)과 떠 있는 sandbox Postgres 가 필요하고, 없으면 이유를 적고 실패한다.
 
 작업 대장:
 

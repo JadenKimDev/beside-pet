@@ -16,13 +16,15 @@ aws s3api create-bucket --profile old-admin --bucket beside-pet-pulumi-state \
 aws s3api put-bucket-versioning --profile old-admin --bucket beside-pet-pulumi-state \
   --versioning-configuration Status=Enabled
 pulumi login 's3://beside-pet-pulumi-state?region=ap-northeast-2&profile=old-admin'
-cd infra && pulumi stack init production
+cd infra && PULUMI_CONFIG_PASSPHRASE="" pulumi stack init production
 ```
+
+S3 백엔드는 스택 설정의 비밀을 잠글 암호(`PULUMI_CONFIG_PASSPHRASE`)를 요구한다. 이 스택은 설정에 비밀을 두지 않으므로(비밀은 SSM 파라미터 `/beside-pet/production/server-env` 에만 있다) **빈 암호로 간다.** 모든 `pulumi` 명령(`stack init`, `preview`, `up`, `stack output`, `destroy`) 앞에 `PULUMI_CONFIG_PASSPHRASE=""` 를 붙인다. `stack init` 이 `Pulumi.production.yaml` 에 적는 `encryptionsalt` 는 비밀이 아니라 커밋한다. `pnpm deploy:prod` 는 이 변수가 비어 있으면 스스로 빈 문자열로 둔다.
 
 ## 처음 올리는 순서
 
-1. 위의 버킷을 만들고 로그인한 뒤 `pulumi stack init production`.
-2. `cd infra && pulumi up`. ECR 저장소 둘, 호스트, 인증서가 올라가고 인증서 검증 CNAME(`certificateValidationRecords`)과 CloudFront 도메인(`cloudFrontDomain`)이 출력된다. Squarespace DNS 에 검증 CNAME 과 `app` → CloudFront 도메인 CNAME 을 더한다. 인증서가 발급되면(수 분) `pulumi up` 이 끝난다.
+1. 위의 버킷을 만들고 로그인한 뒤 `PULUMI_CONFIG_PASSPHRASE="" pulumi stack init production`. 생긴 `encryptionsalt` 줄은 커밋한다.
+2. `cd infra && PULUMI_CONFIG_PASSPHRASE="" pulumi up`. ECR 저장소 둘, 호스트, 인증서가 올라가고 인증서 검증 CNAME(`certificateValidationRecords`)과 CloudFront 도메인(`cloudFrontDomain`)이 출력된다. Squarespace DNS 에 검증 CNAME 과 `app` → CloudFront 도메인 CNAME 을 더한다. 인증서가 발급되면(수 분) `pulumi up` 이 끝난다.
 3. 서버 설정을 파라미터로 넣는다.
    ```bash
    aws ssm put-parameter --profile old-admin --name /beside-pet/production/server-env \
@@ -58,6 +60,7 @@ ECR 저장소는 `protect: true` 라 먼저 보호를 푼다.
 
 ```bash
 cd infra
+export PULUMI_CONFIG_PASSPHRASE=""
 pulumi state unprotect --all
 pulumi destroy
 ```

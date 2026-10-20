@@ -6,7 +6,7 @@
 #   MAX_WAIT_SECONDS=3600 pnpm deploy:prod   # 호스트 배포를 기다리는 최대 시간(기본 1800초)을 바꿀 때
 #
 # 전제
-# - pulumi 가 상태 백엔드(S3)에 로그인돼 있고 infra/ 에 스택 production 이 있다(infra/README.md).
+# - pulumi 가 상태 백엔드(S3)에 로그인돼 있고 infra/ 에 스택 production 이 있다(infra/README.md). 설정 암호는 비어 있다.
 # - AWS CLI 의 프로필 old-admin 이 있다. 이 스크립트는 그 프로필만 쓴다. default, memoriq 프로필은 다른 회사 계정이라 쓰지 않는다.
 # - docker buildx 가 linux/arm64 로 빌드할 수 있다(Docker Desktop 기본 빌더면 된다). 안 되면:
 #     docker buildx create --name beside-pet --use
@@ -27,6 +27,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 STACK="production"
+# S3 백엔드는 설정 암호를 요구한다. 이 스택은 설정에 비밀을 두지 않아 빈 암호로 간다(infra/README.md "상태 백엔드").
+# 사용자가 다른 값을 두었으면 그것을 쓴다.
+export PULUMI_CONFIG_PASSPHRASE="${PULUMI_CONFIG_PASSPHRASE:-}"
 PROFILE="old-admin"
 POLL_SECONDS="${POLL_SECONDS:-5}"
 MAX_WAIT_SECONDS="${MAX_WAIT_SECONDS:-1800}"

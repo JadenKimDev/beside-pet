@@ -14,7 +14,7 @@ Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원
 
 ## 지키는 선
 
-- 실행 환경은 production 과 sandbox 둘이다(ADR-0021). production 은 실제로 쓰는 환경이고 AWS 의 EC2 한 대(앞에 CloudFront, `https://app.besidepet.com`)에 있다(ADR-0023). `pnpm prod:up` 은 같은 compose 를 이 머신에서 미리 돌려 보는 것이고, 배포는 `pnpm deploy:prod` 다. sandbox 는 개발, 테스트, 실측용이고 `pnpm dev`, `pnpm test`, `pnpm chat:eval` 이 보는 DB 다.
+- 실행 환경은 production 과 sandbox 둘이다(ADR-0021). production 은 실제로 쓰는 환경이고 AWS 의 EC2 한 대(앞에 CloudFront, 주소는 CloudFront 기본 도메인이고 커스텀 도메인은 쓰지 않는다. besidepet.com 은 상표 문제로 쓰지 않는다)에 있다(ADR-0023). `pnpm prod:up` 은 같은 compose 를 이 머신에서 미리 돌려 보는 것이고, 배포는 `pnpm deploy:prod` 다. sandbox 는 개발, 테스트, 실측용이고 `pnpm dev`, `pnpm test`, `pnpm chat:eval` 이 보는 DB 다.
 - 실제 사용자의 데이터(상담 내용, 반려동물 정보, 계정)는 sandbox DB 와 테스트 픽스처에 넣지 않는다. sandbox 에 들어가는 production 의 복사본은 `pnpm sandbox:reset` 이 본문을 자리 표시자로 바꾼 것뿐이고, 바꾸는 칸의 목록은 `infra/docker/scripts/sandbox-scrub.sql` 한 곳에 둔다. 사용자가 쓰는 본문 칸을 더하면 그 목록에도 더한다. 픽스처는 지어낸 값으로 만든다.
 - 클라우드의 운영 자원은 모두 `infra/` 의 Pulumi 코드로 만들고 손으로 만들지 않는다. 클라우드 계정에 자원을 만들거나 바꾸는 명령(`pulumi up`, `aws ssm put-parameter` 등)은 사용자가 돌리거나 그때그때 승인한 것만 보낸다. 이 제품의 AWS 프로필은 `old-admin` 하나다. `default`, `memoriq` 프로필은 다른 회사 계정이므로 쓰지 않는다. 서버의 비밀은 SSM 파라미터 `/beside-pet/production/server-env` 에 있고 에이전트는 그 값을 읽지 않는다.
 - memoriq 의 코드와 자료는 이 레포에 들이지 않는다.

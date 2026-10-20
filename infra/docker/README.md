@@ -1,6 +1,6 @@
 # Docker 환경
 
-production 은 AWS 의 EC2 인스턴스 한 대이고, 앞의 CloudFront 가 `https://app.besidepet.com` 으로 연다(인프라는 `infra/` 의 Pulumi 코드). 이 머신의 `pnpm prod:up` 은 같은 세 서비스(db, api, web)를 이 머신에서 미리 돌려 보는 것이다.
+production 은 AWS 의 EC2 인스턴스 한 대이고, 앞의 CloudFront 가 기본 도메인(`cloudFrontDomain` 출력)으로 연다(인프라는 `infra/` 의 Pulumi 코드). 커스텀 도메인은 쓰지 않는다. 이 머신의 `pnpm prod:up` 은 같은 세 서비스(db, api, web)를 이 머신에서 미리 돌려 보는 것이다.
 
 | 파일 | 어디서 | 하는 일 |
 |---|---|---|

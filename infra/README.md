@@ -1,8 +1,8 @@
 # Infrastructure
 
-production 은 AWS 계정(ap-northeast-2, `old-admin` 프로필)의 EC2 한 대이고, 앞에 CloudFront 를 두어 `https://app.besidepet.com` 으로 연다. 인스턴스 안은 `infra/docker/compose.host.yaml` 의 compose(db, api, web)이다. `pnpm prod:up` 은 같은 compose 를 이 머신에서 미리 돌려 보는 것이다.
+production 은 AWS 계정(ap-northeast-2, `old-admin` 프로필)의 EC2 한 대이고, 앞에 CloudFront 를 둔다. 주소는 CloudFront 기본 도메인(`cloudFrontDomain` 출력, `https://<id>.cloudfront.net`)이고 커스텀 도메인은 쓰지 않는다. besidepet.com 은 상표 문제로 쓰지 않는다. 인스턴스 안은 `infra/docker/compose.host.yaml` 의 compose(db, api, web)이다. `pnpm prod:up` 은 같은 compose 를 이 머신에서 미리 돌려 보는 것이다.
 
-자원은 모두 이 Pulumi 프로젝트의 코드로 만든다. 스택은 `production` 하나이고 설정은 `Pulumi.production.yaml` 에 있다(`awsRegion`, `awsProfile`, `domain`, `instanceType`). 비밀은 Pulumi 설정에 두지 않는다. 서버 설정은 SSM Parameter Store 의 SecureString `/beside-pet/production/server-env` 하나다.
+자원은 모두 이 Pulumi 프로젝트의 코드로 만든다. 스택은 `production` 하나이고 설정은 `Pulumi.production.yaml` 에 있다(`awsRegion`, `awsProfile`, `instanceType`). 비밀은 Pulumi 설정에 두지 않는다. 서버 설정은 SSM Parameter Store 의 SecureString `/beside-pet/production/server-env` 하나다.
 
 **클라우드에 자원을 만들거나 바꾸는 명령(`pulumi up`, `pulumi destroy`, `aws ssm put-parameter`, 버킷 만들기)은 사용자가 돌린다.** 에이전트는 코드와, 사용자가 로그인해 둔 뒤의 `pulumi preview` 까지만 한다. AWS 의 `default`, `memoriq` 프로필은 다른 회사 계정이라 쓰지 않는다(`config.ts` 가 거부한다).
 
@@ -24,7 +24,7 @@ S3 백엔드는 스택 설정의 비밀을 잠글 암호(`PULUMI_CONFIG_PASSPHRA
 ## 처음 올리는 순서
 
 1. 위의 버킷을 만들고 로그인한 뒤 `PULUMI_CONFIG_PASSPHRASE="" pulumi stack init production`. 생긴 `encryptionsalt` 줄은 커밋한다.
-2. `cd infra && PULUMI_CONFIG_PASSPHRASE="" pulumi up`. ECR 저장소 둘, 호스트, 인증서가 올라가고 인증서 검증 CNAME(`certificateValidationRecords`)과 CloudFront 도메인(`cloudFrontDomain`)이 출력된다. Squarespace DNS 에 검증 CNAME 과 `app` → CloudFront 도메인 CNAME 을 더한다. 인증서가 발급되면(수 분) `pulumi up` 이 끝난다.
+2. `cd infra && PULUMI_CONFIG_PASSPHRASE="" pulumi up`. ECR 저장소 둘, 호스트, CloudFront 배포가 올라가고 주소(`cloudFrontDomain`)가 출력된다. DNS 작업은 없다. CloudFront 전파에 수 분이 걸린다.
 3. 서버 설정을 파라미터로 넣는다.
    ```bash
    aws ssm put-parameter --profile old-admin --name /beside-pet/production/server-env \
@@ -50,9 +50,9 @@ user-data 는 인스턴스의 첫 부팅에만 돈다. `/opt/beside-pet/` 의 `c
 | --- | --- |
 | `ecrRegistry` | `<account>.dkr.ecr.<region>.amazonaws.com` |
 | `apiRepositoryUrl`, `webRepositoryUrl` | 두 저장소의 URL |
-| `awsRegion`, `awsProfile`, `domain`, `instanceType`, `stack` | 스택 설정 |
+| `awsRegion`, `awsProfile`, `instanceType`, `stack` | 스택 설정 |
 
-호스트(`host.ts`)와 가장자리(`edge.ts`)가 `instanceId`, `publicDns`, `eip`, `cloudFrontDomain`, `certificateValidationRecords` 를 더한다.
+호스트(`host.ts`)와 가장자리(`edge.ts`)가 `instanceId`, `publicDns`, `eip`, `cloudFrontDomain`(production 의 주소) 을 더한다.
 
 ## 내리는 법
 

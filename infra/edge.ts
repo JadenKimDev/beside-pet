@@ -1,37 +1,13 @@
 import * as aws from "@pulumi/aws";
-import { domain, provider, usEast1Provider } from "./config";
+import { provider } from "./config";
 import { publicDns } from "./host";
 
-// production 가장자리: app.besidepet.com 의 CloudFront 배포 하나와 그 인증서.
-// DNS 는 Squarespace 에 있어 Route53 을 쓰지 않는다. 검증 CNAME 과 app CNAME 은 사용자가 손으로 더한다.
+// production 가장자리: CloudFront 배포 하나. 주소는 CloudFront 기본 도메인(*.cloudfront.net, 출력 cloudFrontDomain)이고
+// 커스텀 도메인과 인증서는 쓰지 않는다(besidepet.com 은 상표 문제로 쓰지 않는다. ADR-0023).
 // 웹과 api 를 한 호스트에 두어 쿠키의 SameSite 와 CORS 문제가 없게 한다.
 
 const name = "beside-pet-production";
 const tags = { Name: name };
-
-// --- 인증서: CloudFront 는 us-east-1 의 ACM 인증서만 쓴다.
-const certificate = new aws.acm.Certificate(
-  name,
-  { domainName: domain, validationMethod: "DNS", tags },
-  { provider: usEast1Provider },
-);
-
-/** 사용자가 Squarespace DNS 에 더하는 검증 레코드. */
-export const certificateValidationRecords = certificate.domainValidationOptions.apply((options) =>
-  options.map((o) => ({ name: o.resourceRecordName, type: o.resourceRecordType, value: o.resourceRecordValue })),
-);
-
-// 사용자가 DNS 에 검증 레코드를 더하고 발급될 때까지 pulumi up 이 기다린다.
-const validation = new aws.acm.CertificateValidation(
-  name,
-  {
-    certificateArn: certificate.arn,
-    validationRecordFqdns: certificate.domainValidationOptions.apply((options) =>
-      options.map((o) => o.resourceRecordName),
-    ),
-  },
-  { provider: usEast1Provider, customTimeouts: { create: "45m" } },
-);
 
 // --- 관리형 정책: 이름으로 찾는다.
 function policyId(result: { id?: string }, policyName: string): string {
@@ -73,7 +49,6 @@ const distribution = new aws.cloudfront.Distribution(
   name,
   {
     comment: name,
-    aliases: [domain],
     enabled: true,
     isIpv6Enabled: true,
     httpVersion: "http2and3",
@@ -110,16 +85,13 @@ const distribution = new aws.cloudfront.Distribution(
       originRequestPolicyId: allViewer,
       compress: true,
     },
-    viewerCertificate: {
-      acmCertificateArn: validation.certificateArn,
-      sslSupportMethod: "sni-only",
-      minimumProtocolVersion: "TLSv1.2_2021",
-    },
+    // 기본 인증서(*.cloudfront.net). 커스텀 도메인이 없으니 따로 인증서를 두지 않는다.
+    viewerCertificate: { cloudfrontDefaultCertificate: true },
     restrictions: { geoRestriction: { restrictionType: "none" } },
     tags,
   },
   { provider },
 );
 
-/** 사용자가 Squarespace DNS 에 app CNAME 으로 넣는 값. */
+/** production 의 주소(CloudFront 기본 도메인). 사용자는 이 주소로 연다. */
 export const cloudFrontDomain = distribution.domainName;

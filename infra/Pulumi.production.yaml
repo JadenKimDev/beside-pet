@@ -1,6 +1,5 @@
 config:
   beside-pet:awsRegion: ap-northeast-2
   beside-pet:awsProfile: old-admin
-  beside-pet:domain: app.besidepet.com
   beside-pet:instanceType: t4g.small
 encryptionsalt: v1:YBCcRviuIiM=:v1:nrD7hQ9r/sWesv+O:GuzU3mPYu90bED1NFBeLwyPtctxydg==

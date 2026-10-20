@@ -1,0 +1,172 @@
+{
+  "issue": 23,
+  "title": "production 을 AWS 로 옮긴다 — Pulumi 로 EC2(Docker) + CloudFront(ACM) 를 만들고, Mac 에서 빌드한 이미지를 ECR 로 보내 SSM 으로 배포한다",
+  "prd": "docs/prd/23-aws-ec2-docker-deploy.md",
+  "depends_on": [],
+  "created_at": "2026-10-20T09:03:46.560Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "Pulumi 프로젝트 다시 세우기: 설정 모듈(리전, 프로필, 도메인, 인스턴스 타입), ECR 저장소 둘과 수명 정책, `index.ts` 출력, `Pulumi.production.yaml`, 옛 `aws-web.ts`·`Pulumi.dev.yaml`·`Pulumi.prod.yaml` 삭제, README(S3 백엔드 로그인, 처음 올리는 순서)",
+      "scope": [
+        "infra/config.ts",
+        "infra/ecr.ts",
+        "infra/index.ts",
+        "infra/aws-web.ts",
+        "infra/Pulumi.yaml",
+        "infra/Pulumi.dev.yaml",
+        "infra/Pulumi.prod.yaml",
+        "infra/Pulumi.production.yaml",
+        "infra/README.md",
+        "infra/package.json",
+        "pnpm-lock.yaml"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/infra typecheck"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "인스턴스 안: `compose.host.yaml`(ECR 이미지, `IMAGE_TAG`, 8000·8001 공개)과 `host-deploy.sh`(ECR 로그인, 파라미터 → `.env.production` 0600, pull, up --wait, prune)",
+      "scope": [
+        "infra/docker/compose.host.yaml",
+        "infra/docker/scripts/host-deploy.sh",
+        "infra/docker/README.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "bash -n infra/docker/scripts/host-deploy.sh && IMAGE_TAG=x ECR_REGISTRY=x docker compose -f infra/docker/compose.host.yaml config -q"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "호스트: EC2(AL2023 arm64, t4g.small, gp3 20G), EIP, 인스턴스 역할(SSM, ECR 읽기, 파라미터 읽기), 보안 그룹(CloudFront prefix list → 8000·8001), user-data(docker 설치, S2 의 두 파일 배치), DLM 일일 스냅샷",
+      "scope": [
+        "infra/host.ts",
+        "infra/host/",
+        "infra/index.ts"
+      ],
+      "depends_on": [
+        "S1",
+        "S2"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/infra typecheck"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "Mac 쪽 배포 `deploy.sh`(arm64 buildx 둘, ECR push, SSM send-command 와 대기, 더러운 트리 거부)와 `package.json` 의 `deploy:prod`",
+      "scope": [
+        "infra/scripts/deploy.sh",
+        "package.json"
+      ],
+      "depends_on": [],
+      "verify": [
+        "bash -n infra/scripts/deploy.sh && grep -q '\"deploy:prod\"' package.json"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S5",
+      "title": "가장자리: us-east-1 ACM 인증서(DNS 검증, 검증 레코드 출력), CloudFront(별칭, 원본 둘, 동작 셋, 정책, 60초), 출력에 배포 도메인",
+      "scope": [
+        "infra/edge.ts",
+        "infra/index.ts"
+      ],
+      "depends_on": [
+        "S3"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/infra typecheck"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S6",
+      "title": "새 ADR: production 의 자리(EC2 + CloudFront, RDS·Route53 안 씀), 비밀은 SSM 파라미터, 배포 경로, Pulumi 상태 S3",
+      "scope": [
+        "docs/adr/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S7",
+      "title": "루트 `CLAUDE.md` 의 \"클라우드에는 운영 자원이 없다\"와 \"production 은 이 머신의 Docker\" 두 문장을 고치고 `old-admin` 프로필을 적는다",
+      "scope": [
+        "CLAUDE.md"
+      ],
+      "depends_on": [
+        "S6"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

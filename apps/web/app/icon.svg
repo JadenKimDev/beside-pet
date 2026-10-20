@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Beside Pet">
+  <title>Beside Pet</title>
+  <!-- Logo.tsx 의 LogoMark(markOnly)와 같은 표식. 한지 테마의 accent 와 accent-fg 를 그대로 쓴다. -->
+  <circle cx="16" cy="16" r="15" fill="#24405C"/>
+  <g transform="translate(6.4 6.9) scale(.8)" fill="#FFFFFF">
+    <ellipse cx="12" cy="16" rx="4.2" ry="3.4"/>
+    <circle cx="6.5" cy="11" r="1.9"/>
+    <circle cx="9.5" cy="7.3" r="1.9"/>
+    <circle cx="14.5" cy="7.3" r="1.9"/>
+    <circle cx="17.5" cy="11" r="1.9"/>
+  </g>
+</svg>

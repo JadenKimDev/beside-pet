@@ -20,7 +20,7 @@ Rust(axum, sqlx) 서버다. 옛 TS(NestJS) API(2026-10-16 삭제, ADR-0019)의 �
 ## 설계 결정
 
 - `main.rs` 는 설정을 읽어 `app.rs` 를 띄우는 것뿐이고, `app.rs` 가 라우터와 상태(trait 객체들)를 조립한다. 새 기능은 디렉터리 하나와 `app.rs` 의 한 줄이다.
-- 환경 변수를 읽는 곳은 `shared/config.rs` 뿐이고, 거기서 읽는 이름은 모두 `.env.example` 에 있어야 한다. 같은 테스트가 본다. 이름은 TS API 와 같다. `NODE_ENV` 가 `.env.development` 과 `.env` 를 고른다.
+- 환경 변수를 읽는 곳은 `shared/config.rs` 뿐이고, 거기서 읽는 이름은 모두 `.env.example` 에 있어야 한다. 같은 테스트가 본다. 이름은 TS API 와 같되 `APP_ENV` 만 예외다(ADR-0021). `APP_ENV`(`production` | `sandbox`)는 프로세스 환경에서만 오고, 그 값이 읽을 파일(`.env.production`, `.env.sandbox`)을 고른다. `NODE_ENV` 는 읽지 않는다.
 - `DATABASE_URL` 이 없으면 기동하지 않는다. DB 를 쓰는 테스트도 없으면 이유를 적고 실패한다. 조용히 건너뛰지 않는다.
 - 오류 본문은 Nest 모양 `{ statusCode, message, error }` 이고 `message` 는 문자열 또는 문자열 배열이다. 요청 검증 문구는 class-validator 의 것과 같다. 대화 웹이 `message` 만 읽으므로 이 모양을 바꾸지 않는다.
 - 시각은 timestamptz ⇄ ISO-8601 밀리초 `Z` 다. 응답의 `Option` 은 JSON 에서 칸을 뺀다(TS 의 `undefined` 규칙).

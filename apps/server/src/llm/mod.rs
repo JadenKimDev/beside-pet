@@ -17,7 +17,7 @@ pub use provider::{
     AnthropicProvider, Generation, LlmProvider, OllamaProvider, ProviderStream, StreamEvent,
     TextModelProvider, TokenUsage,
 };
-pub use router::ModelRouter;
+pub use router::{CallLimits, GENERATE_LIMIT, ModelRouter, STREAM_IDLE_LIMIT};
 pub use settings::{AnthropicSettings, ModelRef, ModelSettings, OllamaSettings};
 pub use text_model::{
     CallContext, CallPurpose, GenerationRequest, PromptMessage, PromptRole, SharedTextModel,

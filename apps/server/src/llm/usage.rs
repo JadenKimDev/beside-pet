@@ -20,7 +20,9 @@ pub enum CallErrorKind {
     Provider,
     /// 기본 모델의 공급자가 등록되지 않아 부르지 못했다.
     Unavailable,
-    /// 끝나기 전에 부른 쪽이 기다리기를 멈췄다(대화의 시간 제한, 연결 끊김).
+    /// 라우터의 시간 제한(`CallLimits`)을 넘겨 라우터가 끊었다.
+    Timeout,
+    /// 끝나기 전에 부른 쪽이 기다리기를 멈췄다(연결 끊김, 대화의 중단).
     Cancelled,
 }
 
@@ -29,6 +31,7 @@ impl CallErrorKind {
         match self {
             CallErrorKind::Provider => "provider",
             CallErrorKind::Unavailable => "unavailable",
+            CallErrorKind::Timeout => "timeout",
             CallErrorKind::Cancelled => "cancelled",
         }
     }

@@ -19,6 +19,7 @@ use crate::support::store::{SessionStore, StoreError};
 fn store_error(error: StoreError) -> ApiError {
     match error {
         StoreError::OwnerMismatch => ApiError::Forbidden(NOT_OWNER.to_owned()),
+        StoreError::TurnIdTaken => ApiError::Conflict("Turn already received".to_owned()),
         StoreError::Database(error) => {
             tracing::error!(kind = database_error_kind(&error), "session store failed");
             ApiError::Internal

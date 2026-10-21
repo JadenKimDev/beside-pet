@@ -1,20 +1,23 @@
-//! 대화 저장: `sessions`·`messages`·`turn_analyses` 의 SQL.
+//! 대화 저장: `sessions`·`messages`·`turn_analyses`·`turns` 의 SQL.
 //!
-//! 스냅샷 하나는 세션 행 하나, 메시지 행(순번 = 전사의 자리), 턴 분석 행(순번 = 분석의 자리)이다. 저장은 한 트랜잭션의
-//! upsert 라 두 번 해도 같다. 계획·요약·진행률은 규칙으로 다시 구하므로 저장하지 않는다. 삭제는 한 트랜잭션으로
-//! turn_analyses → messages → sessions 순서로 지운다(ADR-0006). 시각은 timestamptz 라 마이크로초까지 남는다.
+//! 스냅샷 하나는 세션 행 하나, 메시지 행(순번 = 전사의 자리), 턴 분석 행(순번 = 분석의 자리), 턴 행(id = 클라이언트의
+//! 멱등 키, ADR-0028)이다. 저장은 한 트랜잭션의 upsert 라 두 번 해도 같고, 턴의 상태 전이도 upsert 로 덮인다. 턴은 일어난
+//! 사실이라 스냅샷에서 빠져도 지우지 않는다. 계획·요약·진행률은 규칙으로 다시 구하므로 저장하지 않는다. 삭제는 한
+//! 트랜잭션으로 turn_analyses → messages → turns → sessions 순서로 지운다(ADR-0006). 시각은 timestamptz 라 마이크로초까지
+//! 남는다.
 
 use std::collections::HashMap;
 use std::fmt;
 
+use chrono::{DateTime, Utc};
 use sqlx::{AssertSqlSafe, PgPool, Postgres, Transaction};
 
-use super::session::{MessageActivity, SessionSnapshot};
+use super::session::{MessageActivity, SessionSnapshot, TurnErrorKind, TurnStatus};
 use crate::identity::AccountActivity;
 use codec::{count_number, level_number, task_number, to_document};
 use rows::{
     ActivityRow, AnalysisColumns, AnalysisRow, MessageColumns, MessageRow, OwnerActivityRow,
-    SessionRow, Transcripts,
+    SessionRow, Transcripts, TurnColumns, TurnRow,
 };
 
 mod codec;
@@ -29,6 +32,8 @@ pub enum StoreError {
     Database(sqlx::Error),
     /// 같은 id 의 세션이 다른 소유자의 것이다. 아무것도 쓰지 않았다.
     OwnerMismatch,
+    /// 스냅샷의 턴 id 가 이미 다른 세션의 턴이다(`turns.id` 는 전역 키). 아무것도 쓰지 않았다.
+    TurnIdTaken,
 }
 
 impl fmt::Display for StoreError {
@@ -36,6 +41,7 @@ impl fmt::Display for StoreError {
         match self {
             StoreError::Database(error) => write!(f, "session store: {error}"),
             StoreError::OwnerMismatch => f.write_str("session belongs to another owner"),
+            StoreError::TurnIdTaken => f.write_str("turn id belongs to another session"),
         }
     }
 }
@@ -44,7 +50,7 @@ impl std::error::Error for StoreError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             StoreError::Database(error) => Some(error),
-            StoreError::OwnerMismatch => None,
+            StoreError::OwnerMismatch | StoreError::TurnIdTaken => None,
         }
     }
 }
@@ -66,9 +72,10 @@ impl SessionStore {
         SessionStore { pool }
     }
 
-    /// 세션 행을 넣거나 갱신하고, 메시지와 턴 분석을 순번으로 upsert 한다. 한 트랜잭션이다.
-    /// 전사가 줄었으면 새 길이 뒤의 메시지 행을 지운다.
-    /// 소유자와 시작 시각은 처음 쓴 값이 남는다. 같은 id 가 다른 소유자의 것이면 `OwnerMismatch` 이고 아무것도 쓰지 않는다.
+    /// 세션 행을 넣거나 갱신하고, 턴을 id 로, 메시지와 턴 분석을 순번으로 upsert 한다. 한 트랜잭션이다.
+    /// 턴은 메시지보다 먼저 쓴다(`messages.turn_id` 의 FK). 전사가 줄었으면 새 길이 뒤의 메시지 행을 지운다.
+    /// 소유자와 시작 시각은 처음 쓴 값이 남는다. 같은 id 가 다른 소유자의 것이면 `OwnerMismatch`, 턴 id 가 다른 세션의
+    /// 것이면 `TurnIdTaken` 이고 둘 다 아무것도 쓰지 않는다.
     pub async fn save(&self, snapshot: &SessionSnapshot) -> Result<(), StoreError> {
         let mut tx = self.pool.begin().await?;
         let written = sqlx::query(
@@ -103,6 +110,7 @@ impl SessionStore {
             // 떨어뜨린 트랜잭션은 되돌려진다.
             return Err(StoreError::OwnerMismatch);
         }
+        save_turns(&mut tx, &snapshot.id, TurnColumns::of(&snapshot.turns)).await?;
         save_messages(
             &mut tx,
             &snapshot.id,
@@ -117,6 +125,22 @@ impl SessionStore {
         .await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    /// 기동 때 정리: `pending` 으로 남은 모든 턴(앞 프로세스가 답을 끝내지 못한 턴)을 `failed`·`restart`·`at` 으로 닫는다.
+    /// 바꾼 행 수를 돌려준다.
+    #[allow(dead_code, reason = "#19 S4 가 app.rs 의 기동에서 부른다")]
+    pub async fn fail_pending_turns(&self, at: DateTime<Utc>) -> Result<u64, StoreError> {
+        let closed = sqlx::query(
+            "UPDATE turns SET status = $1, error_kind = $2, finished_at = $3 WHERE status = $4",
+        )
+        .bind(TurnStatus::Failed.as_str())
+        .bind(TurnErrorKind::Restart.as_str())
+        .bind(at)
+        .bind(TurnStatus::Pending.as_str())
+        .execute(&self.pool)
+        .await?;
+        Ok(closed.rows_affected())
     }
 
     pub async fn find(&self, id: &str) -> Result<Option<SessionSnapshot>, StoreError> {
@@ -203,12 +227,13 @@ impl SessionStore {
         Ok(exists)
     }
 
-    /// 그 세션의 턴 분석, 메시지, 세션 행을 한 트랜잭션으로 지운다. 없는 id 는 아무것도 하지 않는다.
+    /// 그 세션의 턴 분석, 메시지, 턴, 세션 행을 한 트랜잭션으로 지운다. 없는 id 는 아무것도 하지 않는다.
     pub async fn delete(&self, id: &str) -> Result<(), StoreError> {
         let mut tx = self.pool.begin().await?;
         for statement in [
             "DELETE FROM turn_analyses WHERE session_id = $1",
             "DELETE FROM messages WHERE session_id = $1",
+            "DELETE FROM turns WHERE session_id = $1",
             "DELETE FROM sessions WHERE id = $1",
         ] {
             sqlx::query(statement).bind(id).execute(&mut *tx).await?;
@@ -217,7 +242,7 @@ impl SessionStore {
         Ok(())
     }
 
-    /// 세션 행을 고르고 그 메시지와 분석을 붙인다. 세 읽기가 같은 시점을 보도록 한 스냅샷 트랜잭션에서 읽는다.
+    /// 세션 행을 고르고 그 메시지, 분석, 턴을 붙인다. 네 읽기가 같은 시점을 보도록 한 스냅샷 트랜잭션에서 읽는다.
     async fn read(
         &self,
         sessions: AssertSqlSafe<String>,
@@ -238,7 +263,7 @@ impl SessionStore {
         }
         let ids: Vec<&str> = rows.iter().map(|row| row.id.as_str()).collect();
         let messages: Vec<MessageRow> = sqlx::query_as(
-            "SELECT session_id, role, text, task, at FROM messages \
+            "SELECT session_id, role, text, task, at, turn_id FROM messages \
              WHERE session_id = ANY($1) ORDER BY session_id, seq",
         )
         .bind(&ids)
@@ -253,13 +278,55 @@ impl SessionStore {
         .bind(&ids)
         .fetch_all(&mut *tx)
         .await?;
+        let turns: Vec<TurnRow> = sqlx::query_as(
+            "SELECT session_id, id, status, started_at, finished_at, error_kind FROM turns \
+             WHERE session_id = ANY($1) ORDER BY session_id, started_at, id",
+        )
+        .bind(&ids)
+        .fetch_all(&mut *tx)
+        .await?;
         tx.commit().await?;
-        let mut transcripts = Transcripts::collect(messages, analyses)?;
+        let mut transcripts = Transcripts::collect(messages, analyses, turns)?;
         Ok(rows
             .into_iter()
             .map(|row| transcripts.snapshot(row))
             .collect::<Result<_, _>>()?)
     }
+}
+
+/// 턴을 id 로 upsert 한다. 이미 있는 턴은 상태·끝 시각·오류 종류만 덮고 시작 시각은 처음 값이 남는다.
+/// 다른 세션의 턴과 id 가 겹치면 그 행은 갱신되지 않으므로 쓴 행 수가 모자라고, `TurnIdTaken` 이다.
+async fn save_turns(
+    tx: &mut Transaction<'_, Postgres>,
+    session_id: &str,
+    columns: TurnColumns<'_>,
+) -> Result<(), StoreError> {
+    if columns.id.is_empty() {
+        return Ok(());
+    }
+    let written = sqlx::query(
+        "INSERT INTO turns (id, session_id, status, started_at, finished_at, error_kind) \
+         SELECT id, $1, status, started_at, finished_at, error_kind \
+         FROM UNNEST($2::varchar[], $3::varchar[], $4::timestamptz[], $5::timestamptz[], \
+                     $6::varchar[]) AS t(id, status, started_at, finished_at, error_kind) \
+         ON CONFLICT (id) DO UPDATE SET \
+           status = EXCLUDED.status, finished_at = EXCLUDED.finished_at, \
+           error_kind = EXCLUDED.error_kind \
+         WHERE turns.session_id = EXCLUDED.session_id",
+    )
+    .bind(session_id)
+    .bind(&columns.id)
+    .bind(&columns.status)
+    .bind(&columns.started_at)
+    .bind(&columns.finished_at)
+    .bind(&columns.error_kind)
+    .execute(&mut **tx)
+    .await?;
+    if written.rows_affected() != columns.id.len() as u64 {
+        // 떨어뜨린 트랜잭션은 되돌려진다.
+        return Err(StoreError::TurnIdTaken);
+    }
+    Ok(())
 }
 
 /// 메시지를 순번으로 upsert 하고, 새 전사보다 뒤의 순번(줄어든 전사의 옛 꼬리)을 지운다.
@@ -277,11 +344,12 @@ async fn save_messages(
         return Ok(());
     }
     sqlx::query(
-        "INSERT INTO messages (session_id, seq, role, text, task, at) \
+        "INSERT INTO messages (session_id, seq, role, text, task, at, turn_id) \
          SELECT $1, * FROM UNNEST($2::int4[], $3::varchar[], $4::text[], $5::int4[], \
-                                  $6::timestamptz[]) \
+                                  $6::timestamptz[], $7::varchar[]) \
          ON CONFLICT (session_id, seq) DO UPDATE SET \
-           role = EXCLUDED.role, text = EXCLUDED.text, task = EXCLUDED.task, at = EXCLUDED.at",
+           role = EXCLUDED.role, text = EXCLUDED.text, task = EXCLUDED.task, at = EXCLUDED.at, \
+           turn_id = EXCLUDED.turn_id",
     )
     .bind(session_id)
     .bind(&columns.seq)
@@ -289,6 +357,7 @@ async fn save_messages(
     .bind(&columns.text)
     .bind(&columns.task)
     .bind(&columns.at)
+    .bind(&columns.turn_id)
     .execute(&mut **tx)
     .await?;
     Ok(())

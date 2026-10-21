@@ -57,7 +57,8 @@
       "title": "저장: 턴 upsert 와 `messages.turn_id`, 기록 읽기, 기동 때 `pending` → `failed`(`restart`)",
       "scope": [
         "apps/server/src/support/store.rs",
-        "apps/server/src/support/store/"
+        "apps/server/src/support/store/",
+        "apps/server/src/support/flow/adapters.rs"
       ],
       "depends_on": [
         "S1",
@@ -67,14 +68,14 @@
         "pnpm test:stack"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "doing",
-      "passes": false,
-      "retries": 0,
+      "red_at": "2026-10-21T09:35:44.803Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
       "started_at": "2026-10-21T09:33:21.599Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-21T09:38:38.410Z",
+      "active_ms": 316811,
+      "verify_ms": 8570
     },
     {
       "id": "S4",

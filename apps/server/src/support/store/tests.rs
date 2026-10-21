@@ -15,7 +15,9 @@ use super::super::response::{
 use super::super::rules::{
     GriefProfile, MindReport, RiskAssessment, SupportLevel, Task, TaskTransition, TurnAnalysis,
 };
-use super::super::session::{Message, MessageActivity, SessionSnapshot};
+use super::super::session::{
+    Message, MessageActivity, SessionSnapshot, Turn, TurnErrorKind, TurnStatus,
+};
 use super::{SessionStore, StoreError};
 use crate::identity::{AccountActivity, ChatLanguage};
 use crate::shared::{MIGRATOR, test_database_url};
@@ -60,12 +62,13 @@ impl SessionsSchema {
         SessionStore::new(self.pool.clone())
     }
 
-    /// 그 세션의 행 수: (sessions, messages, turn_analyses).
-    async fn rows_of(&self, id: &str) -> (i64, i64, i64) {
+    /// 그 세션의 행 수: (sessions, messages, turn_analyses, turns).
+    async fn rows_of(&self, id: &str) -> (i64, i64, i64, i64) {
         sqlx::query_as(
             "SELECT (SELECT count(*) FROM sessions WHERE id = $1), \
                     (SELECT count(*) FROM messages WHERE session_id = $1), \
-                    (SELECT count(*) FROM turn_analyses WHERE session_id = $1)",
+                    (SELECT count(*) FROM turn_analyses WHERE session_id = $1), \
+                    (SELECT count(*) FROM turns WHERE session_id = $1)",
         )
         .bind(id)
         .fetch_one(&self.pool)
@@ -119,6 +122,38 @@ fn message(role: MessageRole, text: &str, number: u8, at: i64) -> Message {
     }
 }
 
+/// 턴 id 는 전역 PK 라 세션 id 를 붙여 짓는다.
+fn turn_id(session: &str, n: u8) -> String {
+    format!("{session}-turn-{n}")
+}
+
+fn done_turn(session: &str, n: u8, started: i64, finished: i64) -> Turn {
+    Turn {
+        id: turn_id(session, n),
+        status: TurnStatus::Done,
+        started_at: minute(started),
+        finished_at: Some(minute(finished)),
+        error_kind: None,
+    }
+}
+
+fn pending_turn(session: &str, n: u8, started: i64) -> Turn {
+    Turn {
+        id: turn_id(session, n),
+        status: TurnStatus::Pending,
+        started_at: minute(started),
+        finished_at: None,
+        error_kind: None,
+    }
+}
+
+fn in_turn(message: Message, session: &str, n: u8) -> Message {
+    Message {
+        turn_id: Some(turn_id(session, n)),
+        ..message
+    }
+}
+
 fn analysis(at: i64, from: u8, to: u8, supervised: bool) -> TurnAnalysis {
     TurnAnalysis {
         at: minute(at),
@@ -152,7 +187,7 @@ fn analysis(at: i64, from: u8, to: u8, supervised: bool) -> TurnAnalysis {
     }
 }
 
-/// 전사 셋, 분석 둘의 열린 세션.
+/// 전사 셋, 분석 둘, 끝난 턴 둘(첫 인사 턴, 사용자 턴)의 열린 세션.
 fn snapshot(id: &str, owner: &str, started: i64) -> SessionSnapshot {
     SessionSnapshot {
         id: id.to_owned(),
@@ -164,15 +199,30 @@ fn snapshot(id: &str, owner: &str, started: i64) -> SessionSnapshot {
         support_level: SupportLevel::Safe,
         closed: false,
         history: vec![
-            message(MessageRole::Assistant, "made-up greeting", 1, started),
-            message(MessageRole::User, "made-up answer", 1, started + 1),
-            message(MessageRole::Assistant, "made-up reply", 2, started + 2),
+            in_turn(
+                message(MessageRole::Assistant, "made-up greeting", 1, started),
+                id,
+                0,
+            ),
+            in_turn(
+                message(MessageRole::User, "made-up answer", 1, started + 1),
+                id,
+                1,
+            ),
+            in_turn(
+                message(MessageRole::Assistant, "made-up reply", 2, started + 2),
+                id,
+                1,
+            ),
         ],
         analyses: vec![
             analysis(started + 1, 1, 2, true),
             analysis(started + 2, 2, 2, false),
         ],
-        turns: Vec::new(),
+        turns: vec![
+            done_turn(id, 0, started, started),
+            done_turn(id, 1, started + 1, started + 2),
+        ],
         report: None,
     }
 }
@@ -210,6 +260,19 @@ fn closed_with_report(id: &str, owner: &str, started: i64) -> SessionSnapshot {
         ..analysis(started + 3, 3, 3, false)
     });
     snap.report = Some(report(started + 4));
+    // 답이 실패한 사용자 턴: 사용자 말은 남고 답은 없다.
+    snap.history.push(in_turn(
+        message(MessageRole::User, "made-up unanswered", 3, started + 3),
+        id,
+        2,
+    ));
+    snap.turns.push(Turn {
+        id: turn_id(id, 2),
+        status: TurnStatus::Failed,
+        started_at: minute(started + 3),
+        finished_at: Some(minute(started + 4)),
+        error_kind: Some(TurnErrorKind::Provider),
+    });
     snap
 }
 
@@ -236,10 +299,11 @@ async fn 빈_세션도_되살린다() {
     empty.task = Task::ONBOARDING;
     empty.history.clear();
     empty.analyses.clear();
+    empty.turns.clear();
     store.save(&empty).await.unwrap();
 
     assert_eq!(store.find("s-empty").await.unwrap(), Some(empty));
-    assert_eq!(db.rows_of("s-empty").await, (1, 0, 0));
+    assert_eq!(db.rows_of("s-empty").await, (1, 0, 0, 0));
     db.close().await;
 }
 
@@ -252,7 +316,7 @@ async fn 두_번_저장해도_같다() {
     store.save(&snap).await.unwrap();
 
     assert_eq!(store.find("s-1").await.unwrap(), Some(snap));
-    assert_eq!(db.rows_of("s-1").await, (1, 3, 3));
+    assert_eq!(db.rows_of("s-1").await, (1, 4, 3, 3));
     db.close().await;
 }
 
@@ -263,8 +327,12 @@ async fn 이어_저장하면_바뀐_상태와_새_행이_더해진다() {
     let mut snap = snapshot("s-1", "owner-a", 0);
     store.save(&snap).await.unwrap();
 
-    snap.history
-        .push(message(MessageRole::User, "made-up follow-up", 2, 5));
+    snap.history.push(in_turn(
+        message(MessageRole::User, "made-up follow-up", 2, 5),
+        "s-1",
+        2,
+    ));
+    snap.turns.push(done_turn("s-1", 2, 5, 6));
     snap.analyses.push(analysis(5, 2, 3, true));
     snap.task = task(3);
     snap.retry_count = 0;
@@ -273,7 +341,7 @@ async fn 이어_저장하면_바뀐_상태와_새_행이_더해진다() {
     store.save(&snap).await.unwrap();
 
     assert_eq!(store.find("s-1").await.unwrap(), Some(snap));
-    assert_eq!(db.rows_of("s-1").await, (1, 4, 3));
+    assert_eq!(db.rows_of("s-1").await, (1, 4, 3, 3));
     db.close().await;
 }
 
@@ -287,16 +355,16 @@ async fn 줄어든_전사로_저장하면_꼬리_메시지가_사라진다() {
     snap.history
         .push(message(MessageRole::Assistant, "made-up fifth", 2, 4));
     store.save(&snap).await.unwrap();
-    assert_eq!(db.rows_of("s-1").await, (1, 5, 2));
+    assert_eq!(db.rows_of("s-1").await, (1, 5, 2, 2));
 
     snap.history.truncate(3);
     store.save(&snap).await.unwrap();
-    assert_eq!(db.rows_of("s-1").await, (1, 3, 2));
+    assert_eq!(db.rows_of("s-1").await, (1, 3, 2, 2));
     assert_eq!(store.find("s-1").await.unwrap(), Some(snap.clone()));
 
     snap.history.clear();
     store.save(&snap).await.unwrap();
-    assert_eq!(db.rows_of("s-1").await, (1, 0, 2));
+    assert_eq!(db.rows_of("s-1").await, (1, 0, 2, 2));
     assert_eq!(store.find("s-1").await.unwrap(), Some(snap));
     db.close().await;
 }
@@ -317,7 +385,7 @@ async fn 다른_소유자의_같은_id_로는_쓰지_않는다() {
         Err(StoreError::OwnerMismatch)
     ));
     assert_eq!(store.find("s-1").await.unwrap(), Some(mine));
-    assert_eq!(db.rows_of("s-1").await, (1, 3, 2));
+    assert_eq!(db.rows_of("s-1").await, (1, 3, 2, 2));
     db.close().await;
 }
 
@@ -371,6 +439,7 @@ async fn 메시지_집계는_세션마다_마지막_시각과_내림한_분과_�
     let mut empty = snapshot("s-empty", "owner-a", 20);
     empty.history.clear();
     empty.analyses.clear();
+    empty.turns.clear();
     store.save(&empty).await.unwrap();
 
     let activity = store
@@ -407,6 +476,7 @@ async fn 계정별_활동은_세션_수와_그_세션들의_마지막_메시지_
     let mut empty = snapshot("s-a-empty", "owner-a", 50);
     empty.history.clear();
     empty.analyses.clear();
+    empty.turns.clear();
     store.save(&empty).await.unwrap();
     // owner-b: 10·11·12 분과 30·31·32 분의 세션 둘.
     store.save(&snapshot("s-b1", "owner-b", 10)).await.unwrap();
@@ -415,6 +485,7 @@ async fn 계정별_활동은_세션_수와_그_세션들의_마지막_메시지_
     let mut quiet = snapshot("s-c", "owner-c", 0);
     quiet.history.clear();
     quiet.analyses.clear();
+    quiet.turns.clear();
     store.save(&quiet).await.unwrap();
 
     let owners = ["owner-a", "owner-b", "owner-c", "owner-nobody"].map(String::from);
@@ -466,7 +537,7 @@ async fn 세션_유무는_지금_남아_있는_세션으로_센다() {
 }
 
 #[tokio::test]
-async fn 지우면_세_테이블에서_그_세션만_사라진다() {
+async fn 지우면_네_테이블에서_그_세션만_사라진다() {
     let db = SessionsSchema::open().await;
     let store = db.store();
     let gone = closed_with_report("s-gone", "owner-a", 0);
@@ -475,9 +546,9 @@ async fn 지우면_세_테이블에서_그_세션만_사라진다() {
     store.save(&kept).await.unwrap();
 
     store.delete("s-gone").await.unwrap();
-    assert_eq!(db.rows_of("s-gone").await, (0, 0, 0));
+    assert_eq!(db.rows_of("s-gone").await, (0, 0, 0, 0));
     assert_eq!(store.find("s-gone").await.unwrap(), None);
-    assert_eq!(db.rows_of("s-kept").await, (1, 3, 2));
+    assert_eq!(db.rows_of("s-kept").await, (1, 3, 2, 2));
     assert_eq!(store.find("s-kept").await.unwrap(), Some(kept.clone()));
     assert_eq!(
         store.find_by_owner("owner-a", 20).await.unwrap(),
@@ -525,8 +596,9 @@ async fn assert_corrupt_read(statement: &str) {
         .save(&closed_with_report("s-1", "owner-a", 0))
         .await
         .unwrap();
-    sqlx::query(AssertSqlSafe(statement.to_owned()))
-        .execute(&db.pool)
+    // 여러 문장(제약을 풀고 값을 바꾸기)을 한 번에 보낸다.
+    db.pool
+        .execute(AssertSqlSafe(statement.to_owned()))
         .await
         .unwrap();
 
@@ -569,4 +641,143 @@ async fn 모양이_틀린_문서는_읽기_오류다() {
     )
     .await;
     assert_corrupt_read("UPDATE turn_analyses SET knowledge = '{}' WHERE seq = 0").await;
+}
+
+#[tokio::test]
+async fn 모르는_턴_상태와_오류_종류는_읽기_오류다() {
+    assert_corrupt_read(
+        "ALTER TABLE turns DROP CONSTRAINT turns_status_check; \
+         UPDATE turns SET status = 'lost' WHERE id = 's-1-turn-0'",
+    )
+    .await;
+    assert_corrupt_read(
+        "ALTER TABLE turns DROP CONSTRAINT turns_error_kind_check; \
+         UPDATE turns SET error_kind = 'cosmic' WHERE id = 's-1-turn-2'",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn 턴의_상태_전이는_다시_저장하면_덮인다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    let mut snap = snapshot("s-1", "owner-a", 0);
+    // 받자마자 저장: 사용자 말과 pending 턴, 답은 아직 없다.
+    snap.history.push(in_turn(
+        message(MessageRole::User, "made-up waiting", 2, 5),
+        "s-1",
+        2,
+    ));
+    snap.turns.push(pending_turn("s-1", 2, 5));
+    store.save(&snap).await.unwrap();
+    assert_eq!(store.find("s-1").await.unwrap(), Some(snap.clone()));
+
+    // 답이 끝나면 done.
+    snap.history.push(in_turn(
+        message(MessageRole::Assistant, "made-up late reply", 2, 6),
+        "s-1",
+        2,
+    ));
+    snap.turns[2] = done_turn("s-1", 2, 5, 6);
+    store.save(&snap).await.unwrap();
+    assert_eq!(store.find("s-1").await.unwrap(), Some(snap.clone()));
+
+    // 다음 턴은 실패로 끝난다.
+    snap.history.push(in_turn(
+        message(MessageRole::User, "made-up next", 2, 7),
+        "s-1",
+        3,
+    ));
+    snap.turns.push(pending_turn("s-1", 3, 7));
+    store.save(&snap).await.unwrap();
+    snap.turns[3] = Turn {
+        status: TurnStatus::Failed,
+        finished_at: Some(minute(8)),
+        error_kind: Some(TurnErrorKind::Timeout),
+        ..pending_turn("s-1", 3, 7)
+    };
+    store.save(&snap).await.unwrap();
+    assert_eq!(store.find("s-1").await.unwrap(), Some(snap));
+    assert_eq!(db.rows_of("s-1").await, (1, 6, 2, 4));
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 기동_때_정리는_남은_pending_턴만_restart_실패로_닫는다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    let mut first = snapshot("s-a", "owner-a", 0);
+    first.history.push(in_turn(
+        message(MessageRole::User, "made-up cut off", 2, 5),
+        "s-a",
+        2,
+    ));
+    first.turns.push(pending_turn("s-a", 2, 5));
+    let mut second = closed_with_report("s-b", "owner-b", 10);
+    second.closed = false;
+    second.report = None;
+    second.turns.push(pending_turn("s-b", 3, 16));
+    store.save(&first).await.unwrap();
+    store.save(&second).await.unwrap();
+
+    let restarted = minute(60);
+    assert_eq!(store.fail_pending_turns(restarted).await.unwrap(), 2);
+
+    let closed = |turn: &Turn| Turn {
+        status: TurnStatus::Failed,
+        finished_at: Some(restarted),
+        error_kind: Some(TurnErrorKind::Restart),
+        ..turn.clone()
+    };
+    first.turns[2] = closed(&first.turns[2]);
+    second.turns[3] = closed(&second.turns[3]);
+    assert_eq!(store.find("s-a").await.unwrap(), Some(first));
+    assert_eq!(
+        store.find("s-b").await.unwrap(),
+        Some(second),
+        "끝난 턴(done, failed)은 그대로다"
+    );
+    assert_eq!(
+        store.fail_pending_turns(minute(61)).await.unwrap(),
+        0,
+        "남은 pending 이 없으면 바꾸지 않는다"
+    );
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 다른_세션이_쓴_턴_id_로는_쓰지_않는다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    let mine = snapshot("s-1", "owner-a", 0);
+    store.save(&mine).await.unwrap();
+
+    // 다른 세션(새 세션과 이미 있는 세션 둘 다)이 s-1 의 턴 id 를 보낸다.
+    let mut theirs = snapshot("s-2", "owner-b", 30);
+    theirs.history.push(in_turn(
+        message(MessageRole::User, "made-up borrowed", 2, 35),
+        "s-1",
+        1,
+    ));
+    theirs.turns.push(Turn {
+        id: turn_id("s-1", 1),
+        ..pending_turn("s-2", 9, 35)
+    });
+    assert!(matches!(
+        store.save(&theirs).await,
+        Err(StoreError::TurnIdTaken)
+    ));
+    assert_eq!(store.find("s-2").await.unwrap(), None, "아무것도 쓰지 않는다");
+    assert_eq!(db.rows_of("s-2").await, (0, 0, 0, 0));
+
+    let existing = snapshot("s-2", "owner-b", 30);
+    store.save(&existing).await.unwrap();
+    assert!(matches!(
+        store.save(&theirs).await,
+        Err(StoreError::TurnIdTaken)
+    ));
+    assert_eq!(store.find("s-2").await.unwrap(), Some(existing));
+    assert_eq!(store.find("s-1").await.unwrap(), Some(mine));
+    assert_eq!(db.rows_of("s-1").await, (1, 3, 2, 2));
+    db.close().await;
 }

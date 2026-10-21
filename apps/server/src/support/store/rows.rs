@@ -1,15 +1,15 @@
-//! 행의 모양: 스냅샷을 쓸 칸 묶음으로 펴고, 읽은 세션·메시지·턴 분석 행을 스냅샷으로 모은다.
+//! 행의 모양: 스냅샷을 쓸 칸 묶음으로 펴고, 읽은 세션·메시지·턴 분석·턴 행을 스냅샷으로 모은다.
 
 use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 
 use super::super::rules::{RiskAssessment, TaskTransition, TurnAnalysis};
-use super::super::session::{Message, MessageActivity, SessionSnapshot};
+use super::super::session::{Message, MessageActivity, SessionSnapshot, Turn};
 use super::codec::{
     KnowledgeDocument, SupervisionDocument, count_number, detector_text, from_document,
     level_number, parse_count, parse_detector, parse_level, parse_phase, parse_role, parse_task,
-    phase_text, role_text, task_number, to_document,
+    parse_turn_error_kind, parse_turn_status, phase_text, role_text, task_number, to_document,
 };
 use crate::identity::AccountActivity;
 
@@ -20,6 +20,7 @@ pub(super) struct MessageColumns<'a> {
     pub text: Vec<&'a str>,
     pub task: Vec<i32>,
     pub at: Vec<DateTime<Utc>>,
+    pub turn_id: Vec<Option<&'a str>>,
 }
 
 impl<'a> MessageColumns<'a> {
@@ -30,6 +31,7 @@ impl<'a> MessageColumns<'a> {
             text: Vec::with_capacity(history.len()),
             task: Vec::with_capacity(history.len()),
             at: Vec::with_capacity(history.len()),
+            turn_id: Vec::with_capacity(history.len()),
         };
         for (seq, message) in history.iter().enumerate() {
             columns.seq.push(seq_number("messages.seq", seq)?);
@@ -37,6 +39,7 @@ impl<'a> MessageColumns<'a> {
             columns.text.push(&message.text);
             columns.task.push(task_number(message.task));
             columns.at.push(message.at);
+            columns.turn_id.push(message.turn_id.as_deref());
         }
         Ok(columns)
     }
@@ -44,6 +47,30 @@ impl<'a> MessageColumns<'a> {
     /// 전사의 길이. 이 순번부터는 전사에 없는 행이다.
     pub(super) fn length(&self) -> i32 {
         self.seq.last().map_or(0, |seq| seq + 1)
+    }
+}
+
+/// `turns` 에 한 번에 쓰는 칸들. 자리는 스냅샷의 턴 순서다.
+#[derive(Default)]
+pub(super) struct TurnColumns<'a> {
+    pub id: Vec<&'a str>,
+    pub status: Vec<&'static str>,
+    pub started_at: Vec<DateTime<Utc>>,
+    pub finished_at: Vec<Option<DateTime<Utc>>>,
+    pub error_kind: Vec<Option<&'static str>>,
+}
+
+impl<'a> TurnColumns<'a> {
+    pub(super) fn of(turns: &'a [Turn]) -> TurnColumns<'a> {
+        let mut columns = TurnColumns::default();
+        for turn in turns {
+            columns.id.push(&turn.id);
+            columns.status.push(turn.status.as_str());
+            columns.started_at.push(turn.started_at);
+            columns.finished_at.push(turn.finished_at);
+            columns.error_kind.push(turn.error_kind.map(|kind| kind.as_str()));
+        }
+        columns
     }
 }
 
@@ -131,6 +158,33 @@ pub(super) struct MessageRow {
     text: String,
     task: i32,
     at: DateTime<Utc>,
+    turn_id: Option<String>,
+}
+
+#[derive(sqlx::FromRow)]
+pub(super) struct TurnRow {
+    session_id: String,
+    id: String,
+    status: String,
+    started_at: DateTime<Utc>,
+    finished_at: Option<DateTime<Utc>>,
+    error_kind: Option<String>,
+}
+
+impl TurnRow {
+    fn into_turn(self) -> Result<Turn, sqlx::Error> {
+        Ok(Turn {
+            status: parse_turn_status(&self.status)?,
+            error_kind: self
+                .error_kind
+                .as_deref()
+                .map(parse_turn_error_kind)
+                .transpose()?,
+            id: self.id,
+            started_at: self.started_at,
+            finished_at: self.finished_at,
+        })
+    }
 }
 
 #[derive(sqlx::FromRow)]
@@ -195,7 +249,7 @@ impl MessageRow {
             task: parse_task("messages.task", self.task)?,
             text: self.text,
             at: self.at,
-            turn_id: None,
+            turn_id: self.turn_id,
         })
     }
 }
@@ -240,17 +294,19 @@ impl AnalysisRow {
     }
 }
 
-/// 세션들의 메시지와 턴 분석. 행은 세션 안의 순번 순서로 온다.
+/// 세션들의 메시지, 턴 분석, 턴. 행은 세션 안의 순서(순번, 턴은 받은 시각)로 온다.
 #[derive(Default)]
 pub(super) struct Transcripts {
     history: HashMap<String, Vec<Message>>,
     analyses: HashMap<String, Vec<TurnAnalysis>>,
+    turns: HashMap<String, Vec<Turn>>,
 }
 
 impl Transcripts {
     pub(super) fn collect(
         messages: Vec<MessageRow>,
         analyses: Vec<AnalysisRow>,
+        turns: Vec<TurnRow>,
     ) -> Result<Transcripts, sqlx::Error> {
         let mut transcripts = Transcripts::default();
         for row in messages {
@@ -269,10 +325,18 @@ impl Transcripts {
                 .or_default()
                 .push(row.into_analysis()?);
         }
+        for row in turns {
+            let id = row.session_id.clone();
+            transcripts
+                .turns
+                .entry(id)
+                .or_default()
+                .push(row.into_turn()?);
+        }
         Ok(transcripts)
     }
 
-    /// 세션 행에 그 세션의 메시지와 분석을 붙여 스냅샷을 만든다.
+    /// 세션 행에 그 세션의 메시지, 분석, 턴을 붙여 스냅샷을 만든다.
     pub(super) fn snapshot(&mut self, row: SessionRow) -> Result<SessionSnapshot, sqlx::Error> {
         Ok(SessionSnapshot {
             grief_profile: from_document("sessions.grief_profile", &row.grief_profile)?,
@@ -287,7 +351,7 @@ impl Transcripts {
             started_at: row.created_at,
             history: self.history.remove(&row.id).unwrap_or_default(),
             analyses: self.analyses.remove(&row.id).unwrap_or_default(),
-            turns: Vec::new(),
+            turns: self.turns.remove(&row.id).unwrap_or_default(),
             owner_id: row.owner_id,
             id: row.id,
         })

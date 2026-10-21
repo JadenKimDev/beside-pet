@@ -11,6 +11,7 @@ use super::super::response::{
     SupervisionResponse,
 };
 use super::super::rules::{SupportLevel, Task};
+use super::super::session::{TurnErrorKind, TurnStatus};
 
 fn decode_error(message: String) -> sqlx::Error {
     sqlx::Error::Decode(message.into())
@@ -75,6 +76,14 @@ pub(super) fn parse_detector(text: &str) -> Result<RiskDetector, sqlx::Error> {
         "none" => Ok(RiskDetector::None),
         _ => Err(unknown("turn_analyses.risk_detected_by", text)),
     }
+}
+
+pub(super) fn parse_turn_status(text: &str) -> Result<TurnStatus, sqlx::Error> {
+    TurnStatus::parse(text).ok_or_else(|| unknown("turns.status", text))
+}
+
+pub(super) fn parse_turn_error_kind(text: &str) -> Result<TurnErrorKind, sqlx::Error> {
+    TurnErrorKind::parse(text).ok_or_else(|| unknown("turns.error_kind", text))
 }
 
 /// `integer` 칸의 과제 번호.

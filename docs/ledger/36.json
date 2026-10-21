@@ -1,0 +1,102 @@
+{
+  "issue": 36,
+  "title": "로그인 전 공개 쇼케이스 — 지어낸 반려견 뽀모와의 대화 한 사이클(첫 인사부터 마음 리포트까지)을 스크린샷과 전사로 보이고, 사용자에게 주는 쉬운 말의 개발 기록(버그 고침·새 기능·개선)을 보인다",
+  "prd": "docs/prd/36-public-showcase-walkthrough-and-dev-notes.md",
+  "depends_on": [],
+  "created_at": "2026-10-21T10:47:00.828Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "자료 틀: `showcase/pomo/transcript.json` 과 `showcase/dev-notes.json` 의 타입(`features/showcase/model/types.ts`)과 읽기 함수, 복사 스크립트(`prebuild`/`predev`), gitignore. 지어낸 전사 자료 한 벌(뽀모)과 스크린샷은 팀장이 이 머신에서 만들어 넣는다",
+      "scope": [
+        "apps/web/features/showcase/model",
+        "apps/web/package.json",
+        "showcase",
+        ".gitignore"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "개발 기록 자료와 검사: `showcase/dev-notes.json` 의 첫 항목들(팀장이 쉬운 말로 씀)과, 그 파일의 모양(종류 넷, 날짜, 제목·설명 비지 않음)과 금지어·코드 이름(백틱, 대문자 환경 변수, `#숫자`)이 없는지 보는 레포 검사",
+      "scope": [
+        "showcase/dev-notes.json",
+        "dev-tools/src/lib/showcase",
+        "dev-tools/src/checks"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "화면: `/showcase` 경로, 대화 한 사이클(스크린샷 + 전사, 단계 표시, 리포트 네 장), 개발 기록 목록(종류 표시, 날짜순), 로그인 머리의 \"둘러보기\" 링크, `chrome.ts` 의 PUBLIC 행, i18n 문구. 공개 경로 테스트(`help-public.test.ts` 와 같은 식)",
+      "scope": [
+        "apps/web/app/showcase",
+        "apps/web/features/showcase/ui",
+        "apps/web/components/layout",
+        "apps/web/i18n"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "ADR(공개 쇼케이스의 자리와 자료의 출처, 개발 기록은 사용자의 말로 손으로 쓴다, 버린 것)과 루트 `CLAUDE.md` \"제품 원칙\" 줄 수정, `apps/web/CLAUDE.md` 에 스크린샷 예외 한 줄, `implement-prd` 마감 절차에 개발 기록 한 항목 더하기",
+      "scope": [
+        "docs/adr",
+        "CLAUDE.md",
+        "apps/web/CLAUDE.md",
+        ".claude/skills/implement-prd/SKILL.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

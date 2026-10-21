@@ -6,6 +6,7 @@
 
 - **본문을 보이지 않는다.** 대화 본문, 리포트, 추모 편지는 어느 화면에도 싣지 않는다(루트 `CLAUDE.md` "읽지 않는 것", ADR-0006). 계정은 상태와 활동 수로만 본다. 위기 대응 때의 열람(break-glass)은 따로 정한다.
 - **서버의 관리자 API 만 쓴다.** `/v1/admin/*` 과 `/v1/auth/*` 뿐이고, 서버의 겉을 이 앱 때문에 바꾸지 않는다(ADR-0015). 판정은 서버다(관리자가 아니면 `403 Insufficient role`). 화면의 관리자 가드는 편의다.
+- **GitHub 토큰은 Next 서버에만 있고 이슈는 DB 에 복사하지 않는다.** 개발노트 화면은 Next 의 Route Handler(`app/api/github/`)가 `GITHUB_TOKEN` 으로 GitHub 를 대신 부른 것을 보인다. 토큰은 `NEXT_PUBLIC_` 으로 두지 않고, 이슈·보드·댓글은 메모리 캐시(60초)만 거치며 DB 와 서버의 관리자 API 에는 들어가지 않는다. 정본은 GitHub 이슈 하나다.
 - **브라우저는 API 를 직접 부르지 않는다.** 늘 같은 출처의 `/v1/...` 을 부르고 `next.config.ts` 의 `rewrites` 가 `API_BASE_URL` 로 넘긴다. 인증 쿠키가 `SameSite=Lax` 라 다른 사이트로는 가지 않기 때문이다(ADR-0024). `API_BASE_URL` 은 서버 쪽 값이라 `NEXT_PUBLIC_` 으로 두지 않고, rewrites 는 빌드 때 굳으므로 Docker 이미지에서는 빌드 인자다.
 - **이 머신에서만 띄운다.** EC2 와 CloudFront 에 올리지 않는다. 올리려면 인증 앞단을 먼저 정한다.
 - **색은 토큰으로만 쓴다.** 색 값은 `apps/backoffice/app/globals.css` 에만 두고 컴포넌트는 토큰 클래스를 쓴다. `src/app/styles/color-literals.test.ts` 가 이것을 본다.

@@ -1,5 +1,5 @@
 ---
-id: ADR-0026
+id: ADR-0028
 date: 2026-10-21
 status: accepted
 tags: [rust, server, web, conversation, persistence, data, idempotency, sse]

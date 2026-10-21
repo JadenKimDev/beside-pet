@@ -2,7 +2,7 @@
 # PRD 하나의 워크트리와 구현 pane 을 다룬다.
 #
 #   dev-tools/scripts/wt.sh create <이슈>   # prd/<이슈> 브랜치의 워크트리를 만든다 (herdr 가 있으면 workspace 로 연다)
-#   dev-tools/scripts/wt.sh pane <이슈>     # 현재 pane 오른쪽에 워크트리 pane 을 열고 Claude 에게 /implement-prd 를 맡긴다 (herdr 필요)
+#   dev-tools/scripts/wt.sh pane <이슈>     # 새 탭에 워크트리 pane 을 열고 Claude 에게 /implement-prd 를 맡긴다 (herdr 필요)
 #   dev-tools/scripts/wt.sh finish <이슈>   # 워크트리의 브랜치를 main 에 fast-forward 로 합치고 푸시한다
 #   dev-tools/scripts/wt.sh remove <이슈>   # 워크트리, workspace, 브랜치, 구현 pane 을 치운다
 #   dev-tools/scripts/wt.sh status          # 워크트리 목록
@@ -176,17 +176,18 @@ cmd_pane() {
   if herdr agent get "$agent" >/dev/null 2>&1; then
     echo "이미 일하고 있습니다: agent $agent"; return 0
   fi
-  # shellcheck disable=SC2046
-  local out; out="$(herdr pane split $(caller_pane) --direction right --ratio 0.5 --cwd "$path" --env "$IMPL_ENV=$issue" --no-focus)"
-  local pane; pane="$(printf '%s' "$out" | json 'd["result"]["pane"]["pane_id"]')"
+  # 구현 세션은 사용자의 탭을 나누지 않고 새 탭으로 연다(여럿을 동시에 열면 탭이 갈라져 보기 어렵다). 포커스는 옮기지 않는다.
+  local out; out="$(herdr tab create --cwd "$path" --label "impl #$issue" --env "$IMPL_ENV=$issue" --no-focus)"
+  local pane; pane="$(printf '%s' "$out" | json 'd["result"]["root_pane"]["pane_id"]')"
+  local tab; tab="$(printf '%s' "$out" | json 'd["result"]["tab"]["tab_id"]')"
   herdr pane rename "$pane" "impl #$issue" >/dev/null 2>&1 || true
   if ! start_agent_when_ready "$agent" "$pane"; then
-    herdr pane close "$pane" >/dev/null 2>&1 || true
+    herdr tab close "$tab" >/dev/null 2>&1 || true
     echo "구현 pane 에서 agent 를 띄우지 못해 pane 을 닫았습니다: $pane" >&2
     exit 1
   fi
   herdr agent prompt "$agent" "/implement-prd $issue" >/dev/null
-  echo "구현 pane: $pane"
+  echo "구현 pane: $pane (탭 $tab)"
   echo "agent: $agent"
   echo "워크트리: $path"
 }

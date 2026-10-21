@@ -22,7 +22,7 @@ echo "${HARNESS_IMPL:-}"
 - **비어 있거나 이 이슈가 아니면** 사용자의 세션이다. 구현 pane 을 열어 넘기고 여기서는 멈춘다.
 
   ```bash
-  pnpm wt:pane <이슈>     # 워크트리가 없으면 만들고, 오른쪽에 pane 을 열어 Claude 를 띄우고 /implement-prd <이슈> 를 보낸다 (herdr 가 없으면 띄울 명령만 알린다)
+  pnpm wt:pane <이슈>     # 워크트리가 없으면 만들고, 새 탭에 pane 을 열어 Claude 를 띄우고 /implement-prd <이슈> 를 보낸다 (herdr 가 없으면 띄울 명령만 알린다)
   ```
 
   출력된 pane 과 agent 이름(`impl-<이슈>`)을 사용자에게 알린다. 포커스는 옮기지 않는다. 그 세션이 막히면(`herdr agent get impl-<이슈>` 가 `blocked`) 사용자가 그 pane 으로 가서 답한다. 이 세션은 구현에 손대지 않는다. herdr 가 없어 pane 을 열지 못하면 `wt:pane` 이 알려 준 명령(`cd <워크트리> && HARNESS_IMPL=<이슈> claude '/implement-prd <이슈>'`)을 사용자에게 그대로 전하고 멈춘다. main 에서 구현을 시작하지 않는다.

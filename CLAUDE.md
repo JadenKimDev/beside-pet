@@ -96,7 +96,7 @@ pnpm prd:push docs/prd/<파일>.md  # PRD 를 GitHub 이슈로 올리거나 갱�
 pnpm prd:pull <이슈>              # 이슈 본문을 docs/prd/ 캐시로 받는다
 pnpm prd:pane docs/prd/<파일>.md  # herdr 오른쪽 pane 에 초안을 vi 로 연다 (herdr 가 없으면 경로만 알린다)
 pnpm wt:create <이슈>             # PRD 승인 뒤: prd/<이슈> 워크트리를 만든다 (herdr 가 있으면 workspace 로 연다)
-pnpm wt:pane <이슈>               # 오른쪽 pane 에 워크트리의 Claude 를 띄워 /implement-prd 를 맡긴다 (herdr 가 없으면 띄울 명령을 알린다)
+pnpm wt:pane <이슈>               # 새 탭에 워크트리의 Claude 를 띄워 /implement-prd 를 맡긴다 (herdr 가 없으면 띄울 명령을 알린다)
 pnpm wt:finish <이슈>             # 마감: 브랜치를 main 에 fast-forward 로 합치고 푸시한다
 pnpm wt:remove <이슈>             # 워크트리, workspace, 브랜치, 구현 pane 을 치운다
 pnpm wt:status

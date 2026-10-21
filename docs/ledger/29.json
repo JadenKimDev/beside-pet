@@ -1,0 +1,50 @@
+{
+  "issue": 29,
+  "title": "좁은 폭의 남은 둘 — 대화 웹 머리의 언어 전환이 378px 에서 세로로 쌓이고, 운영 화면의 Select 글자가 390px 에서 위로 치우친다",
+  "prd": "docs/prd/29-narrow-width-leftovers.md",
+  "depends_on": [],
+  "created_at": "2026-10-21T04:15:21.146Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "대화 웹 머리의 언어 전환 줄바꿈 금지와 폭",
+      "scope": [
+        "apps/web/components/layout/SiteHeader.tsx",
+        "apps/web/components/ui/Segmented.tsx"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "운영 화면 Select 의 세로 정렬",
+      "scope": [
+        "apps/backoffice/src/shared/ui/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/backoffice typecheck && pnpm -F @beside-pet/backoffice test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

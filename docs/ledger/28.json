@@ -1,0 +1,54 @@
+{
+  "issue": 28,
+  "title": "대화 웹의 모든 보호 화면이 401 을 받으면 로그인으로 돌아가고, 로그인 없이 연 보호 경로도 첫 화면으로 보낸다",
+  "prd": "docs/prd/28-web-unauthorized-redirect.md",
+  "depends_on": [],
+  "created_at": "2026-10-21T04:15:20.848Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "`lib/http` 의 401 처리기 훅과 `features/auth` 의 등록(로그인 정보 비움, `/` 이동), 각 store 의 401 분기 제거",
+      "scope": [
+        "apps/web/lib/http/",
+        "apps/web/features/auth/",
+        "apps/web/features/session-archive/session-archive.store.ts",
+        "apps/web/features/session/session.store.ts",
+        "apps/web/features/report/report.store.ts"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "레이아웃의 보호 경로 판정(`chrome.ts` 표 기준)과 첫 화면 이동, 공개 경로 테스트",
+      "scope": [
+        "apps/web/components/layout/",
+        "apps/web/app/layout.tsx"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/web test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

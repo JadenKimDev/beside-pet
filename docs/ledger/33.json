@@ -1,0 +1,104 @@
+{
+  "issue": 33,
+  "title": "운영 화면의 개발노트 — GitHub 이슈와 보드를 읽기 전용으로 보인다(DB 복사 없이 API)",
+  "prd": "docs/prd/33-backoffice-dev-notes.md",
+  "depends_on": [
+    5
+  ],
+  "created_at": "2026-10-21T04:15:22.345Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "Route Handler: 이슈 목록·상세·댓글(REST), 보드 상태(GraphQL), 라벨 붙이기, 60초 캐시, `GITHUB_TOKEN`·`project.config.json` 읽기, 가짜 fetch 테스트",
+      "scope": [
+        "apps/backoffice/app/api/github/",
+        "apps/backoffice/src/shared/api/github/",
+        "apps/backoffice/.env.example"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/backoffice test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "`entities/issue`, `entities/board`, `features/start-implementation`",
+      "scope": [
+        "apps/backoffice/src/entities/issue/",
+        "apps/backoffice/src/entities/board/",
+        "apps/backoffice/src/features/start-implementation/"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/backoffice test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "위젯과 화면: 보드, 상세(마크다운 렌더, 이미지), 라우트, 탐색 항목",
+      "scope": [
+        "apps/backoffice/src/widgets/issue-board/",
+        "apps/backoffice/src/widgets/issue-detail/",
+        "apps/backoffice/src/views/dev-notes/",
+        "apps/backoffice/app/(dashboard)/dev-notes/",
+        "apps/backoffice/src/widgets/app-shell/"
+      ],
+      "depends_on": [
+        "S2"
+      ],
+      "verify": [
+        "pnpm -F @beside-pet/backoffice typecheck && pnpm -F @beside-pet/backoffice test"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "README 와 `CLAUDE.md` 한 줄",
+      "scope": [
+        "apps/backoffice/README.md",
+        "apps/backoffice/CLAUDE.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

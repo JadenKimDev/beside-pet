@@ -89,6 +89,8 @@ export interface HistoryMessage {
   text: string;
   task: TaskId;
   at: string; // ISO timestamp
+  /** The turn this message belongs to (the client's idempotency key). Absent on older rows. */
+  turnId?: string;
 }
 
 /** Current state of one session (resume / detail). */
@@ -150,11 +152,13 @@ export interface SessionListItem {
  * so per-turn calls don't take a locale. */
 export interface Api {
   start(request: StartRequest): Promise<TurnResult>;
-  sendMessage(sessionId: string, text: string): Promise<TurnResult>;
+  /** `turnId` is the client-made idempotency key; the same id twice answers 409. */
+  sendMessage(sessionId: string, text: string, turnId?: string): Promise<TurnResult>;
   /** Streaming greeting — emits meta → tokens → done. */
   startStream(request: StartRequest): AsyncIterable<StreamEvent>;
-  /** Streaming user turn — emits meta → tokens → done. */
-  sendMessageStream(sessionId: string, text: string): AsyncIterable<StreamEvent>;
+  /** Streaming user turn — emits meta (the server stored the message) → tokens → done.
+   * A `turnId` the session already received fails with a 409 (see isTurnAlreadyReceived). */
+  sendMessageStream(sessionId: string, text: string, turnId?: string): AsyncIterable<StreamEvent>;
   /** The signed-in owner's sessions, newest first. */
   listSessions(): Promise<SessionListItem[]>;
   /** Current state of one owned session. */

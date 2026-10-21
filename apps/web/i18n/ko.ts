@@ -99,6 +99,8 @@ export const ko: Messages = {
     enterHint: 'Enter 보내기 · Shift+Enter 줄바꿈',
     typing: '마음이가 답을 쓰고 있어요',
     sendFailed: '보내지 못했어요',
+    sending: '보내는 중',
+    replyFailed: '답을 받지 못했어요. 남겨 주신 말은 그대로 있어요.',
     resend: '다시 보내기',
     stage: (step, stage) => `${step}번째 걸음 · ${stage}`,
     newReply: '새 답이 있어요',

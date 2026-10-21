@@ -18,4 +18,10 @@ export interface Message {
   supportLevel?: SupportLevel;
   /** A user message that never reached the server (shown dashed, with "send again"). */
   failed?: boolean;
+  /** A user message the server has not confirmed yet (no `meta`): shown as "sending". */
+  sending?: boolean;
+  /** A user message the server received but got no reply to (shows a "no reply" note). */
+  replyFailed?: boolean;
+  /** The client-made id of the turn this user message opened (the server's idempotency key). */
+  turnId?: string;
 }

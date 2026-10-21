@@ -8,6 +8,8 @@ import type { Api } from './types';
 
 export const api: Api = httpApi;
 
+export { isServerRefusal, isTurnAlreadyReceived, TURN_ALREADY_RECEIVED_STATUS } from './errors';
+
 export type {
   Api,
   DailyState,

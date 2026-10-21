@@ -42,21 +42,25 @@ async function* streamTurn(path: string, body: object): AsyncIterable<StreamEven
   }
 }
 
+/** A user turn's body; `turnId` is sent only when the caller made one. */
+const turnBody = (text: string, turnId?: string): object =>
+  turnId === undefined ? { text } : { text, turnId };
+
 export const httpApi: Api = {
   start(request: StartRequest): Promise<TurnResult> {
     return http.post('/v1/sessions', request);
   },
 
-  sendMessage(sessionId: string, text: string): Promise<TurnResult> {
-    return http.post(`/v1/sessions/${sessionId}/messages`, { text });
+  sendMessage(sessionId: string, text: string, turnId?: string): Promise<TurnResult> {
+    return http.post(`/v1/sessions/${sessionId}/messages`, turnBody(text, turnId));
   },
 
   startStream(request: StartRequest): AsyncIterable<StreamEvent> {
     return streamTurn('/v1/sessions/stream', request);
   },
 
-  sendMessageStream(sessionId: string, text: string): AsyncIterable<StreamEvent> {
-    return streamTurn(`/v1/sessions/${sessionId}/messages/stream`, { text });
+  sendMessageStream(sessionId: string, text: string, turnId?: string): AsyncIterable<StreamEvent> {
+    return streamTurn(`/v1/sessions/${sessionId}/messages/stream`, turnBody(text, turnId));
   },
 
   listSessions(): Promise<SessionListItem[]> {

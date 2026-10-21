@@ -200,9 +200,12 @@ describe('streamFrames', () => {
     stubFetch(jsonResponse(401, { message: 'Unauthorized' }));
     const client = createHttpClient({ baseUrl: BASE });
 
-    await expect(collect(client.streamFrames('/v1/stream'))).rejects.toThrow(
-      new Error('Stream failed (401)'),
+    const error = await collect(client.streamFrames('/v1/stream')).catch(
+      (caught: unknown) => caught,
     );
+
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error).toMatchObject({ status: 401, message: 'Unauthorized' });
   });
 });
 
@@ -226,7 +229,10 @@ describe('onUnauthorized', () => {
     const handler = vi.fn();
     client.onUnauthorized(handler);
 
-    await expect(collect(client.streamFrames('/v1/stream'))).rejects.toThrow('Stream failed (401)');
+    await expect(collect(client.streamFrames('/v1/stream'))).rejects.toMatchObject({
+      name: 'HttpError',
+      status: 401,
+    });
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
@@ -238,7 +244,10 @@ describe('onUnauthorized', () => {
     stubFetch(jsonResponse(403, { message: 'Forbidden' }));
     await expect(client.post('/v1/x', {})).rejects.toBeInstanceOf(HttpError);
     stubFetch(jsonResponse(500, { message: 'down' }));
-    await expect(collect(client.streamFrames('/v1/stream'))).rejects.toThrow('Stream failed (500)');
+    await expect(collect(client.streamFrames('/v1/stream'))).rejects.toMatchObject({
+      name: 'HttpError',
+      status: 500,
+    });
 
     expect(handler).not.toHaveBeenCalled();
   });

@@ -107,7 +107,7 @@ export function createHttpClient({ baseUrl }: HttpClientOptions): HttpClient {
     });
     if (!res.ok || !res.body) {
       noticeRefusal(res);
-      throw new Error(`Stream failed (${res.status})`);
+      throw new HttpError(res.status, await extractError(res));
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();

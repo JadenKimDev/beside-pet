@@ -8,7 +8,8 @@ import type { Message } from './types';
 
 /**
  * 말풍선. 마음이는 왼쪽(surface + 테두리, 앞에 발바닥 아바타. 모바일은 숨김), 사용자는 오른쪽(accent-soft).
- * 상태: 첫 글자 기다림(점 세 개), 흐르는 중(끝에 커서), 보내지 못함(점선 + 다시 보내기). 표시만 한다.
+ * 상태: 첫 글자 기다림(점 세 개), 흐르는 중(끝에 커서), 보내는 중(옅게 + 보내는 중),
+ * 보내지 못함(점선 + 다시 보내기), 답을 받지 못함(사용자 말 아래 한 줄). 표시만 한다.
  */
 export function MessageBubble({
   message,
@@ -26,6 +27,7 @@ export function MessageBubble({
   return (
     <div
       data-message-role={message.role}
+      data-sending={message.sending ? '' : undefined}
       className={cx('ui-rise flex items-end gap-2.5', isUser ? 'justify-end' : 'justify-start')}
     >
       {!isUser && (
@@ -49,6 +51,7 @@ export function MessageBubble({
               ? 'rounded-br-[6px] bg-accent-soft'
               : 'rounded-bl-[6px] border border-border bg-surface shadow-1',
             message.failed && 'border border-dashed border-danger opacity-70',
+            message.sending && 'opacity-70',
           )}
         >
           {waiting ? (
@@ -60,6 +63,17 @@ export function MessageBubble({
             </span>
           )}
         </div>
+        {message.sending && (
+          <p role="status" className="m-0 text-small text-fg-muted">
+            {translations.chat.sending}
+          </p>
+        )}
+        {message.replyFailed && (
+          <p className="m-0 flex items-center gap-1.5 text-small text-fg-muted [&_svg]:size-3.5">
+            <Icon name="alert" />
+            <span>{translations.chat.replyFailed}</span>
+          </p>
+        )}
         {message.failed && (
           <p className="m-0 flex items-center gap-1.5 text-small text-danger [&_svg]:size-3.5">
             <Icon name="alert" />

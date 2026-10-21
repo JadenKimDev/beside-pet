@@ -99,6 +99,8 @@ export const en: Messages = {
     enterHint: 'Enter to send · Shift+Enter for a new line',
     typing: 'Maeumi is writing',
     sendFailed: 'Not sent',
+    sending: 'Sending',
+    replyFailed: "Couldn't get a reply. Your words are still here.",
     resend: 'Send again',
     stage: (step, stage) => `Step ${step} · ${stage}`,
     newReply: 'New reply',

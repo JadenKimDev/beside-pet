@@ -12,6 +12,7 @@ import type { StreamEvent } from '@/lib/api';
 class FakeStream implements AsyncIterable<StreamEvent> {
   private queue: StreamEvent[] = [];
   private ended = false;
+  private failure: Error | undefined;
   private wake: (() => void) | undefined;
 
   push(event: StreamEvent): void {
@@ -24,6 +25,12 @@ class FakeStream implements AsyncIterable<StreamEvent> {
     this.wake?.();
   }
 
+  /** 연결이 끊긴 것처럼 남은 이벤트를 내준 뒤 오류를 던진다. */
+  fail(error: Error): void {
+    this.failure = error;
+    this.wake?.();
+  }
+
   async *[Symbol.asyncIterator](): AsyncIterator<StreamEvent> {
     while (true) {
       const next = this.queue.shift();
@@ -31,6 +38,7 @@ class FakeStream implements AsyncIterable<StreamEvent> {
         yield next;
         continue;
       }
+      if (this.failure) throw this.failure;
       if (this.ended) return;
       await new Promise<void>((resolve) => {
         this.wake = resolve;
@@ -53,9 +61,11 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({}),
 }));
 
-vi.mock('@/lib/data', () => ({
+vi.mock('@/lib/data', async () => ({
+  // 판정 함수는 진짜를 쓴다: 409 와 서버 거절을 가르는 것도 상태 전환의 일부다.
+  ...(await vi.importActual<typeof import('@/lib/api/errors')>('@/lib/api/errors')),
   startSessionStream: () => nextStream(),
-  sendMessageStream: () => nextStream(),
+  sendMessageStream: vi.fn((_sessionId: string, _text: string, _turnId?: string) => nextStream()),
   getSessionState: vi.fn(async (sessionId: string) => ({
     sessionId,
     task: 1,
@@ -69,6 +79,8 @@ vi.mock('@/lib/data', () => ({
   listSessions: vi.fn(async () => []),
 }));
 
+const data = await import('@/lib/data');
+const { HttpError } = await import('@/lib/http');
 const { useSessionStore } = await import('./session.store');
 const { default: SessionPage } = await import('@/app/session/page');
 
@@ -77,6 +89,8 @@ let mounted: Mounted | undefined;
 beforeEach(() => {
   vi.useFakeTimers();
   streams.length = 0;
+  vi.mocked(data.sendMessageStream).mockClear();
+  vi.mocked(data.getMessages).mockClear();
 });
 
 afterEach(() => {
@@ -428,5 +442,204 @@ describe('대화 화면의 스크롤과 입력창 높이', () => {
     expect(document.querySelector('textarea')).toBeNull();
     expect(document.querySelector('[data-crisis-stopped]')).not.toBeNull();
     expect(composerVar()).toBe(`${STOPPED_HEIGHT}px`);
+  });
+});
+
+describe('사용자 턴의 전송: 턴 id, 보내는 중, 끊김 뒤 한 번 다시 보내기, 409, 답 실패', () => {
+  const USER_TEXT = '보리가 보고 싶어요';
+
+  /** 첫 인사를 끝내 두고 사용자 말을 하나 보낸다. 그 턴의 첫 스트림과 끝나기를 기다리는 약속을 돌려준다. */
+  async function sendOne(): Promise<{ stream: FakeStream; pending: Promise<void> }> {
+    mounted = mount(
+      <I18nProvider initialLocale="ko">
+        <SessionPage />
+      </I18nProvider>,
+    );
+    let greeted!: Promise<void>;
+    act(() => {
+      greeted = useSessionStore
+        .getState()
+        .startSession({ griefPath: 'afterLoss', petName: '보리' });
+    });
+    await flush(0);
+    const greeting = streams[0];
+    if (!greeting) throw new Error('greeting stream not opened');
+    greeting.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    greeting.push({ kind: 'token', text: '반가워요.' });
+    greeting.push({
+      kind: 'done',
+      result: { reply: '반가워요.', task: 1, progress: 0, supportLevel: 1, done: false },
+    });
+    greeting.end();
+    await flush();
+    await act(async () => {
+      await greeted;
+    });
+
+    let pending!: Promise<void>;
+    act(() => {
+      pending = useSessionStore.getState().sendUserMessage(USER_TEXT);
+    });
+    await flush(0);
+    const stream = streams[1];
+    if (!stream) throw new Error('turn stream not opened');
+    return { stream, pending };
+  }
+
+  const userMessage = () =>
+    useSessionStore.getState().messages.find((message) => message.role === 'user');
+  const turnIds = (): (string | undefined)[] =>
+    vi.mocked(data.sendMessageStream).mock.calls.map((call) => call[2]);
+
+  it('턴 id 를 만들어 보내고, meta 전에는 보내는 중이었다가 meta 를 받으면 보통 모양이 된다', async () => {
+    const { stream, pending } = await sendOne();
+
+    expect(turnIds()).toHaveLength(1);
+    expect(turnIds()[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(userMessage()).toMatchObject({ text: USER_TEXT, sending: true });
+    expect(document.querySelector('[data-message-role="user"][data-sending]')).not.toBeNull();
+
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    await flush();
+    expect(userMessage()?.sending).toBeFalsy();
+    expect(document.querySelector('[data-message-role="user"][data-sending]')).toBeNull();
+
+    stream.push({ kind: 'token', text: '들려줘서 고마워요.' });
+    stream.push({
+      kind: 'done',
+      result: { reply: '들려줘서 고마워요.', task: 1, progress: 0, supportLevel: 1, done: false },
+    });
+    stream.end();
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+    expect(botTexts().at(-1)).toBe('들려줘서 고마워요.');
+  });
+
+  it('meta 전에 끊기면 같은 턴 id 로 한 번 더 보내고, 그 답을 받는다', async () => {
+    const { stream, pending } = await sendOne();
+    stream.fail(new TypeError('Failed to fetch'));
+    await flush();
+
+    expect(turnIds()).toHaveLength(2);
+    expect(turnIds()[1]).toBe(turnIds()[0]);
+    expect(userMessage()).toMatchObject({ sending: true });
+    expect(userMessage()?.failed).toBeFalsy();
+
+    const retry = streams[2];
+    if (!retry) throw new Error('retry stream not opened');
+    retry.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    retry.push({ kind: 'token', text: '여기 있어요.' });
+    retry.push({
+      kind: 'done',
+      result: { reply: '여기 있어요.', task: 1, progress: 0, supportLevel: 1, done: false },
+    });
+    retry.end();
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(userMessage()?.sending).toBeFalsy();
+    expect(userMessage()?.failed).toBeFalsy();
+    expect(botTexts().at(-1)).toBe('여기 있어요.');
+    expect(useSessionStore.getState().streaming).toBe(false);
+  });
+
+  it('다시 보낸 것도 meta 전에 끊기면 더 보내지 않고 보내지 못함(failed)으로 둔다', async () => {
+    const { stream, pending } = await sendOne();
+    stream.fail(new TypeError('Failed to fetch'));
+    await flush();
+    streams[2]?.fail(new TypeError('Failed to fetch'));
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(turnIds()).toHaveLength(2);
+    expect(userMessage()).toMatchObject({ failed: true });
+    expect(userMessage()?.sending).toBeFalsy();
+    // 빈 답 말풍선은 사라지고 첫 인사만 남는다.
+    expect(botTexts()).toEqual(['반가워요.']);
+    expect(document.body.textContent).toContain(ko.chat.sendFailed);
+    expect(useSessionStore.getState().streaming).toBe(false);
+  });
+
+  it('서버가 오류 상태로 거절하면(연결 끊김이 아니면) 다시 보내지 않고 보내지 못함으로 둔다', async () => {
+    const { stream, pending } = await sendOne();
+    stream.fail(new HttpError(500, 'Request failed (500)'));
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(turnIds()).toHaveLength(1);
+    expect(userMessage()).toMatchObject({ failed: true });
+    expect(useSessionStore.getState().streaming).toBe(false);
+  });
+
+  it('409(이미 받은 턴)면 기록을 다시 읽어 화면을 그 기록에 맞춘다', async () => {
+    const { stream, pending } = await sendOne();
+    const at = '2026-10-21T01:00:00.000Z';
+    vi.mocked(data.getMessages).mockResolvedValueOnce([
+      { role: 'assistant', text: '반가워요.', task: 1, at },
+      { role: 'user', text: USER_TEXT, task: 1, at, turnId: turnIds()[0] },
+      { role: 'assistant', text: '먼저 받은 답이에요.', task: 1, at },
+    ]);
+    // 첫 전송은 서버에 닿았지만 확인 전에 끊겼고, 다시 보낸 것이 409 를 받는다.
+    stream.fail(new TypeError('Failed to fetch'));
+    await flush();
+    streams[2]?.fail(new HttpError(409, 'Turn already received'));
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(data.getMessages).toHaveBeenCalledTimes(1);
+    expect(turnIds()).toHaveLength(2);
+    const messages = useSessionStore.getState().messages;
+    expect(messages.map((message) => [message.role, message.text])).toEqual([
+      ['bot', '반가워요.'],
+      ['user', USER_TEXT],
+      ['bot', '먼저 받은 답이에요.'],
+    ]);
+    expect(messages.some((message) => message.failed || message.sending)).toBe(false);
+    expect(useSessionStore.getState().streaming).toBe(false);
+  });
+
+  it('meta 뒤에 끊기면 사용자 말은 남고 빈 답 말풍선은 사라지며 답을 받지 못했다는 문구가 보인다', async () => {
+    const { stream, pending } = await sendOne();
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    await flush();
+    stream.fail(new TypeError('network error'));
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(turnIds()).toHaveLength(1);
+    expect(userMessage()).toMatchObject({ text: USER_TEXT });
+    expect(userMessage()?.failed).toBeFalsy();
+    expect(userMessage()?.sending).toBeFalsy();
+    expect(botTexts()).toEqual(['반가워요.']);
+    expect(document.body.textContent).toContain(ko.chat.replyFailed);
+    expect(document.body.textContent).not.toContain(ko.chat.sendFailed);
+    expect(useSessionStore.getState().streaming).toBe(false);
+  });
+
+  it('meta 뒤에 답 없이 스트림이 끝나도(답 실패) 같은 모양이 된다', async () => {
+    const { stream, pending } = await sendOne();
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    stream.end();
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(userMessage()?.failed).toBeFalsy();
+    expect(botTexts()).toEqual(['반가워요.']);
+    expect(document.body.textContent).toContain(ko.chat.replyFailed);
+    expect(useSessionStore.getState().streaming).toBe(false);
   });
 });

@@ -27,6 +27,9 @@ import type {
   TurnResult,
 } from '@/lib/api';
 import { api } from '@/lib/api';
+
+export { isServerRefusal, isTurnAlreadyReceived } from '@/lib/api';
+
 import { createCache } from '@/lib/cache/cache';
 
 /** `griefProfile` present = first-time (onboarding); omitted = continue from history. */
@@ -34,8 +37,8 @@ export function startSession(sessionId: string, griefProfile?: GriefProfile): Pr
   return api.start({ sessionId, griefProfile });
 }
 
-export function sendMessage(sessionId: string, text: string): Promise<TurnResult> {
-  return api.sendMessage(sessionId, text);
+export function sendMessage(sessionId: string, text: string, turnId?: string): Promise<TurnResult> {
+  return api.sendMessage(sessionId, text, turnId);
 }
 
 export function startSessionStream(
@@ -45,8 +48,13 @@ export function startSessionStream(
   return api.startStream({ sessionId, griefProfile });
 }
 
-export function sendMessageStream(sessionId: string, text: string): AsyncIterable<StreamEvent> {
-  return api.sendMessageStream(sessionId, text);
+/** `turnId` is the client-made idempotency key; resending the same id answers 409. */
+export function sendMessageStream(
+  sessionId: string,
+  text: string,
+  turnId?: string,
+): AsyncIterable<StreamEvent> {
+  return api.sendMessageStream(sessionId, text, turnId);
 }
 
 export function listSessions(): Promise<SessionListItem[]> {

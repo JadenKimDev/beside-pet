@@ -90,6 +90,10 @@ export interface Messages {
     enterHint: string;
     typing: string;
     sendFailed: string;
+    /** Under a user message the server has not confirmed yet. */
+    sending: string;
+    /** Under a user message the server received but could not answer. */
+    replyFailed: string;
     resend: string;
     stage: (step: number, stage: string) => string;
     newReply: string;

@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { devNotesFindings, findingLines, isCalendarDate, parseDevNotes } from "./dev-notes.ts";
+import {
+  devNotesFindings,
+  findingLines,
+  isCalendarDate,
+  type Json,
+  type JsonObject,
+  parseDevNotes,
+} from "./dev-notes.ts";
 
 const good = {
   date: "2026-01-15",
@@ -11,7 +18,7 @@ const good = {
   issue: 7,
 };
 
-function rulesOf(entry: Record<string, unknown>): string[] {
+function rulesOf(entry: JsonObject): string[] {
   return devNotesFindings({ entries: [entry] }).map((f) => f.rule);
 }
 
@@ -21,7 +28,8 @@ test("모양이 맞고 글이 깨끗하면 발견이 없다", () => {
 });
 
 test("최상위에 entries 배열이 없으면 걸린다", () => {
-  for (const json of [null, [], {}, { entries: {} }, "x"]) {
+  const shapes: Json[] = [null, [], {}, { entries: {} }, "x"];
+  for (const json of shapes) {
     assert.deepEqual(
       devNotesFindings(json).map((f) => f.rule),
       ["shape"],
@@ -30,7 +38,7 @@ test("최상위에 entries 배열이 없으면 걸린다", () => {
   assert.deepEqual(rulesOfList([1]), ["shape"]);
 });
 
-function rulesOfList(entries: unknown[]): string[] {
+function rulesOfList(entries: Json[]): string[] {
   return devNotesFindings({ entries }).map((f) => f.rule);
 }
 
@@ -56,7 +64,8 @@ test("종류는 넷 중 하나여야 한다", () => {
     assert.deepEqual(rulesOf({ ...good, kind }), []);
   }
   assert.deepEqual(rulesOf({ ...good, kind: "fix" }), ["kind"]);
-  assert.deepEqual(rulesOf({ ...good, kind: undefined }), ["kind"]);
+  const { kind: _kind, ...withoutKind } = good;
+  assert.deepEqual(rulesOf(withoutKind), ["kind"]);
 });
 
 test("issue 는 양의 정수여야 한다", () => {

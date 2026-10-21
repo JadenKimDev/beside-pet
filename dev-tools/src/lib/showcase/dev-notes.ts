@@ -9,6 +9,10 @@ export const DEV_NOTE_KINDS = ["bug", "feature", "improvement", "planned"] as co
 
 export type DevNoteKind = (typeof DEV_NOTE_KINDS)[number];
 
+/** 파일에서 읽은 JSON 값. `config.ts` 의 것과 같은 꼴이다. */
+export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+export type JsonObject = { [key: string]: Json };
+
 /** 발견 하나. `entry` 는 `entries` 안의 자리(0부터)이고, 최상위 모양의 발견이면 null 이다. */
 export type DevNoteFinding = { entry: number | null; rule: string; detail: string };
 
@@ -50,11 +54,11 @@ export function isCalendarDate(value: string): boolean {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+function isRecord(value: Json | undefined): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isFilledText(value: unknown): value is string {
+function isFilledText(value: Json | undefined): value is string {
   return typeof value === "string" && value.trim() !== "";
 }
 
@@ -73,7 +77,7 @@ export function textFindings(text: string): { rule: string; detail: string }[] {
   return found;
 }
 
-function entryFindings(entry: unknown, at: number): DevNoteFinding[] {
+function entryFindings(entry: Json, at: number): DevNoteFinding[] {
   if (!isRecord(entry)) {
     return [{ entry: at, rule: "shape", detail: "항목이 객체가 아닙니다" }];
   }
@@ -104,7 +108,7 @@ function entryFindings(entry: unknown, at: number): DevNoteFinding[] {
 }
 
 /** 이미 읽은 JSON 값에서 발견을 모은다. 없으면 빈 배열이다. */
-export function devNotesFindings(json: unknown): DevNoteFinding[] {
+export function devNotesFindings(json: Json): DevNoteFinding[] {
   if (!isRecord(json) || !Array.isArray(json.entries)) {
     return [{ entry: null, rule: "shape", detail: "최상위에 entries 배열이 없습니다" }];
   }
@@ -113,9 +117,9 @@ export function devNotesFindings(json: unknown): DevNoteFinding[] {
 
 /** 파일의 글에서 발견을 모은다. JSON 이 아니면 그것을 발견 하나로 돌려준다. */
 export function parseDevNotes(text: string): DevNoteFinding[] {
-  let json: unknown;
+  let json: Json;
   try {
-    json = JSON.parse(text);
+    json = JSON.parse(text) as Json;
   } catch (error) {
     return [{ entry: null, rule: "json", detail: `JSON 이 아닙니다: ${(error as Error).message}` }];
   }

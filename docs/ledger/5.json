@@ -170,13 +170,13 @@
       ],
       "tdd": true,
       "red_at": "2026-10-21T02:50:33.333Z",
-      "status": "doing",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
       "started_at": "2026-10-21T02:46:33.655Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-21T02:58:04.199Z",
+      "active_ms": 690544,
+      "verify_ms": 800
     },
     {
       "id": "S8",

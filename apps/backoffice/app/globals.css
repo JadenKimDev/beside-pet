@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/*
+ * 운영 화면의 디자인 토큰. 색 값은 이 파일에만 둔다. 컴포넌트는 토큰 클래스(bg-surface, text-fg-muted …)만 쓴다.
+ * 운영자용이라 테마는 라이트 하나다.
+ */
+
+:root {
+  --bg: #F6F7F9;
+  --bg-sunk: #ECEEF2;
+  --surface: #FFFFFF;
+  --fg: #1B1F27;
+  --fg-muted: #5A6170;
+  --border: #DDE1E8;
+  --border-strong: #8A91A0;
+  --accent: #24405C;
+  --accent-fg: #FFFFFF;
+  --accent-soft: #E3E8EE;
+  --danger: #A33A2A;
+  --danger-fg: #FFFFFF;
+  --danger-soft: #F6E2DC;
+  --success: #2E6B45;
+  --success-soft: #DFEFE4;
+  --warning: #8A5A00;
+  --warning-soft: #FAEDCF;
+  --chart-1: #24405C;
+  --chart-2: #3F8F8A;
+  --chart-3: #C9893A;
+  --chart-4: #8C5BA8;
+  --chart-5: #B4505C;
+  --overlay: rgb(27 31 39 / 0.48);
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-sunk: var(--bg-sunk);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-fg: var(--danger-fg);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-overlay: var(--overlay);
+  --shadow-focus: var(--focus-ring);
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-family: var(--font-sans);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+dialog::backdrop {
+  background: var(--overlay);
+}

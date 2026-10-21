@@ -1,0 +1,18 @@
+# apps/backoffice/Dockerfile 의 빌드 컨텍스트(레포 루트)에서 뺄 것. 남기는 것만 다시 넣는다:
+# 루트 package.json·pnpm-lock.yaml·pnpm-workspace.yaml 과 apps/backoffice. 루트의 outputs, data, target 은 * 가 뺀다.
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!apps/backoffice
+**/node_modules
+**/.next
+**/.env*
+**/target
+**/.DS_Store
+**/*.test.ts
+**/*.test.tsx
+apps/backoffice/docs
+apps/backoffice/Dockerfile
+apps/backoffice/Dockerfile.dockerignore
+apps/backoffice/.dockerignore

@@ -12,7 +12,7 @@
       "title": "Route Handler: 이슈 목록·상세·댓글(REST), 보드 상태(GraphQL), 라벨 붙이기, 60초 캐시, `GITHUB_TOKEN`·`project.config.json` 읽기, 가짜 fetch 테스트",
       "scope": [
         "apps/backoffice/app/api/github/",
-        "apps/backoffice/src/shared/api/github/",
+        "apps/backoffice/src/shared/github/",
         "apps/backoffice/.env.example"
       ],
       "depends_on": [],
@@ -20,14 +20,14 @@
         "pnpm -F @beside-pet/backoffice test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "doing",
-      "passes": false,
+      "red_at": "2026-10-21T09:05:43.849Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
       "started_at": "2026-10-21T09:02:50.981Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-21T09:07:07.333Z",
+      "active_ms": 256352,
+      "verify_ms": 2930
     },
     {
       "id": "S2",

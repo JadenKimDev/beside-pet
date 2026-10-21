@@ -154,6 +154,18 @@ test("buildComment 는 표식, 커밋, 작업 표, 테스트 요약, QA 표를 �
   assert.ok(comment.includes("`01-top.jpg`"));
 });
 
+test("buildComment 는 이미지 경로를 outputs/ 기준 상대 경로로 줄여 이 Mac 의 절대 경로를 싣지 않는다", () => {
+  const at = (imageBase: string) =>
+    buildComment({ issue: 99, sha: "a", tasks: null, test: null, qa: { report: parseQaReport(QA_HTML), imageBase } });
+  const fromRepo = at("/Users/someone/workspace/repo/outputs/qa/99");
+  assert.ok(fromRepo.includes("`outputs/qa/99/01-top.jpg`<br>`outputs/qa/99/02-side.png`"));
+  assert.ok(!fromRepo.includes("/Users/"));
+  const elsewhere = at("/private/tmp/qa-copy");
+  assert.ok(elsewhere.includes("`outputs/qa/99/03-mail.png`"));
+  assert.ok(!elsewhere.includes("/private/"));
+  assert.ok(at("shots").includes("`shots/01-top.jpg`"));
+});
+
 test("buildComment 는 빠진 입력마다 그렇다고 적고, 로그 안의 ``` 가 코드 블록을 닫지 않게 한다", () => {
   const comment = buildComment({
     issue: 5,

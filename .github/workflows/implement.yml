@@ -1,0 +1,38 @@
+# 이슈에 라벨 run:implement 또는 run:again 이 붙으면 이 Mac 의 self-hosted 러너(라벨 beside-pet-mac)가
+# dev-tools/scripts/runner/implement.sh <이슈> 를 돌린다. 설치와 판정은 dev-tools/scripts/runner/README.md.
+#
+# - actions/checkout 은 쓰지 않는다. 러너 머신의 본 체크아웃(BESIDE_PET_REPO)에서 스크립트와 작업 대장 CLI 를 부른다.
+#   스크립트가 본 체크아웃을 git pull --ff-only 로 갱신하고 prd/<이슈> 워크트리에서 구현한다.
+# - GH_TOKEN 은 러너 환경(~/actions-runner-beside-pet/.env)의 JadenKimDev fine-grained 토큰을 쓴다. 이 워크플로의
+#   secrets 나 기본 GITHUB_TOKEN 이 아니다. 그래서 기본 GITHUB_TOKEN 의 권한은 비워 둔다.
+# - 한 번에 하나만 돈다(이 Mac 의 CPU 와 구독 한도). 기다리는 실행은 취소하지 않는다.
+
+name: implement
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+concurrency:
+  group: implement
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: github.event.label.name == 'run:implement' || github.event.label.name == 'run:again'
+    runs-on: [self-hosted, beside-pet-mac]
+    timeout-minutes: 180
+    steps:
+      - name: implement.sh
+        env:
+          # BESIDE_PET_REPO 와 GH_TOKEN 은 러너의 .env 가 이미 작업 환경에 넣는다. 여기서는 트리거 라벨만 더한다.
+          RUNNER_LABEL: ${{ github.event.label.name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if [ -z "${BESIDE_PET_REPO:-}" ]; then
+            echo "BESIDE_PET_REPO 가 없습니다. 러너의 .env 에 본 체크아웃 경로를 적으세요(dev-tools/scripts/runner/README.md)." >&2
+            exit 1
+          fi
+          "$BESIDE_PET_REPO/dev-tools/scripts/runner/implement.sh" "$ISSUE_NUMBER"

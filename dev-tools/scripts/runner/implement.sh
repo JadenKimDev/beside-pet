@@ -5,7 +5,8 @@
 #
 # 순서: 본 체크아웃 갱신 → 원장 확인(없음, doing, needs_spec, parked 이면 멈춤) → wt:create(있으면 재사용)
 # → 시작 댓글 → 워크트리에서 claude -p '/implement-prd <이슈>' → 판정 → 보고 댓글과 라벨 정리.
-# 성공이면 review:ready, 막히면 run:blocked 를 붙이고 run:implement, run:again 은 뗀다.
+# 성공이면 review:ready 를 붙이고 run:implement, run:again, run:blocked 를 뗀다. 막히면 run:blocked 를 붙이고
+# run:implement, run:again 을 뗀다. QA 스크린샷은 gh --attach 로 따로 댓글 하나에 올린다(되지 않으면 로그만).
 #
 # 환경 변수
 #   BESIDE_PET_REPO     본 체크아웃 경로. 없으면 이 스크립트가 든 레포의 본 체크아웃.
@@ -44,6 +45,9 @@ FINISHED=0
 
 log() { echo "[runner #$ISSUE $(date +%H:%M:%S)] $*"; }
 
+# 공개 이슈에 싣는 경로. 이 Mac 의 홈(사용자 이름)을 ~ 로 가린다.
+shown() { local p="$1"; if [ -n "${HOME:-}" ] && [ "${p#"$HOME"}" != "$p" ]; then p="~${p#"$HOME"}"; fi; printf '%s' "$p"; }
+
 # 댓글을 단다. 작업 대장 CLI 가 먼저이고, 그것이 실패하면 gh 로 바로 단다.
 comment() {
   local file="$1"
@@ -71,7 +75,7 @@ comment_text() {
 
 # 사람이 이어 하는 법. 댓글 끝에 붙인다.
 resume_hint() {
-  local where="${WT_PATH:-<워크트리 없음: pnpm wt:create $ISSUE>}"
+  local where; where="$(shown "${WT_PATH:-<워크트리 없음: pnpm wt:create $ISSUE>}")"
   printf '%s\n' "" "**이어 하기**: 이 Mac 에서 \`pnpm wt:pane $ISSUE\` 또는 \`cd $where && HARNESS_IMPL=$ISSUE claude '/implement-prd $ISSUE'\`." \
     "고친 뒤 다시 돌리려면 라벨 \`run:again\` 을 붙인다. 러너 로그: \`outputs/runner/$ISSUE/$STAMP*.log\` (러너 호스트 $(hostname -s))."
 }
@@ -106,6 +110,28 @@ trap 'on_error "$LINENO" "$BASH_COMMAND"' ERR
 
 release_lock() { rm -rf "$LOCK_DIR"; }
 
+# QA 스크린샷을 댓글 하나로 올린다. gh 2.99 이상의 --attach 가 있을 때만 하고, 실패해도 판정을 바꾸지 않는다.
+# 파일은 outputs/qa/<이슈>/ 바로 아래의 이미지이고, 한 번에 50장까지(gh 의 한도).
+attach_screenshots() {
+  local dir="$REPO_ROOT/outputs/qa/$ISSUE" files=() args=() f
+  [ -d "$dir" ] || return 0
+  while IFS= read -r f; do files+=("$f"); done < <(cd "$dir" && find . -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' \) | sed 's|^\./||' | sort | head -50)
+  [ "${#files[@]}" -gt 0 ] || return 0
+  if ! gh issue comment --help 2>/dev/null | grep -q -- '--attach'; then
+    log "gh 에 --attach 가 없어 스크린샷을 올리지 않습니다(gh 2.99 이상 필요). 파일은 outputs/qa/$ISSUE/ 에 있습니다"
+    return 0
+  fi
+  for f in "${files[@]}"; do args+=(--attach "./$f#$f"); done
+  local body; body="$(mktemp "$LOG_DIR/comment.XXXXXX")"
+  printf '%s\n' "### 러너: QA 스크린샷 (#$ISSUE)" "" "\`outputs/qa/$ISSUE/\` 의 이미지 ${#files[@]}장." > "$body"
+  if (cd "$dir" && gh issue comment "$ISSUE" --repo "$GH_REPO_SLUG" --body-file "$body" "${args[@]}"); then
+    log "스크린샷 ${#files[@]}장을 올렸습니다"
+  else
+    log "스크린샷을 올리지 못했습니다. 파일은 outputs/qa/$ISSUE/ 에 있습니다"
+  fi
+  rm -f "$body"
+}
+
 # 같은 이슈를 이 러너가 이미 돌리고 있으면 멈춘다(워크플로의 concurrency 위의 두 번째 울타리).
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
   other="$(cat "$LOCK_DIR/pid" 2>/dev/null || true)"
@@ -122,7 +148,7 @@ echo $$ > "$LOCK_DIR/pid"
 trap release_lock EXIT
 
 # 1. 본 체크아웃 갱신. main 이 아니거나 더러우면 pull 이 엉뚱한 곳을 건드리므로 멈춘다.
-[ "$(git -C "$REPO_ROOT" branch --show-current)" = main ] || block "본 체크아웃($REPO_ROOT)이 main 이 아닙니다."
+[ "$(git -C "$REPO_ROOT" branch --show-current)" = main ] || block "본 체크아웃($(shown "$REPO_ROOT"))이 main 이 아닙니다."
 git -C "$REPO_ROOT" pull --ff-only || block "본 체크아웃을 갱신하지 못했습니다(\`git pull --ff-only\`)."
 
 # 원장 하나의 작업 상태를 "id status" 줄로 뽑는다.
@@ -166,11 +192,11 @@ parked="$(tasks_with "$TASKS" parked)"
 (cd "$REPO_ROOT" && pnpm -s wt:create "$ISSUE") || block "워크트리를 만들지 못했습니다(\`pnpm wt:create $ISSUE\`)."
 WT_PATH="$(existing_wt)"
 [ -n "$WT_PATH" ] || block "\`wt:create\` 뒤에도 \`prd/$ISSUE\` 워크트리를 찾지 못했습니다."
-[ -z "$(git -C "$WT_PATH" status --porcelain)" ] || block "워크트리에 커밋하지 않은 변경이 있습니다: \`$WT_PATH\`. 사람이 정리한 뒤 \`run:again\` 을 붙이세요."
+[ -z "$(git -C "$WT_PATH" status --porcelain)" ] || block "워크트리에 커밋하지 않은 변경이 있습니다: \`$(shown "$WT_PATH")\`. 사람이 정리한 뒤 \`run:again\` 을 붙이세요."
 
 # 4. 시작 댓글.
 comment_text "### 러너: 시작했습니다 (#$ISSUE)" "" "- 호스트: $(hostname -s)" "- 시각: $(date '+%Y-%m-%d %H:%M:%S %Z')" \
-  "- 트리거: \`$TRIGGER\`" "- 워크트리: \`$WT_PATH\` (\`$(git -C "$WT_PATH" rev-parse --short HEAD)\`)" "- 최대 턴: $MAX_TURNS" \
+  "- 트리거: \`$TRIGGER\`" "- 워크트리: \`$(shown "$WT_PATH")\` (\`$(git -C "$WT_PATH" rev-parse --short HEAD)\`)" "- 최대 턴: $MAX_TURNS" \
   || block "시작 댓글을 달지 못했습니다."
 
 # 5. 구현 세션. 실패해도 판정까지 간다.
@@ -251,10 +277,12 @@ fi
 
 if [ "${#REASONS[@]}" -gt 0 ]; then
   comment "$REPORT" || log "결과 댓글을 달지 못했습니다: $REPORT"
+  attach_screenshots || true
   block "구현 세션이 끝까지 가지 못했습니다 (이슈 상태 $ISSUE_STATE)." "${REASONS[@]}"
 fi
 
 FINISHED=1
 comment "$REPORT"
-relabel review:ready run:implement,run:again
+attach_screenshots || true
+relabel review:ready run:implement,run:again,run:blocked
 log "끝: review:ready"

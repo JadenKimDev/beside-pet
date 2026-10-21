@@ -239,16 +239,29 @@ function testSection(test: TestSummary | null): string {
   ].join("\n");
 }
 
+/**
+ * 공개 이슈에 싣는 이미지 경로의 앞부분. 러너는 QA 보고서의 절대 경로를 넘기지만, 그 경로에는 이 Mac 의
+ * 사용자 이름이 들어 있으므로 레포 기준 상대 경로(`outputs/qa/<이슈>`)만 남긴다.
+ */
+function publicImageBase(issue: number, imageBase: string | undefined): string | undefined {
+  if (imageBase === undefined || imageBase === "") {
+    return undefined;
+  }
+  const fromOutputs = /(?:^|\/)(outputs\/.*)$/.exec(imageBase);
+  if (fromOutputs) {
+    return fromOutputs[1];
+  }
+  return imageBase.startsWith("/") || /^[A-Za-z]:[\\/]/.test(imageBase) ? `outputs/qa/${issue}` : imageBase;
+}
+
 /** 이슈 댓글 마크다운 하나. */
 export function buildComment(input: CommentInput): string {
+  const imageBase = input.qa === null ? undefined : publicImageBase(input.issue, input.qa.imageBase);
   const tasks =
     input.tasks === null
       ? "_원장 실측이 없습니다._"
       : `${input.tasks.source === "outcome" ? "마감한 실측" : "진행 중인 원장"}\n\n${taskTable(input.tasks.rows)}`;
-  const qa =
-    input.qa === null
-      ? "_QA 보고서가 없습니다._"
-      : qaTable(input.qa.report, input.qa.imageBase ? { imageBase: input.qa.imageBase } : {});
+  const qa = input.qa === null ? "_QA 보고서가 없습니다._" : qaTable(input.qa.report, imageBase ? { imageBase } : {});
   return [
     COMMENT_MARKER,
     `## 러너 결과 #${input.issue}`,

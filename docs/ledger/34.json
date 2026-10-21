@@ -65,13 +65,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T14:42:01.776Z",
+      "finished_at": "2026-10-21T14:45:26.061Z",
+      "active_ms": 204285,
+      "verify_ms": 35
     },
     {
       "id": "S4",

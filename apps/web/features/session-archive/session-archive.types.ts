@@ -4,8 +4,8 @@
  * of inferring "loading" from an absent value.
  */
 
-/** `unauthorized`: the backend refused the session (signed out, revoked account) — not a retryable failure. */
-export type LoadStatus = 'idle' | 'loading' | 'ready' | 'failed' | 'unauthorized';
+/** A refused session (signed out, revoked account) never lands here: the auth handler sends it home. */
+export type LoadStatus = 'idle' | 'loading' | 'ready' | 'failed';
 
 /** The report adds a phase of its own: the session exists but carries no report yet. */
 export type ReportStatus = LoadStatus | 'unavailable';

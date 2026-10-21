@@ -5,7 +5,7 @@
  * 새 대화는 여정을 이어 간다: 서버가 프로필과 도달 단계를 이어받으므로 온보딩을 다시 하지 않는다.
  * 이어지는 대화가 있는데 새로 시작하면 그 대화를 먼저 마친다(확인창).
  *
- * 로그인이 없거나 서버가 세션을 거절하면(401, 정지된 계정 포함) 로그인 정보를 비우고 첫 화면(로그인)으로 보낸다.
+ * 로그인 없이 연 경우와 서버가 세션을 거절한 경우의 첫 화면 이동은 레이아웃과 auth 의 처리기가 맡는다.
  * 상태: 불러오는 중(스켈레톤) / 실패(다시 불러오기, 온보딩으로 보내지 않는다: 대화가 있는 사람에게
  * 프로필을 다시 만들게 하지 않으려고) / 빈 목록(온보딩으로. "처음 온 사람"과 "다 지운 사람"을 가르지 않는다.
  * 서버는 지운 대화의 흔적을 두지 않으므로 둘을 가를 값이 없다, ADR-0020) / 목록.
@@ -45,7 +45,6 @@ export function SessionsScreen() {
   const principal = useAuthStore((state) => state.principal);
   const authReady = useAuthStore((state) => state.ready);
   const initAuth = useAuthStore((state) => state.init);
-  const expireAuth = useAuthStore((state) => state.expire);
   const resumeSession = useSessionStore((state) => state.resumeSession);
   const startSession = useSessionStore((state) => state.startSession);
   const loadList = useSessionArchiveStore((state) => state.loadList);
@@ -68,16 +67,6 @@ export function SessionsScreen() {
   useEffect(() => {
     if (!principal && !authReady) void initAuth();
   }, [principal, authReady, initAuth]);
-
-  // 로그인이 없으면 첫 화면으로. 401 이면 남은 로그인 정보를 먼저 비운다(첫 화면이 다시 여기로 보내지 않게).
-  useEffect(() => {
-    if (status === 'unauthorized') {
-      expireAuth();
-      router.replace('/');
-    } else if (authReady && !principal) {
-      router.replace('/');
-    }
-  }, [status, authReady, principal, expireAuth, router]);
 
   // 처음 온 사람은 온보딩에서 시작한다. 불러오기 실패는 여기서 실패 화면을 보인다.
   useEffect(() => {

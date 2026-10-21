@@ -11,4 +11,4 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000'
 export const http = createHttpClient({ baseUrl: BASE_URL });
 
 export type { HttpClient } from './client';
-export { HttpError, isUnauthorized } from './client';
+export { HttpError, isUnauthorized, UNAUTHORIZED_STATUS } from './client';

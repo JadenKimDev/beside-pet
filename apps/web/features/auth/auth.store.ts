@@ -6,7 +6,9 @@
  */
 import { create } from 'zustand';
 import type { Locale } from '@/i18n/config';
+import { http } from '@/lib/http';
 import * as api from './auth.api';
+import { goHome } from './auth.redirect';
 import type { Principal } from './auth.types';
 
 interface AuthState {
@@ -119,3 +121,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 }));
+
+/**
+ * The backend refused a signed-in session mid-use (expired, revoked account):
+ * forget the principal and go back to sign-in. Screens never check the status
+ * themselves. Without a principal there is nothing to undo — a failed sign-in
+ * stays on its form, and the layout sends signed-out visits to protected paths home.
+ * Registered at module load, so any screen that touches auth state installs it.
+ */
+http.onUnauthorized(() => {
+  const { principal, expire } = useAuthStore.getState();
+  if (!principal) return;
+  expire();
+  goHome();
+});

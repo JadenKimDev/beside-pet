@@ -205,3 +205,52 @@ describe('streamFrames', () => {
     );
   });
 });
+
+describe('onUnauthorized', () => {
+  it('calls the registered handler on a 401, then still throws the HttpError', async () => {
+    stubFetch(jsonResponse(401, { message: 'Account is unavailable' }));
+    const client = createHttpClient({ baseUrl: BASE });
+    const handler = vi.fn();
+    client.onUnauthorized(handler);
+
+    const error = await client.get('/v1/sessions').catch((caught: unknown) => caught);
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error).toMatchObject({ status: 401 });
+  });
+
+  it('calls the handler when an SSE stream is refused with 401, then still throws', async () => {
+    stubFetch(jsonResponse(401, { message: 'Unauthorized' }));
+    const client = createHttpClient({ baseUrl: BASE });
+    const handler = vi.fn();
+    client.onUnauthorized(handler);
+
+    await expect(collect(client.streamFrames('/v1/stream'))).rejects.toThrow('Stream failed (401)');
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call the handler for other failing statuses', async () => {
+    const client = createHttpClient({ baseUrl: BASE });
+    const handler = vi.fn();
+    client.onUnauthorized(handler);
+
+    stubFetch(jsonResponse(403, { message: 'Forbidden' }));
+    await expect(client.post('/v1/x', {})).rejects.toBeInstanceOf(HttpError);
+    stubFetch(jsonResponse(500, { message: 'down' }));
+    await expect(collect(client.streamFrames('/v1/stream'))).rejects.toThrow('Stream failed (500)');
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('throws the HttpError as before once the handler is cleared', async () => {
+    stubFetch(jsonResponse(401, { message: 'Unauthorized' }));
+    const client = createHttpClient({ baseUrl: BASE });
+    const handler = vi.fn();
+    client.onUnauthorized(handler);
+    client.onUnauthorized(undefined);
+
+    await expect(client.get('/v1/sessions')).rejects.toMatchObject({ status: 401 });
+    expect(handler).not.toHaveBeenCalled();
+  });
+});

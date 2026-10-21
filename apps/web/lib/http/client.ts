@@ -21,6 +21,12 @@ export interface HttpClient {
   delete<Result>(path: string): Promise<Result>;
   /** Opens an SSE POST and yields each frame's `data:` payload, still raw. */
   streamFrames(path: string, body?: object): AsyncIterable<string>;
+  /**
+   * Registers the one handler called when the backend refuses the session
+   * (any call or stream answered with that status); `undefined` clears it.
+   * The error is still thrown afterwards, so callers keep seeing the failure.
+   */
+  onUnauthorized(handler: (() => void) | undefined): void;
 }
 
 /**
@@ -37,9 +43,12 @@ export class HttpError extends Error {
   }
 }
 
+/** The status the backend answers when it refuses the session. */
+export const UNAUTHORIZED_STATUS = 401;
+
 /** True when the backend refused the session (no cookie, expired, revoked account). */
 export const isUnauthorized = (error: unknown): boolean =>
-  error instanceof HttpError && error.status === 401;
+  error instanceof HttpError && error.status === UNAUTHORIZED_STATUS;
 
 /** Shape of the backend's error responses (NestJS puts the reason in `message`). */
 interface ErrorBody {
@@ -63,6 +72,11 @@ const extractError = async (res: Response): Promise<string> => {
 };
 
 export function createHttpClient({ baseUrl }: HttpClientOptions): HttpClient {
+  let unauthorizedHandler: (() => void) | undefined;
+  const noticeRefusal = (res: Response) => {
+    if (res.status === UNAUTHORIZED_STATUS) unauthorizedHandler?.();
+  };
+
   const send = async <Result>(path: string, init: RequestInit): Promise<Result> => {
     const res = await fetch(`${baseUrl}${path}`, {
       credentials: 'include',
@@ -70,6 +84,7 @@ export function createHttpClient({ baseUrl }: HttpClientOptions): HttpClient {
       ...init,
     });
     if (!res.ok) {
+      noticeRefusal(res);
       throw new HttpError(res.status, await extractError(res));
     }
     if (res.status === 204) {
@@ -91,6 +106,7 @@ export function createHttpClient({ baseUrl }: HttpClientOptions): HttpClient {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!res.ok || !res.body) {
+      noticeRefusal(res);
       throw new Error(`Stream failed (${res.status})`);
     }
     const reader = res.body.getReader();
@@ -121,5 +137,8 @@ export function createHttpClient({ baseUrl }: HttpClientOptions): HttpClient {
     patch: (path, body) => send(path, withBody('PATCH', body)),
     delete: (path) => send(path, { method: 'DELETE' }),
     streamFrames,
+    onUnauthorized(handler) {
+      unauthorizedHandler = handler;
+    },
   };
 }

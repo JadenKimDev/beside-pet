@@ -276,6 +276,8 @@ export const ko: Messages = {
     writingTitle: '리포트를 적고 있어요',
     notReadyTitle: '아직 리포트를 쓸 만큼 걷지 않았어요',
     notReadyBody: '이야기가 두 번째 걸음까지 이어진 뒤 대화를 마치면 마음 리포트가 열려요.',
+    emptyTitle: '이야기가 아직 짧아 리포트를 쓰지 않았어요',
+    emptyBody: '다음에 조금 더 이야기를 나눈 뒤 대화를 마치면 마음 리포트를 적어 드릴게요.',
     failedTitle: '리포트를 불러오지 못했어요',
     failedBody: '잠시 뒤에 다시 열어 주세요. 대화 내용은 그대로 남아 있어요.',
     retry: '다시 시도',

@@ -144,6 +144,26 @@ describe('ReportScreen 상태 전환', () => {
   });
 });
 
+describe('ReportScreen 빈 리포트', () => {
+  it('절 배열이 비어 있으면 네 구역 제목 없이 안내 문장만 보인다', async () => {
+    const empty: MindReport = { ...REPORT, sections: [] };
+    stubFetch({
+      '/v1/sessions/s-short': () => json(200, state('s-short', true)),
+      '/v1/sessions/s-short/report': () => json(200, empty),
+    });
+    const container = render('s-short');
+    await flush();
+    expect(container.textContent).toContain(ko.report.emptyTitle);
+    expect(container.textContent).toContain(ko.report.emptyBody);
+    expect(sectionKeys(container)).toEqual([]);
+    for (const heading of Object.values(ko.reportSections)) {
+      expect(container.textContent).not.toContain(heading);
+    }
+    expect(container.textContent).not.toContain(ko.report.title('테스트콩'));
+    expect(container.textContent).not.toContain(ko.report.failedTitle);
+  });
+});
+
 describe('ReportScreen 표지와 감정 칩', () => {
   const longDate = (iso: string) =>
     new Intl.DateTimeFormat('ko', { dateStyle: 'long' }).format(new Date(iso));

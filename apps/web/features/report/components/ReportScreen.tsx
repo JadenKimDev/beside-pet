@@ -21,7 +21,7 @@ import { useReportStore } from '../report.store';
 import { ReportView } from './ReportView';
 
 /**
- * 마음 리포트 한 장: 쓰는 중 / 아직 안 열림 / 실패 / 리포트.
+ * 마음 리포트 한 장: 쓰는 중 / 아직 안 열림 / 실패 / 짧아서 쓰지 않음 / 리포트.
  * 쓰는 중 표시는 `writingDelayMs` 뒤에야 나타난다. 이미 쓴 리포트는 그 안에 와서 깜박이지 않는다.
  */
 export function ReportScreen({
@@ -68,6 +68,21 @@ export function ReportScreen({
           art={<img {...reportArt(theme, 'empty-state')} sizes="220px" alt="" />}
           title={t.report.notReadyTitle}
           description={t.report.notReadyBody}
+          action={
+            <Link href="/sessions" className={buttonClass({ variant: 'secondary' })}>
+              {t.report.toList}
+            </Link>
+          }
+        />
+      )}
+
+      {phase === 'empty' && (
+        <EmptyState
+          headingLevel={2}
+          // biome-ignore lint/performance/noImgElement: 삽화는 미리 만든 WebP 두 크기를 srcSet 으로 고른다.
+          art={<img {...reportArt(theme, 'empty-state')} sizes="220px" alt="" />}
+          title={t.report.emptyTitle}
+          description={t.report.emptyBody}
           action={
             <Link href="/sessions" className={buttonClass({ variant: 'secondary' })}>
               {t.report.toList}

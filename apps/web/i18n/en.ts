@@ -282,6 +282,9 @@ export const en: Messages = {
     notReadyTitle: 'Not quite enough of the path for a report yet',
     notReadyBody:
       'Your mind report opens once the conversation reaches the second step and you wrap it up.',
+    emptyTitle: 'The conversation was too short for a report',
+    emptyBody:
+      'Next time, share a little more before you wrap up, and we will write your mind report.',
     failedTitle: 'We could not load the report',
     failedBody: 'Please try again shortly. Your conversation is still here.',
     retry: 'Try again',

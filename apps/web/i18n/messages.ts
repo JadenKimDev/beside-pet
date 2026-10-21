@@ -250,6 +250,9 @@ export interface Messages {
     writingTitle: string;
     notReadyTitle: string;
     notReadyBody: string;
+    /** 이야기가 짧아 서버가 리포트를 쓰지 않은 경우(절 배열이 빈 배열). */
+    emptyTitle: string;
+    emptyBody: string;
     failedTitle: string;
     failedBody: string;
     retry: string;

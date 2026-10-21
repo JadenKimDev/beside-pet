@@ -40,7 +40,8 @@ export const useReportStore = create<ReportState>((set) => ({
       }
       const report = await data.getReport(sessionId);
       if (token !== loadToken) return;
-      set({ phase: 'ready', report });
+      // 짧은 대화는 서버가 모델을 부르지 않고 빈 절 배열을 준다(#32). 리포트를 쓰지 않았다는 사실이다.
+      set({ phase: report.sections.length === 0 ? 'empty' : 'ready', report });
     } catch {
       if (token !== loadToken) return;
       set({ phase: 'failed' });

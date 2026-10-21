@@ -66,6 +66,12 @@ vi.mock('@/lib/data', async () => ({
   ...(await vi.importActual<typeof import('@/lib/api/errors')>('@/lib/api/errors')),
   startSessionStream: () => nextStream(),
   sendMessageStream: vi.fn((_sessionId: string, _text: string, _turnId?: string) => nextStream()),
+  streamTurn: vi.fn((_sessionId: string, _turnId: string) => nextStream()),
+  retryTurnStream: vi.fn((_sessionId: string, _turnId: string) => nextStream()),
+  cancelTurn: vi.fn(async (_sessionId: string, turnId: string) => ({
+    turnId,
+    status: 'cancelled' as const,
+  })),
   getSessionState: vi.fn(async (sessionId: string) => ({
     sessionId,
     task: 1,
@@ -91,6 +97,9 @@ beforeEach(() => {
   streams.length = 0;
   vi.mocked(data.sendMessageStream).mockClear();
   vi.mocked(data.getMessages).mockClear();
+  vi.mocked(data.streamTurn).mockClear();
+  vi.mocked(data.retryTurnStream).mockClear();
+  vi.mocked(data.cancelTurn).mockClear();
 });
 
 afterEach(() => {
@@ -641,5 +650,205 @@ describe('사용자 턴의 전송: 턴 id, 보내는 중, 끊김 뒤 한 번 다
     expect(botTexts()).toEqual(['반가워요.']);
     expect(document.body.textContent).toContain(ko.chat.replyFailed);
     expect(useSessionStore.getState().streaming).toBe(false);
+  });
+});
+
+describe('중단, 다시 붙기, 답 다시 받기', () => {
+  const USER_TEXT = '보리가 보고 싶어요';
+  const SESSION_ID = 'session-resume';
+  const TURN_ID = 'turn-active';
+  const AT = '2026-10-21T01:00:00.000Z';
+
+  const stopButton = (): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>(`button[aria-label="${ko.chat.stop}"]`);
+  const retryReplyButton = (): HTMLButtonElement | undefined =>
+    Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === ko.chat.retryReply,
+    );
+  const userRows = () =>
+    useSessionStore.getState().messages.filter((message) => message.role === 'user');
+
+  function mountPage(): void {
+    mounted = mount(
+      <I18nProvider initialLocale="ko">
+        <SessionPage />
+      </I18nProvider>,
+    );
+  }
+
+  /** 첫 인사를 끝내 두고 사용자 말을 하나 보낸다. */
+  async function sendOne(): Promise<{ stream: FakeStream; pending: Promise<void> }> {
+    mountPage();
+    let greeted!: Promise<void>;
+    act(() => {
+      greeted = useSessionStore
+        .getState()
+        .startSession({ griefPath: 'afterLoss', petName: '보리' });
+    });
+    await flush(0);
+    const greeting = streams[0];
+    if (!greeting) throw new Error('greeting stream not opened');
+    // 첫 인사는 사용자 말이 없어 중단할 수 없다.
+    expect(stopButton()).toBeNull();
+    greeting.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    greeting.push({ kind: 'token', text: '반가워요.' });
+    greeting.push({
+      kind: 'done',
+      result: { reply: '반가워요.', task: 1, progress: 0, supportLevel: 1, done: false },
+    });
+    greeting.end();
+    await flush();
+    await act(async () => {
+      await greeted;
+    });
+
+    let pending!: Promise<void>;
+    act(() => {
+      pending = useSessionStore.getState().sendUserMessage(USER_TEXT);
+    });
+    await flush(0);
+    const stream = streams[1];
+    if (!stream) throw new Error('turn stream not opened');
+    return { stream, pending };
+  }
+
+  /** 서버의 상태와 기록을 정해 두고 세션을 다시 연다. */
+  async function resumeWith(extra: object): Promise<void> {
+    vi.mocked(data.getSessionState).mockResolvedValueOnce({
+      sessionId: SESSION_ID,
+      task: 1,
+      progress: 0,
+      supportLevel: 1,
+      closed: false,
+      reportAvailable: false,
+      ...extra,
+    });
+    vi.mocked(data.getMessages).mockResolvedValueOnce([
+      { role: 'assistant', text: '반가워요.', task: 1, at: AT },
+      { role: 'user', text: USER_TEXT, task: 1, at: AT, turnId: TURN_ID },
+    ]);
+    mountPage();
+    await act(async () => {
+      await useSessionStore.getState().resumeSession(SESSION_ID, '보리');
+    });
+    await flush(0);
+  }
+
+  it('답이 흐르는 중에 중단하면 cancel 을 부르고, 두 말풍선이 빠지며 보낸 글이 입력창에 돌아온다', async () => {
+    const { stream, pending } = await sendOne();
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    stream.push({ kind: 'token', text: '들려줘서 ' });
+    await flush();
+
+    const stop = stopButton();
+    expect(stop).not.toBeNull();
+    expect(stop?.disabled).toBe(false);
+    const turnId = vi.mocked(data.sendMessageStream).mock.calls[0]?.[2];
+    act(() => {
+      stop?.click();
+    });
+    await flush(0);
+    expect(data.cancelTurn).toHaveBeenCalledWith(useSessionStore.getState().sessionId, turnId);
+
+    stream.push({ kind: 'cancelled' });
+    stream.end();
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(userRows()).toHaveLength(0);
+    expect(botTexts()).toEqual(['반가워요.']);
+    expect(document.querySelector('textarea')?.value).toBe(USER_TEXT);
+    expect(useSessionStore.getState().streaming).toBe(false);
+    expect(stopButton()).toBeNull();
+    expect(sendButton().disabled).toBe(false);
+  });
+
+  it('activeTurn 이 있는 세션을 다시 열면 사용자 말 아래 흐르는 답 말풍선을 두고 turn stream 에 붙는다', async () => {
+    await resumeWith({ activeTurn: { turnId: TURN_ID, status: 'streaming' } });
+
+    expect(data.streamTurn).toHaveBeenCalledWith(SESSION_ID, TURN_ID);
+    const messages = useSessionStore.getState().messages;
+    expect(messages.map((message) => message.role)).toEqual(['bot', 'user', 'bot']);
+    expect(messages.at(-1)?.streaming).toBe(true);
+    expect(useSessionStore.getState().streaming).toBe(true);
+
+    const stream = streams[0];
+    if (!stream) throw new Error('turn stream not opened');
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    stream.push({ kind: 'token', text: '여기까지 온 글 ' });
+    stream.push({ kind: 'token', text: '이어지는 글.' });
+    stream.push({
+      kind: 'done',
+      result: {
+        reply: '여기까지 온 글 이어지는 글.',
+        task: 1,
+        progress: 0,
+        supportLevel: 1,
+        done: false,
+      },
+    });
+    stream.end();
+    await flush(1000);
+
+    expect(botTexts()).toEqual(['반가워요.', '여기까지 온 글 이어지는 글.']);
+    expect(useSessionStore.getState().streaming).toBe(false);
+    expect(userRows()).toHaveLength(1);
+  });
+
+  it('failedTurn 이 있는 세션은 그 말 아래에 답 다시 받기를 두고, 누르면 retry 로 답만 다시 받는다', async () => {
+    await resumeWith({ failedTurn: { turnId: TURN_ID } });
+
+    expect(data.streamTurn).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain(ko.chat.replyFailed);
+    const retry = retryReplyButton();
+    expect(retry).toBeDefined();
+
+    act(() => {
+      retry?.click();
+    });
+    await flush(0);
+    expect(data.retryTurnStream).toHaveBeenCalledWith(SESSION_ID, TURN_ID);
+    expect(data.sendMessageStream).not.toHaveBeenCalled();
+
+    const stream = streams[0];
+    if (!stream) throw new Error('retry stream not opened');
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    stream.push({ kind: 'token', text: '다시 받은 답이에요.' });
+    stream.push({
+      kind: 'done',
+      result: { reply: '다시 받은 답이에요.', task: 1, progress: 0, supportLevel: 1, done: false },
+    });
+    stream.end();
+    await flush();
+
+    expect(userRows()).toHaveLength(1);
+    expect(botTexts()).toEqual(['반가워요.', '다시 받은 답이에요.']);
+    expect(retryReplyButton()).toBeUndefined();
+    expect(document.body.textContent).not.toContain(ko.chat.replyFailed);
+  });
+
+  it('meta 뒤에 답이 실패하면 같은 자리에 답 다시 받기가 보이고, 누르면 같은 턴 id 로 retry 를 부른다', async () => {
+    const { stream, pending } = await sendOne();
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 1, done: false });
+    await flush();
+    stream.fail(new TypeError('network error'));
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    const turnId = vi.mocked(data.sendMessageStream).mock.calls[0]?.[2];
+    const retry = retryReplyButton();
+    expect(retry).toBeDefined();
+    act(() => {
+      retry?.click();
+    });
+    await flush(0);
+
+    expect(data.retryTurnStream).toHaveBeenCalledWith(useSessionStore.getState().sessionId, turnId);
+    expect(data.sendMessageStream).toHaveBeenCalledTimes(1);
+    expect(userRows()).toHaveLength(1);
   });
 });

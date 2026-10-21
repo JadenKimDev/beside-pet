@@ -9,15 +9,18 @@ import type { Message } from './types';
 /**
  * 말풍선. 마음이는 왼쪽(surface + 테두리, 앞에 발바닥 아바타. 모바일은 숨김), 사용자는 오른쪽(accent-soft).
  * 상태: 첫 글자 기다림(점 세 개), 흐르는 중(끝에 커서), 보내는 중(옅게 + 보내는 중),
- * 보내지 못함(점선 + 다시 보내기), 답을 받지 못함(사용자 말 아래 한 줄). 표시만 한다.
+ * 보내지 못함(점선 + 다시 보내기), 답을 받지 못함(사용자 말 아래 한 줄 + 답 다시 받기). 표시만 한다.
  */
 export function MessageBubble({
   message,
   onResend,
+  onRetryReply,
 }: {
   message: Message;
   /** 보내지 못한 사용자 말풍선의 "다시 보내기". 없으면 버튼을 두지 않는다. */
   onResend?: (message: Message) => void;
+  /** 답을 받지 못한 사용자 말풍선의 "답 다시 받기"(말은 다시 보내지 않는다). 없으면 버튼을 두지 않는다. */
+  onRetryReply?: (message: Message) => void;
 }) {
   const translations = useTranslations();
   const isUser = message.role === 'user';
@@ -72,6 +75,18 @@ export function MessageBubble({
           <p className="m-0 flex items-center gap-1.5 text-small text-fg-muted [&_svg]:size-3.5">
             <Icon name="alert" />
             <span>{translations.chat.replyFailed}</span>
+            {onRetryReply && (
+              <>
+                <span aria-hidden="true">·</span>
+                <button
+                  type="button"
+                  onClick={() => onRetryReply(message)}
+                  className="cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-fg underline underline-offset-2 focus-visible:shadow-focus focus-visible:outline-none"
+                >
+                  {translations.chat.retryReply}
+                </button>
+              </>
+            )}
           </p>
         )}
         {message.failed && (

@@ -18,6 +18,7 @@
  *   // startSession() would then call historyCache.invalidate(userId).
  */
 import type {
+  CancelledTurn,
   GriefProfile,
   HistoryMessage,
   MindReport,
@@ -55,6 +56,18 @@ export function sendMessageStream(
   turnId?: string,
 ): AsyncIterable<StreamEvent> {
   return api.sendMessageStream(sessionId, text, turnId);
+}
+
+export function streamTurn(sessionId: string, turnId: string): AsyncIterable<StreamEvent> {
+  return api.streamTurn(sessionId, turnId);
+}
+
+export function cancelTurn(sessionId: string, turnId: string): Promise<CancelledTurn> {
+  return api.cancelTurn(sessionId, turnId);
+}
+
+export function retryTurnStream(sessionId: string, turnId: string): AsyncIterable<StreamEvent> {
+  return api.retryTurnStream(sessionId, turnId);
 }
 
 export function listSessions(): Promise<SessionListItem[]> {

@@ -8,6 +8,7 @@
 import { http } from '@/lib/http';
 import type {
   Api,
+  CancelledTurn,
   HistoryMessage,
   MindReport,
   SessionListItem,
@@ -21,7 +22,11 @@ import type {
 const parseJson: (text: string) => object | null = JSON.parse;
 
 const isStreamEvent = (value: object): value is StreamEvent =>
-  'kind' in value && (value.kind === 'meta' || value.kind === 'token' || value.kind === 'done');
+  'kind' in value &&
+  (value.kind === 'meta' ||
+    value.kind === 'token' ||
+    value.kind === 'done' ||
+    value.kind === 'cancelled');
 
 /** Parses one SSE frame payload into a StreamEvent (validated at this boundary). */
 function asStreamEvent(payload: string): StreamEvent | undefined {
@@ -33,8 +38,12 @@ function asStreamEvent(payload: string): StreamEvent | undefined {
 }
 
 /** Yields the turn's events, dropping frames that aren't a known StreamEvent. */
-async function* streamTurn(path: string, body: object): AsyncIterable<StreamEvent> {
-  for await (const payload of http.streamFrames(path, body)) {
+async function* streamTurn(
+  path: string,
+  body?: object,
+  method?: 'GET' | 'POST',
+): AsyncIterable<StreamEvent> {
+  for await (const payload of http.streamFrames(path, body, method)) {
     const event = asStreamEvent(payload);
     if (event) {
       yield event;
@@ -61,6 +70,18 @@ export const httpApi: Api = {
 
   sendMessageStream(sessionId: string, text: string, turnId?: string): AsyncIterable<StreamEvent> {
     return streamTurn(`/v1/sessions/${sessionId}/messages/stream`, turnBody(text, turnId));
+  },
+
+  streamTurn(sessionId: string, turnId: string): AsyncIterable<StreamEvent> {
+    return streamTurn(`/v1/sessions/${sessionId}/turns/${turnId}/stream`, undefined, 'GET');
+  },
+
+  cancelTurn(sessionId: string, turnId: string): Promise<CancelledTurn> {
+    return http.post(`/v1/sessions/${sessionId}/turns/${turnId}/cancel`);
+  },
+
+  retryTurnStream(sessionId: string, turnId: string): AsyncIterable<StreamEvent> {
+    return streamTurn(`/v1/sessions/${sessionId}/turns/${turnId}/retry`);
   },
 
   listSessions(): Promise<SessionListItem[]> {

@@ -24,6 +24,12 @@ import { useSessionStore } from '@/features/session/session.store';
 import { useSessionArchiveStore } from '@/features/session-archive/session-archive.store';
 import { useTranslations } from '@/i18n/I18nProvider';
 
+/** "Get the reply again" sits under the last user message, when its reply failed. */
+function retryReplyId(messages: Message[]): string | undefined {
+  const lastUser = messages.filter((message) => message.role === 'user').at(-1);
+  return lastUser?.replyFailed && lastUser.turnId ? lastUser.id : undefined;
+}
+
 /** The crisis card goes under the last finished reply the server marked level 3. */
 function crisisReplyId(messages: Message[]): string | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -48,6 +54,11 @@ export default function SessionPage() {
   const storedPetName = useSessionStore((state) => state.petName);
   const sendUserMessage = useSessionStore((state) => state.sendUserMessage);
   const resendMessage = useSessionStore((state) => state.resendMessage);
+  const retryReply = useSessionStore((state) => state.retryReply);
+  const stopTurn = useSessionStore((state) => state.stopTurn);
+  const turn = useSessionStore((state) => state.turn);
+  const stopping = useSessionStore((state) => state.stopping);
+  const draft = useSessionStore((state) => state.draft);
   const wrapUp = useSessionStore((state) => state.wrapUp);
   const listedPetName = useSessionArchiveStore(
     (state) => state.items?.find((item) => item.sessionId === sessionId)?.petName,
@@ -136,6 +147,8 @@ export default function SessionPage() {
       <MessageList
         messages={messages}
         onResend={(message) => void resendMessage(message.id)}
+        onRetryReply={(message) => void retryReply(message.id)}
+        retryReplyId={streaming || closed ? undefined : retryReplyId(messages)}
         after={(message) => (message.id === crisisId ? <CrisisResources /> : undefined)}
         footer={
           closed && !crisisId ? (
@@ -152,6 +165,10 @@ export default function SessionPage() {
             busy={streaming}
             disabled={closing}
             onSend={(text) => void sendUserMessage(text)}
+            // Stoppable once the server confirmed the turn (`meta`); before that the send stays locked.
+            onStop={turn?.accepted ? () => void stopTurn() : undefined}
+            stopDisabled={stopping}
+            restore={draft}
             footer={crisisDock ? <CrisisLine compact /> : undefined}
           />
         )

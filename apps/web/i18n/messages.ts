@@ -95,6 +95,12 @@ export interface Messages {
     /** Under a user message the server received but could not answer. */
     replyFailed: string;
     resend: string;
+    /** Gets the reply of a turn the server received but could not answer (no resend). */
+    retryReply: string;
+    /** The composer's button while a reply is coming in. */
+    stop: string;
+    /** Hint under the composer while a stoppable reply is coming in. */
+    stopHint: string;
     stage: (step: number, stage: string) => string;
     newReply: string;
     closedTitle: string;

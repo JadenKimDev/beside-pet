@@ -13,25 +13,43 @@
  * the store only records them on the message they arrived with, so the screen can draw
  * stage dividers and the crisis card at the right place without deciding anything.
  *
+ * A user turn in flight is held as `turn`: once the server confirms it (`meta`) it can be
+ * stopped (cancel → both bubbles go and the words return to the composer as `draft`).
+ * Re-entering a session whose reply is still being made re-attaches to that turn's stream;
+ * a turn whose reply failed after `meta` offers "get the reply again" (retry, no resend).
+ *
  * Streamed replies go through a typewriter so the text renders at a calm, even
  * pace regardless of how bursty the SSE tokens arrive (see lib/stream/typewriter).
  */
 import { create } from 'zustand';
 import type { Message } from '@/components/chat/types';
-import type {
-  GriefProfile,
-  HistoryMessage,
-  SessionStateView,
-  StreamEvent,
-  SupportLevel,
-  TaskId,
-  TurnResult,
-} from '@/lib/api';
+import type { GriefProfile, SupportLevel, TaskId } from '@/lib/api';
 import * as data from '@/lib/data';
-import { createTypewriter, type Typewriter } from '@/lib/stream/typewriter';
+import {
+  attachTurn,
+  consumeStream,
+  dropTurn,
+  followTurn,
+  insertAfter,
+  newId,
+  now,
+  runtime,
+  sendTurn,
+  sessionSnapshot,
+  settleGreeting,
+} from './session.turn';
 import type { SessionStatus } from './session.types';
 
-interface SessionState {
+/** The user turn whose reply is coming in. `accepted`: the server confirmed it (`meta`), so it can be stopped. */
+export interface TurnInFlight {
+  turnId: string;
+  userId?: string;
+  botId: string;
+  text: string;
+  accepted: boolean;
+}
+
+export interface SessionState {
   sessionId?: string;
   /** Who the conversation is about, when known (onboarding profile or the session list). */
   petName?: string;
@@ -46,6 +64,12 @@ interface SessionState {
   /** A wrap-up request is in flight. */
   closing: boolean;
   error?: string;
+  /** The user turn whose reply is coming in (absent for the greeting and when idle). */
+  turn?: TurnInFlight;
+  /** A cancel request is in flight. */
+  stopping: boolean;
+  /** Words of a stopped turn, handed back to the composer; `key` changes once per stop. */
+  draft?: { text: string; key: number };
 
   startSession: (griefProfile?: GriefProfile) => Promise<void>;
   /** Re-enters an existing session: loads its state + transcript, no greeting. */
@@ -53,13 +77,14 @@ interface SessionState {
   sendUserMessage: (text: string) => Promise<void>;
   /** Sends a message that failed again (it is removed and re-sent under its turn id). */
   resendMessage: (messageId: string) => Promise<void>;
+  /** Stops the reply in flight; once the server confirms, the turn leaves the screen and its words return. */
+  stopTurn: () => Promise<void>;
+  /** Makes the reply of a turn the server received but could not answer again (no resend). */
+  retryReply: (messageId: string) => Promise<void>;
   /** Ends the conversation (the wrap-up modal); the screen then shows the closed card. */
   wrapUp: () => Promise<void>;
   reset: () => void;
 }
-
-const newId = (): string => globalThis.crypto?.randomUUID?.() ?? `id-${Date.now().toString(36)}`;
-const now = (): string => new Date().toISOString();
 
 const INITIAL = {
   sessionId: undefined,
@@ -73,264 +98,18 @@ const INITIAL = {
   reportAvailable: false,
   closing: false,
   error: undefined,
-};
-
-type SetState = (
-  partial: Partial<SessionState> | ((state: SessionState) => Partial<SessionState>),
-) => void;
-
-/** The typewriter for the in-flight reply, so reset() can cancel mid-type. */
-let activeTyper: Typewriter | undefined;
-/** Bumped by reset/resume so a stream from a conversation already left cannot write. */
-let generation = 0;
-
-const patchMessage = (set: SetState, id: string, patch: Partial<Message>): void => {
-  set((state) => ({
-    messages: state.messages.map((message) =>
-      message.id === id ? { ...message, ...patch } : message,
-    ),
-  }));
-};
-
-/** Asks the server whether the report opens, after the conversation closed. */
-const loadReportAvailability = async (set: SetState, sessionId: string): Promise<void> => {
-  try {
-    const state = await data.getSessionState(sessionId);
-    set((current) =>
-      current.sessionId === sessionId ? { reportAvailable: state.reportAvailable } : {},
-    );
-  } catch {
-    // Without the answer the report button simply stays hidden.
-  }
-};
-
-/**
- * How one stream ended. `done`: the reply typed out with its TurnResult.
- * `noReply`: no TurnResult — `accepted` says whether `meta` (the server stored the
- * user's message) arrived first, `error` is what broke the stream, if anything.
- * `stale`: the conversation was left (reset/resume) while it ran.
- */
-type StreamOutcome =
-  | { status: 'done' }
-  | { status: 'stale' }
-  | { status: 'noReply'; accepted: boolean; received: boolean; error?: unknown };
-
-/** A user turn goes out at most this many times (the first try + one silent retry). */
-const SEND_ATTEMPTS = 2;
-
-/**
- * Drives one streamed turn: structure (meta) updates immediately, tokens feed
- * the typewriter, and the authoritative TurnResult is applied once the text has
- * finished typing out. Resolves when the bot message is fully rendered, or when
- * the stream breaks — then the caller decides what the transcript shows.
- * `meta` is the server's receipt: it clears the user's message "sending" mark.
- */
-const consumeStream = (
-  set: SetState,
-  get: () => SessionState,
-  botId: string,
-  userId: string | undefined,
-  stream: AsyncIterable<StreamEvent>,
-): Promise<StreamOutcome> =>
-  new Promise((resolve) => {
-    const mine = generation;
-    const live = () => mine === generation;
-    let result: TurnResult | undefined;
-    let accepted = false;
-    let received = false;
-
-    const typer = createTypewriter({
-      onText: (visible) => {
-        if (live()) patchMessage(set, botId, { text: visible });
-      },
-      onComplete: () => {
-        activeTyper = undefined;
-        if (!live()) return resolve({ status: 'stale' });
-        if (!result) return resolve({ status: 'noReply', accepted, received });
-        const turn = result;
-        set((state) => ({
-          messages: state.messages.map((message) =>
-            message.id === botId
-              ? { ...message, streaming: false, task: turn.task, supportLevel: turn.supportLevel }
-              : message,
-          ),
-          streaming: false,
-          task: turn.task,
-          progress: turn.progress,
-          supportLevel: turn.supportLevel,
-          status: turn.done ? 'closed' : 'active',
-        }));
-        const sessionId = get().sessionId;
-        if (turn.done && sessionId) void loadReportAvailability(set, sessionId);
-        resolve({ status: 'done' });
-      },
-    });
-    activeTyper = typer;
-
-    (async () => {
-      try {
-        for await (const event of stream) {
-          if (!live()) break;
-          if (event.kind === 'meta') {
-            accepted = true;
-            set({ task: event.task, progress: event.progress, supportLevel: event.supportLevel });
-            patchMessage(set, botId, { task: event.task, supportLevel: event.supportLevel });
-            if (userId) patchMessage(set, userId, { sending: false });
-          } else if (event.kind === 'token') {
-            received = true;
-            typer.push(event.text);
-          } else {
-            result = event.result;
-          }
-        }
-        typer.finish();
-      } catch (error) {
-        typer.cancel();
-        activeTyper = undefined;
-        resolve(live() ? { status: 'noReply', accepted, received, error } : { status: 'stale' });
-      }
-    })();
-  });
-
-const errorText = (error: unknown, fallback: string): string | undefined =>
-  error === undefined ? undefined : error instanceof Error ? error.message : fallback;
-
-/** History rows → chat messages. The session's level belongs to its last reply. */
-const toMessages = (history: HistoryMessage[], state: SessionStateView): Message[] => {
-  const lastBot = history.map((message) => message.role).lastIndexOf('assistant');
-  return history.map((message, index) => ({
-    id: `history-${index}`,
-    role: message.role === 'user' ? 'user' : 'bot',
-    text: message.text,
-    at: message.at,
-    task: message.task,
-    ...(message.turnId ? { turnId: message.turnId } : {}),
-    // History carries no per-message level; the session's level belongs to its last reply.
-    ...(index === lastBot ? { supportLevel: state.supportLevel } : {}),
-  }));
-};
-
-/** The session's state and transcript as the server holds them. */
-const sessionSnapshot = async (sessionId: string): Promise<Partial<SessionState>> => {
-  const [state, history] = await Promise.all([
-    data.getSessionState(sessionId),
-    data.getMessages(sessionId),
-  ]);
-  return {
-    messages: toMessages(history, state),
-    task: state.task,
-    progress: state.progress,
-    supportLevel: state.supportLevel,
-    status: state.closed ? 'closed' : 'active',
-    reportAvailable: state.reportAvailable,
-  };
-};
-
-/** The greeting broke: keep what was said, drop an empty reply. */
-const settleGreeting = (set: SetState, botId: string, outcome: StreamOutcome): void => {
-  if (outcome.status !== 'noReply') return;
-  set((state) => ({
-    messages: outcome.received
-      ? state.messages.map((message) =>
-          message.id === botId ? { ...message, streaming: false } : message,
-        )
-      : state.messages.filter((message) => message.id !== botId),
-    streaming: false,
-    ...(outcome.error === undefined ? {} : { error: errorText(outcome.error, 'Stream failed.') }),
-  }));
-};
-
-/**
- * A user turn without a reply. Not accepted (no `meta`): the message never reached
- * the server — it is marked not sent, with "send again". Accepted: the server has
- * the message, so it stays as said; the reply bubble goes and a "no reply" note shows.
- */
-const settleFailedTurn = (
-  set: SetState,
-  botId: string,
-  userId: string,
-  outcome: { accepted: boolean; error?: unknown },
-): void => {
-  const mark: Partial<Message> = outcome.accepted
-    ? { sending: false, replyFailed: true }
-    : { sending: false, failed: true };
-  set((state) => ({
-    messages: state.messages
-      .filter((message) => message.id !== botId)
-      .map((message) => (message.id === userId ? { ...message, ...mark } : message)),
-    streaming: false,
-    error: errorText(outcome.error, 'Stream failed.'),
-  }));
-};
-
-/** The server already has this turn (409): the transcript is re-read from it. */
-const resyncTurn = async (
-  set: SetState,
-  sessionId: string,
-  botId: string,
-  userId: string,
-): Promise<void> => {
-  const mine = generation;
-  try {
-    const snapshot = await sessionSnapshot(sessionId);
-    if (mine === generation) set({ ...snapshot, streaming: false, error: undefined });
-  } catch (error) {
-    if (mine === generation) settleFailedTurn(set, botId, userId, { accepted: true, error });
-  }
-};
-
-/**
- * Sends one user turn under its client-made `turnId` (the server's idempotency key).
- * A stream that breaks before `meta` is sent once more under the same id; a 409 means
- * the server already received it, so the transcript is re-read instead.
- */
-const sendTurn = async (
-  set: SetState,
-  get: () => SessionState,
-  text: string,
-  turnId: string,
-): Promise<void> => {
-  const { sessionId, task } = get();
-  if (!sessionId) return;
-  const userId = newId();
-  const botId = newId();
-  set((state) => ({
-    messages: [
-      ...state.messages,
-      { id: userId, role: 'user', text, at: now(), task, turnId, sending: true },
-      { id: botId, role: 'bot', text: '', streaming: true, at: now() },
-    ],
-    streaming: true,
-    error: undefined,
-  }));
-  for (let attempt = 1; ; attempt += 1) {
-    const outcome = await consumeStream(
-      set,
-      get,
-      botId,
-      userId,
-      data.sendMessageStream(sessionId, text, turnId),
-    );
-    if (outcome.status !== 'noReply') return;
-    if (data.isTurnAlreadyReceived(outcome.error)) return resyncTurn(set, sessionId, botId, userId);
-    // Only a dropped connection is retried; a server's refusal stays a failure.
-    const broke =
-      !outcome.accepted && outcome.error !== undefined && !data.isServerRefusal(outcome.error);
-    if (broke && attempt < SEND_ATTEMPTS) {
-      patchMessage(set, botId, { text: '', streaming: true });
-      continue;
-    }
-    return settleFailedTurn(set, botId, userId, outcome);
-  }
+  turn: undefined as TurnInFlight | undefined,
+  stopping: false,
+  draft: undefined as { text: string; key: number } | undefined,
 };
 
 export const useSessionStore = create<SessionState>((set, get) => ({
   ...INITIAL,
 
   async startSession(griefProfile) {
-    activeTyper?.cancel();
-    activeTyper = undefined;
-    generation += 1;
+    runtime.activeTyper?.cancel();
+    runtime.activeTyper = undefined;
+    runtime.generation += 1;
     const sessionId = newId();
     const botId = newId();
     set({
@@ -352,17 +131,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   async resumeSession(sessionId, petName) {
-    activeTyper?.cancel();
-    activeTyper = undefined;
-    generation += 1;
-    const mine = generation;
+    runtime.activeTyper?.cancel();
+    runtime.activeTyper = undefined;
+    runtime.generation += 1;
+    const mine = runtime.generation;
     set({ ...INITIAL, sessionId, petName });
     try {
-      const snapshot = await sessionSnapshot(sessionId);
-      if (mine !== generation) return;
+      const { snapshot, activeTurn } = await sessionSnapshot(sessionId);
+      if (mine !== runtime.generation) return;
       set(snapshot);
+      // Not awaited: the screen is ready now; the reply keeps flowing in.
+      if (activeTurn) void attachTurn(set, get, sessionId, activeTurn);
     } catch (error) {
-      if (mine !== generation) return;
+      if (mine !== runtime.generation) return;
       set({ error: error instanceof Error ? error.message : 'Failed to resume the session.' });
     }
   },
@@ -384,6 +165,55 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     await sendTurn(set, get, failed.text, failed.turnId ?? newId());
   },
 
+  async stopTurn() {
+    const { sessionId, turn, stopping } = get();
+    if (!sessionId || !turn?.accepted || stopping) return;
+    const mine = runtime.generation;
+    set({ stopping: true });
+    try {
+      await data.cancelTurn(sessionId, turn.turnId);
+    } catch {
+      if (mine !== runtime.generation) return;
+      // The stream already ended on `cancelled` (the turn did stop): finish taking it off.
+      if (get().turn?.botId !== turn.botId && get().streaming) return dropTurn(set, turn, true);
+      // 409: the reply finished first, so it simply lands. Otherwise it keeps coming in.
+      set({ stopping: false });
+      return;
+    }
+    if (mine !== runtime.generation) return;
+    // The stream may still carry tokens before its `cancelled`; it must not write any more.
+    runtime.generation += 1;
+    runtime.activeTyper?.cancel();
+    runtime.activeTyper = undefined;
+    dropTurn(set, turn, true);
+  },
+
+  async retryReply(messageId) {
+    const { sessionId, status, streaming, messages } = get();
+    const user = messages.find((message) => message.id === messageId && message.replyFailed);
+    if (!sessionId || !user?.turnId || streaming || status === 'closed') return;
+    const turn: TurnInFlight = {
+      turnId: user.turnId,
+      userId: user.id,
+      botId: newId(),
+      text: user.text,
+      accepted: false,
+    };
+    set((state) => ({
+      messages: insertAfter(
+        state.messages.map((message) =>
+          message.id === user.id ? { ...message, replyFailed: false } : message,
+        ),
+        user.id,
+        { id: turn.botId, role: 'bot', text: '', streaming: true, at: now() },
+      ),
+      streaming: true,
+      error: undefined,
+      turn,
+    }));
+    await followTurn(set, get, sessionId, turn, data.retryTurnStream(sessionId, turn.turnId));
+  },
+
   async wrapUp() {
     const { sessionId, closing } = get();
     if (!sessionId || closing) return;
@@ -402,9 +232,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   reset() {
-    activeTyper?.cancel();
-    activeTyper = undefined;
-    generation += 1;
+    runtime.activeTyper?.cancel();
+    runtime.activeTyper = undefined;
+    runtime.generation += 1;
     set({ ...INITIAL });
   },
 }));

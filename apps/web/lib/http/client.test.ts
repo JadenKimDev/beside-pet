@@ -163,6 +163,22 @@ describe('streamFrames', () => {
     });
   });
 
+  it('opens a bodiless GET stream when asked, keeping the SSE accept header', async () => {
+    const fetchMock = stubFetch(sseResponse(['data: {"kind":"done"}\n\n']));
+    const client = createHttpClient({ baseUrl: BASE });
+
+    const frames = await collect(client.streamFrames('/v1/turns/t/stream', undefined, 'GET'));
+
+    expect(frames).toEqual(['{"kind":"done"}']);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init).toMatchObject({
+      method: 'GET',
+      credentials: 'include',
+      headers: { accept: 'text/event-stream' },
+    });
+    expect(init).not.toHaveProperty('body');
+  });
+
   it('reassembles frames split across chunk boundaries', async () => {
     stubFetch(sseResponse(['da', 'ta: fir', 'st\n', '\ndata: sec', 'ond\n\ndata: third\n\n']));
     const client = createHttpClient({ baseUrl: BASE });

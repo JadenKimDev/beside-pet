@@ -36,6 +36,8 @@ export function MessageList({
   messages,
   after,
   onResend,
+  onRetryReply,
+  retryReplyId,
   lang,
   footer,
 }: {
@@ -43,6 +45,9 @@ export function MessageList({
   /** 말풍선 바로 아래에 끼울 것(위기 턴의 위기 카드). */
   after?: (message: Message) => ReactNode;
   onResend?: (message: Message) => void;
+  /** "답 다시 받기". `retryReplyId` 의 말풍선에만 붙는다(다시 받을 수 있는 턴은 하나뿐이다). */
+  onRetryReply?: (message: Message) => void;
+  retryReplyId?: string;
   /** 대화 언어가 앱 언어와 다를 때 말풍선 묶음에 다는 `lang`. */
   lang?: string;
   /** 목록 끝, 마지막 말풍선 아래에 둘 것(마친 뒤 카드). */
@@ -139,7 +144,11 @@ export function MessageList({
           const extra = after?.(row.message);
           return (
             <Fragment key={row.key}>
-              <MessageBubble message={row.message} onResend={onResend} />
+              <MessageBubble
+                message={row.message}
+                onResend={onResend}
+                onRetryReply={row.message.id === retryReplyId ? onRetryReply : undefined}
+              />
               {extra && <div>{extra}</div>}
             </Fragment>
           );

@@ -75,7 +75,12 @@ export interface DoneEvent {
   result: TurnResult;
 }
 
-export type StreamEvent = MetaEvent | TokenEvent | DoneEvent;
+/** The turn was stopped (`/cancel`): the stream ends here without a TurnResult. */
+export interface CancelledEvent {
+  kind: 'cancelled';
+}
+
+export type StreamEvent = MetaEvent | TokenEvent | DoneEvent | CancelledEvent;
 
 export interface StartRequest {
   sessionId: string;
@@ -102,6 +107,21 @@ export interface SessionStateView {
   closed: boolean;
   /** Whether the mind report can be viewed (wrapped up with enough progress). */
   reportAvailable: boolean;
+  /** A user turn whose reply is still being made (re-attach with `streamTurn`). Absent when none. */
+  activeTurn?: ActiveTurn;
+  /** The last user turn whose reply failed and has none (`retryTurnStream`). Absent when none. */
+  failedTurn?: { turnId: string };
+}
+
+export interface ActiveTurn {
+  turnId: string;
+  status: 'pending' | 'streaming';
+}
+
+/** Answer of `POST …/turns/{turnId}/cancel` (idempotent). */
+export interface CancelledTurn {
+  turnId: string;
+  status: 'cancelled';
 }
 
 export type ReportSectionKey = 'journey' | 'emotions' | 'keepsake' | 'encouragement';
@@ -159,6 +179,14 @@ export interface Api {
   /** Streaming user turn — emits meta (the server stored the message) → tokens → done.
    * A `turnId` the session already received fails with a 409 (see isTurnAlreadyReceived). */
   sendMessageStream(sessionId: string, text: string, turnId?: string): AsyncIterable<StreamEvent>;
+  /** Re-attaches to a turn's reply: meta → everything so far as one token → the rest → done.
+   * A failed or cancelled turn answers 409. */
+  streamTurn(sessionId: string, turnId: string): AsyncIterable<StreamEvent>;
+  /** Stops a pending/streaming turn (idempotent). A finished turn answers 409. */
+  cancelTurn(sessionId: string, turnId: string): Promise<CancelledTurn>;
+  /** Makes a failed turn's reply again without resending the message (same events as
+   * sendMessageStream). A turn that is not failed answers 409. */
+  retryTurnStream(sessionId: string, turnId: string): AsyncIterable<StreamEvent>;
   /** The signed-in owner's sessions, newest first. */
   listSessions(): Promise<SessionListItem[]>;
   /** Current state of one owned session. */

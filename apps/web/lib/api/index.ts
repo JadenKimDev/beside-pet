@@ -11,7 +11,10 @@ export const api: Api = httpApi;
 export { isServerRefusal, isTurnAlreadyReceived, TURN_ALREADY_RECEIVED_STATUS } from './errors';
 
 export type {
+  ActiveTurn,
   Api,
+  CancelledEvent,
+  CancelledTurn,
   DailyState,
   DoneEvent,
   EatingState,

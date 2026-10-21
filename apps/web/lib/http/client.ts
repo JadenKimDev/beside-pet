@@ -19,8 +19,8 @@ export interface HttpClient {
   post<Result>(path: string, body?: object): Promise<Result>;
   patch<Result>(path: string, body?: object): Promise<Result>;
   delete<Result>(path: string): Promise<Result>;
-  /** Opens an SSE POST and yields each frame's `data:` payload, still raw. */
-  streamFrames(path: string, body?: object): AsyncIterable<string>;
+  /** Opens an SSE request (POST unless `method` says otherwise) and yields each frame's `data:` payload, still raw. */
+  streamFrames(path: string, body?: object, method?: 'GET' | 'POST'): AsyncIterable<string>;
   /**
    * Registers the one handler called when the backend refuses the session
    * (any call or stream answered with that status); `undefined` clears it.
@@ -98,9 +98,13 @@ export function createHttpClient({ baseUrl }: HttpClientOptions): HttpClient {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
-  async function* streamFrames(path: string, body?: object): AsyncIterable<string> {
+  async function* streamFrames(
+    path: string,
+    body?: object,
+    method: 'GET' | 'POST' = 'POST',
+  ): AsyncIterable<string> {
     const res = await fetch(`${baseUrl}${path}`, {
-      method: 'POST',
+      method,
       credentials: 'include',
       headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),

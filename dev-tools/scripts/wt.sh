@@ -18,7 +18,7 @@ set -euo pipefail
 
 # 본 체크아웃(main). 워크트리 안에서 돌려도 본 체크아웃을 가리키게 git 의 공용 디렉터리로 잡는다.
 REPO_ROOT="$(cd "$(git -C "$(dirname "$0")" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"
-SHARED_LOCAL=(data outputs docs/prd docs/research .env)
+SHARED_LOCAL=(data outputs docs/prd docs/research .env apps/server/.env.sandbox apps/server/.env.production)
 # 구현 세션임을 알리는 환경 변수. implement-prd 스킬이 읽는다.
 IMPL_ENV="HARNESS_IMPL"
 
@@ -81,7 +81,8 @@ link_shared() {
   for item in "${SHARED_LOCAL[@]}"; do
     src="$REPO_ROOT/$item"; dst="$wt/$item"
     # 디렉터리는 본 체크아웃에 아직 없어도 만들어 두고 링크한다. 없으면 워크트리가 제 것을 만들어 결과(QA 보고서 등)가 흩어진다.
-    case "$item" in .env) [ -e "$src" ] || continue ;; *) mkdir -p "$src" ;; esac
+    # .env 파일들은 본 체크아웃에 있을 때만 링크한다(없는 것을 만들지 않는다).
+    case "$item" in .env|*/.env.*) [ -e "$src" ] || continue ;; *) mkdir -p "$src" ;; esac
     grep -qx "/$item" "$exclude" 2>/dev/null || echo "/$item" >> "$exclude"
     [ -e "$dst" ] || [ -L "$dst" ] && continue
     mkdir -p "$(dirname "$dst")"
@@ -122,9 +123,13 @@ start_agent_when_ready() {
 # 워크트리 안의 무시되는 파일 가운데 소스 디렉터리 아래의 것. 빌드 산출물과 node_modules 는 뺀다.
 # 워크트리를 지우면 함께 사라지므로, 커밋되지 않은 손으로 쓴 파일이 없는지 치우기 전에 본다.
 ignored_source_files() {
+  # 링크로 같이 쓰는 로컬 파일(SHARED_LOCAL)과 typecheck 의 tsbuildinfo 는 소스가 아니므로 뺀다.
+  local shared; shared="$(printf '%s\n' "${SHARED_LOCAL[@]}" | sed 's/[.]/\\./g' | paste -sd'|' -)"
   git -C "$1" ls-files --others --ignored --exclude-standard \
     | grep -E '^(apps|packages|dev-tools)/' \
-    | grep -Ev '(^|/)(target|dist|build|\.turbo|node_modules)/' || true
+    | grep -Ev '(^|/)(target|dist|build|\.next|\.turbo|node_modules)/' \
+    | grep -Ev "^(${shared})$" \
+    | grep -Ev '(\.tsbuildinfo|next-env\.d\.ts)$' || true
 }
 
 cmd_create() {

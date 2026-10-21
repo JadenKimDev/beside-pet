@@ -15,6 +15,7 @@ export {
   type ConversationSummary,
   fillConversationDays,
   fillModelDays,
+  genericComfortRate,
   modelKey,
   modelKeysOf,
   summarizeConversations,
@@ -29,5 +30,7 @@ export type {
   ModelsResponse,
   ModelUsage,
   Purpose,
+  ReplyLabel,
+  ReplyLabelCounts,
 } from './model/types';
 export { PurposeBadge } from './ui/PurposeBadge';

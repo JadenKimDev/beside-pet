@@ -38,6 +38,7 @@ export function conversationDay(overrides: Partial<ConversationDay>): Conversati
     sessions: 2,
     turns: 6,
     crisis: { keyword: 1, model: 0 },
+    replyLabels: { generic_comfort: 0, specific_reflection: 0, question: 0 },
     ...overrides,
   };
 }

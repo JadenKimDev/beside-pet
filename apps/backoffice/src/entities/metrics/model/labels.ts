@@ -6,10 +6,12 @@ export const PURPOSE_LABELS: Record<Purpose, string> = {
   reply: '발화',
   crisis: '위기 판정',
   report: '리포트',
+  judge: '판정',
 };
 
 export const PURPOSE_TONES: Record<Purpose, BadgeTone> = {
   reply: 'neutral',
   crisis: 'warning',
   report: 'neutral',
+  judge: 'neutral',
 };

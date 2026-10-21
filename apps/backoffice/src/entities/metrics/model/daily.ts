@@ -1,7 +1,7 @@
 // `daily` 행을 그래프용 날짜 열로 바꾼다. 서버는 활동이 없는 날의 행을 만들지 않으므로 기간의 UTC 날짜를 모두
 // 채우고 빈 날은 0 으로 둔다.
-import { dateKeysBetween } from '@/shared/lib';
-import type { ConversationDay, DailyUsage } from './types';
+import { dateKeysBetween, ratio } from '@/shared/lib';
+import type { ConversationDay, DailyUsage, ReplyLabelCounts } from './types';
 
 /** 날짜 하루의 모델 사용량(모델을 고르지 않으면 모든 모델의 합). */
 export type UsageDay = {
@@ -69,8 +69,21 @@ export function fillConversationDays(
 ): ConversationDay[] {
   const found = new Map(daily.map((row) => [row.date, row]));
   return dateKeysBetween(from, to).map(
-    (date) => found.get(date) ?? { date, sessions: 0, turns: 0, crisis: { keyword: 0, model: 0 } },
+    (date) =>
+      found.get(date) ?? {
+        date,
+        sessions: 0,
+        turns: 0,
+        crisis: { keyword: 0, model: 0 },
+        replyLabels: { generic_comfort: 0, specific_reflection: 0, question: 0 },
+      },
   );
+}
+
+/** 판정한 답 가운데 일반 위로의 몫(0..1). 판정이 하나도 없으면 null. */
+export function genericComfortRate(labels: ReplyLabelCounts): number | null {
+  const judged = labels.generic_comfort + labels.specific_reflection + labels.question;
+  return ratio(labels.generic_comfort, judged);
 }
 
 export function summarizeConversations(days: readonly ConversationDay[]): ConversationSummary {

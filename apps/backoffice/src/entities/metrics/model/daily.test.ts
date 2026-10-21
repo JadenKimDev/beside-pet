@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   fillConversationDays,
   fillModelDays,
+  genericComfortRate,
   modelKey,
   modelKeysOf,
   summarizeConversations,
@@ -91,16 +92,42 @@ describe('fillConversationDays', () => {
           sessions: 3,
           turns: 9,
           crisis: { keyword: 1, model: 2 },
+          replyLabels: { generic_comfort: 4, specific_reflection: 3, question: 2 },
         }),
       ],
       FROM,
       TO,
     );
+    const none = { generic_comfort: 0, specific_reflection: 0, question: 0 };
     expect(days).toEqual([
-      { date: '2026-10-13', sessions: 0, turns: 0, crisis: { keyword: 0, model: 0 } },
-      { date: '2026-10-14', sessions: 0, turns: 0, crisis: { keyword: 0, model: 0 } },
-      { date: '2026-10-15', sessions: 3, turns: 9, crisis: { keyword: 1, model: 2 } },
-      { date: '2026-10-16', sessions: 0, turns: 0, crisis: { keyword: 0, model: 0 } },
+      {
+        date: '2026-10-13',
+        sessions: 0,
+        turns: 0,
+        crisis: { keyword: 0, model: 0 },
+        replyLabels: none,
+      },
+      {
+        date: '2026-10-14',
+        sessions: 0,
+        turns: 0,
+        crisis: { keyword: 0, model: 0 },
+        replyLabels: none,
+      },
+      {
+        date: '2026-10-15',
+        sessions: 3,
+        turns: 9,
+        crisis: { keyword: 1, model: 2 },
+        replyLabels: { generic_comfort: 4, specific_reflection: 3, question: 2 },
+      },
+      {
+        date: '2026-10-16',
+        sessions: 0,
+        turns: 0,
+        crisis: { keyword: 0, model: 0 },
+        replyLabels: none,
+      },
     ]);
   });
 });
@@ -123,5 +150,19 @@ describe('summarizeConversations', () => {
 
   it('has no turns per session without sessions', () => {
     expect(summarizeConversations([]).turnsPerSession).toBeNull();
+  });
+});
+
+describe('genericComfortRate', () => {
+  it('is the share of generic comfort among the judged replies', () => {
+    expect(genericComfortRate({ generic_comfort: 1, specific_reflection: 2, question: 1 })).toBe(
+      0.25,
+    );
+  });
+
+  it('is null when no reply was judged', () => {
+    expect(
+      genericComfortRate({ generic_comfort: 0, specific_reflection: 0, question: 0 }),
+    ).toBeNull();
   });
 });

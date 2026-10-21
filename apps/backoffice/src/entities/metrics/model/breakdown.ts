@@ -2,7 +2,7 @@
 import { ratio } from '@/shared/lib';
 import type { ModelUsage, Purpose } from './types';
 
-export const PURPOSES: readonly Purpose[] = ['reply', 'crisis', 'report'];
+export const PURPOSES: readonly Purpose[] = ['reply', 'crisis', 'report', 'judge'];
 
 /** 역할과 프롬프트 버전 거르기. `'all'` 은 거르지 않는다. */
 export type BreakdownFilter = { purpose: Purpose | 'all'; version: string | 'all' };
@@ -34,7 +34,7 @@ export function filterUsage(rows: readonly ModelUsage[], filter: BreakdownFilter
   );
 }
 
-/** 응답에 있는 역할. 차례는 발화, 위기 판정, 리포트로 고정이다. */
+/** 응답에 있는 역할. 차례는 발화, 위기 판정, 리포트, 판정으로 고정이다. */
 export function purposesOf(rows: readonly ModelUsage[]): Purpose[] {
   const present = new Set(rows.map((row) => row.purpose));
   return PURPOSES.filter((purpose) => present.has(purpose));

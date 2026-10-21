@@ -10,7 +10,7 @@ mod store;
 pub use api::{ConversationsResponse, ModelsResponse, router};
 pub use period::Period;
 pub use source::{
-    ConversationDay, CrisisCounts, DailyUsage, MetricsSource, ModelUsage, SharedMetricsSource,
-    Unimplemented,
+    ConversationDay, CrisisCounts, DailyUsage, MetricsSource, ModelUsage, ReplyLabelCounts,
+    SharedMetricsSource, Unimplemented,
 };
 pub use store::PostgresMetrics;

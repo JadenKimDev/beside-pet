@@ -8,7 +8,9 @@ use sqlx::postgres::{PgConnectOptions, PgPoolOptions, PgSslMode};
 use sqlx::{AssertSqlSafe, Executor, PgPool, Row};
 
 use super::PostgresMetrics;
-use crate::metrics::{ConversationDay, CrisisCounts, DailyUsage, ModelUsage, Period};
+use crate::metrics::{
+    ConversationDay, CrisisCounts, DailyUsage, ModelUsage, Period, ReplyLabelCounts,
+};
 use crate::shared::{MIGRATOR, test_database_url};
 
 /// 테스트 하나의 스키마. `pool` 은 그 스키마만 본다.
@@ -421,12 +423,93 @@ async fn 날짜별_대화는_시작한_대화와_사용자_턴과_위기를_센�
                 sessions: 2,
                 turns: 2,
                 crisis: crisis(1, 1),
+                reply_labels: ReplyLabelCounts::default(),
             },
             ConversationDay {
                 date: day("2026-10-19"),
                 sessions: 0,
                 turns: 1,
                 crisis: crisis(0, 1),
+                reply_labels: ReplyLabelCounts::default(),
+            },
+        ]
+    );
+    schema.close().await;
+}
+
+#[tokio::test]
+async fn 날짜별_대화는_답의_라벨을_날짜로_센다() {
+    let schema = MetricsSchema::open().await;
+    let message = |seq: i32, at: &str| {
+        format!(
+            "INSERT INTO messages (session_id, seq, role, text, task, at) \
+             VALUES ('sess-fake-l', {seq}, 'user', 'placeholder', 1, '{at}')"
+        )
+    };
+    let judged = |seq: i32, label: &str, at: &str| {
+        let label = if label == "NULL" {
+            "NULL".to_owned()
+        } else {
+            format!("'{label}'")
+        };
+        format!(
+            "INSERT INTO turn_analyses (session_id, seq, at, task, phase, risk_level, risk_detected_by, \
+             from_task, to_task, advanced, retry_count, knowledge, reply_label, reply_label_probability, reply_judge) \
+             VALUES ('sess-fake-l', {seq}, '{at}', 1, 'task', 1, 'none', 1, 1, false, 0, '[]', {label}, 0.9, 'fake')"
+        )
+    };
+    for sql in [
+        "INSERT INTO sessions (id, owner_id, task, retry_count, support_level, closed, grief_profile, created_at, updated_at) \
+         VALUES ('sess-fake-l', 'acc-fake-1', 1, 0, 1, false, '{}', '2026-10-18T09:00:00Z', '2026-10-18T09:00:00Z')"
+            .to_owned(),
+        message(0, "2026-10-18T09:01:00Z"),
+        message(1, "2026-10-18T09:02:00Z"),
+        message(2, "2026-10-18T09:03:00Z"),
+        message(3, "2026-10-18T09:04:00Z"),
+        // 기간 밖의 판정은 세지 않는다.
+        judged(9, "question", "2026-10-17T23:59:00Z"),
+        judged(0, "generic_comfort", "2026-10-18T09:01:00Z"),
+        judged(1, "generic_comfort", "2026-10-18T09:02:00Z"),
+        judged(2, "question", "2026-10-18T09:03:00Z"),
+        // 판정이 없던 턴(NULL)은 세지 않는다.
+        judged(3, "NULL", "2026-10-18T09:04:00Z"),
+        // 사용자 턴이 없는 날의 판정도 그 날짜의 행으로 낸다.
+        judged(4, "specific_reflection", "2026-10-19T00:00:10Z"),
+    ] {
+        schema.exec(&sql).await;
+    }
+    let store = PostgresMetrics::shared(schema.pool.clone());
+    let got = store.conversation_days(period()).await.unwrap();
+    assert_eq!(
+        got,
+        vec![
+            ConversationDay {
+                date: day("2026-10-18"),
+                sessions: 1,
+                turns: 4,
+                crisis: CrisisCounts {
+                    keyword: 0,
+                    model: 0
+                },
+                reply_labels: ReplyLabelCounts {
+                    generic_comfort: 2,
+                    specific_reflection: 0,
+                    question: 1,
+                },
+            },
+            ConversationDay {
+                date: day("2026-10-19"),
+                sessions: 0,
+                turns: 0,
+                crisis: CrisisCounts {
+                    keyword: 0,
+                    model: 0
+                },
+                reply_labels: ReplyLabelCounts {
+                    generic_comfort: 0,
+                    specific_reflection: 1,
+                    question: 0,
+                },
             },
         ]
     );

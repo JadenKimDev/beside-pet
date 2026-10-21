@@ -26,4 +26,20 @@ describe('ConversationDashboard', () => {
     expect(html).toMatch(/2026-10-14<\/th><td[^>]*>3</);
     expect(html).toMatch(/2026-10-15<\/th><td[^>]*>0</);
   });
+
+  it('shows the judged reply labels per day in a visible table', () => {
+    const data = conversationsResponse([
+      conversationDay({
+        date: '2026-10-14',
+        replyLabels: { generic_comfort: 1, specific_reflection: 2, question: 1 },
+      }),
+    ]);
+    const html = renderToStaticMarkup(<ConversationDashboard data={data} loading={false} />);
+    for (const header of ['일반 위로', '구체적 반영', '질문', '일반 위로 비율']) {
+      expect(html).toContain(`${header}</th>`);
+    }
+    expect(html).toMatch(
+      /2026-10-14<\/td><td[^>]*>1<\/td><td[^>]*>2<\/td><td[^>]*>1<\/td><td[^>]*>25\.0%</,
+    );
+  });
 });

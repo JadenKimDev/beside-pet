@@ -3,8 +3,14 @@
 import type { ConversationsResponse } from '@/entities/metrics';
 import { cn } from '@/shared/lib';
 import { Card, EmptyState, Skeleton } from '@/shared/ui';
-import { conversationCards, conversationChartRows, hasConversations } from '../model/cards';
+import {
+  conversationCards,
+  conversationChartRows,
+  hasConversations,
+  replyLabelRows,
+} from '../model/cards';
 import { ConversationCharts } from './ConversationCharts';
+import { ReplyLabelTable } from './ReplyLabelTable';
 
 export type ConversationDashboardProps = {
   /** 마지막으로 받은 응답. 아직 없으면 null. 다시 받는 중에도 지우지 않는다. */
@@ -12,7 +18,7 @@ export type ConversationDashboardProps = {
   loading: boolean;
 };
 
-/** 대화: 카드 셋과 날짜별 그래프 둘. 위기 감지는 수만 보이고 어떤 턴인지는 보이지 않는다. */
+/** 대화: 카드 셋, 날짜별 그래프 둘, 날짜별 답의 라벨 표. 위기 감지는 수만 보이고 어떤 턴인지는 보이지 않는다. */
 export function ConversationDashboard({ data, loading }: ConversationDashboardProps) {
   if (data === null) {
     return (
@@ -50,7 +56,10 @@ export function ConversationDashboard({ data, loading }: ConversationDashboardPr
         ))}
       </div>
       {hasConversations(rows) ? (
-        <ConversationCharts rows={rows} />
+        <>
+          <ConversationCharts rows={rows} />
+          <ReplyLabelTable rows={replyLabelRows(data)} />
+        </>
       ) : (
         <Card>
           <EmptyState title="이 기간에는 대화가 없어요." description="기간을 넓혀 보세요." />

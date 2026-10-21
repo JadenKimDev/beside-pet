@@ -50,13 +50,23 @@ pub struct CrisisCounts {
     pub model: i64,
 }
 
-/// UTC 날짜별 대화 집계(`conversations_daily`).
+/// 답의 상투성 판정 수를 라벨로 나눈 것(`daily_reply_labels`). 칸 이름은 DB 의 라벨 값 그대로다.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct ReplyLabelCounts {
+    pub generic_comfort: i64,
+    pub specific_reflection: i64,
+    pub question: i64,
+}
+
+/// UTC 날짜별 대화 집계(`conversations_daily`, `daily_reply_labels`). 판정이 없는 날의 라벨 수는 0 이다.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConversationDay {
     pub date: NaiveDate,
     pub sessions: i64,
     pub turns: i64,
     pub crisis: CrisisCounts,
+    pub reply_labels: ReplyLabelCounts,
 }
 
 /// 계측의 저장. 날짜별 집계는 기간이 걸친 UTC 날짜(양 끝 포함)를 본다.

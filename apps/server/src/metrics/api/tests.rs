@@ -16,7 +16,7 @@ use crate::identity::{
     AuthenticatedAccount, Authenticator, BoxFuture as IdentityFuture, Role, SharedAuthenticator,
 };
 use crate::metrics::{
-    ConversationDay, CrisisCounts, DailyUsage, MetricsSource, ModelUsage, Period,
+    ConversationDay, CrisisCounts, DailyUsage, MetricsSource, ModelUsage, Period, ReplyLabelCounts,
     SharedMetricsSource,
 };
 use crate::shared::ApiError;
@@ -114,6 +114,11 @@ impl MetricsSource for FakeSource {
                 crisis: CrisisCounts {
                     keyword: 1,
                     model: 0,
+                },
+                reply_labels: ReplyLabelCounts {
+                    generic_comfort: 4,
+                    specific_reflection: 2,
+                    question: 1,
                 },
             }])
         })
@@ -254,7 +259,10 @@ async fn 대화_응답은_날짜별_대화와_턴과_위기를_싣는다() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(
         body["daily"],
-        json!([{ "date": "2026-10-19", "sessions": 2, "turns": 7, "crisis": { "keyword": 1, "model": 0 } }])
+        json!([{
+            "date": "2026-10-19", "sessions": 2, "turns": 7, "crisis": { "keyword": 1, "model": 0 },
+            "replyLabels": { "generic_comfort": 4, "specific_reflection": 2, "question": 1 }
+        }])
     );
     let from: DateTime<Utc> = body["from"].as_str().unwrap().parse().unwrap();
     let to: DateTime<Utc> = body["to"].as_str().unwrap().parse().unwrap();

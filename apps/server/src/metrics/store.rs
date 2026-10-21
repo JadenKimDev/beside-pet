@@ -1,4 +1,4 @@
-//! 계측의 저장 SQL: `llm_call_costs`, `llm_calls_daily`, `conversations_daily` 뷰를 기간으로 읽는다.
+//! 계측의 저장 SQL: `llm_call_costs`, `llm_calls_daily`, `conversations_daily`, `daily_reply_labels` 뷰를 기간으로 읽는다.
 //! 묶음과 백분위는 쿼리가 구하고, 여기서는 행을 옮겨 담을 뿐이다. numeric 은 `float8` 로 읽는다.
 
 use std::sync::Arc;
@@ -8,7 +8,7 @@ use futures_util::future::BoxFuture;
 use sqlx::PgPool;
 
 use super::{
-    ConversationDay, CrisisCounts, DailyUsage, MetricsSource, ModelUsage, Period,
+    ConversationDay, CrisisCounts, DailyUsage, MetricsSource, ModelUsage, Period, ReplyLabelCounts,
     SharedMetricsSource,
 };
 use crate::shared::ApiError;
@@ -67,6 +67,9 @@ struct ConversationRow {
     turns: i64,
     crisis_keyword: i64,
     crisis_model: i64,
+    generic_comfort: i64,
+    specific_reflection: i64,
+    question: i64,
 }
 
 impl MetricsSource for PostgresMetrics {
@@ -151,10 +154,24 @@ impl MetricsSource for PostgresMetrics {
         Box::pin(async move {
             let (first, last) = period.days();
             let rows: Vec<ConversationRow> = sqlx::query_as(
-                "SELECT date, sessions, turns, crisis_keyword, crisis_model \
-                 FROM conversations_daily \
-                 WHERE date BETWEEN $1 AND $2 \
-                 ORDER BY date",
+                "WITH l AS ( \
+                   SELECT date, \
+                          COALESCE(sum(count) FILTER (WHERE reply_label = 'generic_comfort'), 0)::int8 AS generic_comfort, \
+                          COALESCE(sum(count) FILTER (WHERE reply_label = 'specific_reflection'), 0)::int8 AS specific_reflection, \
+                          COALESCE(sum(count) FILTER (WHERE reply_label = 'question'), 0)::int8 AS question \
+                   FROM daily_reply_labels WHERE date BETWEEN $1 AND $2 GROUP BY date \
+                 ) \
+                 SELECT COALESCE(c.date, l.date) AS date, \
+                        COALESCE(c.sessions, 0)::int8 AS sessions, \
+                        COALESCE(c.turns, 0)::int8 AS turns, \
+                        COALESCE(c.crisis_keyword, 0)::int8 AS crisis_keyword, \
+                        COALESCE(c.crisis_model, 0)::int8 AS crisis_model, \
+                        COALESCE(l.generic_comfort, 0) AS generic_comfort, \
+                        COALESCE(l.specific_reflection, 0) AS specific_reflection, \
+                        COALESCE(l.question, 0) AS question \
+                 FROM (SELECT * FROM conversations_daily WHERE date BETWEEN $1 AND $2) c \
+                 FULL JOIN l ON l.date = c.date \
+                 ORDER BY 1",
             )
             .bind(first)
             .bind(last)
@@ -170,6 +187,11 @@ impl MetricsSource for PostgresMetrics {
                     crisis: CrisisCounts {
                         keyword: r.crisis_keyword,
                         model: r.crisis_model,
+                    },
+                    reply_labels: ReplyLabelCounts {
+                        generic_comfort: r.generic_comfort,
+                        specific_reflection: r.specific_reflection,
+                        question: r.question,
                     },
                 })
                 .collect())

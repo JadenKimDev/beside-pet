@@ -2,9 +2,10 @@
 import {
   type ConversationsResponse,
   fillConversationDays,
+  genericComfortRate,
   summarizeConversations,
 } from '@/entities/metrics';
-import { formatCount } from '@/shared/lib';
+import { formatCount, formatPercent } from '@/shared/lib';
 
 export type ConversationCardValue = {
   id: 'sessions' | 'turns' | 'crisis';
@@ -31,6 +32,27 @@ export function conversationChartRows(response: ConversationsResponse): Conversa
     keyword: day.crisis.keyword,
     model: day.crisis.model,
   }));
+}
+
+/** 날짜별 답의 라벨 표 한 줄(표기한 글). 판정이 없는 날의 비율은 대시다. */
+export type ReplyLabelRow = {
+  date: string;
+  generic: string;
+  specific: string;
+  question: string;
+  genericRate: string;
+};
+
+export function replyLabelRows(response: ConversationsResponse): ReplyLabelRow[] {
+  return fillConversationDays(response.daily, response.from, response.to).map(
+    ({ date, replyLabels }) => ({
+      date,
+      generic: formatCount(replyLabels.generic_comfort),
+      specific: formatCount(replyLabels.specific_reflection),
+      question: formatCount(replyLabels.question),
+      genericRate: formatPercent(genericComfortRate(replyLabels)),
+    }),
+  );
 }
 
 export function hasConversations(rows: readonly ConversationChartRow[]): boolean {

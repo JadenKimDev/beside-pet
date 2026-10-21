@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { conversationCards, conversationChartRows, hasConversations } from './cards';
+import {
+  conversationCards,
+  conversationChartRows,
+  hasConversations,
+  replyLabelRows,
+} from './cards';
 import { conversationDay, conversationsResponse } from './tests/fixtures';
 
 const cardsOf = (days: Parameters<typeof conversationsResponse>[0]) =>
@@ -43,5 +48,21 @@ describe('conversationChartRows', () => {
     ]);
     expect(hasConversations(rows)).toBe(true);
     expect(hasConversations(conversationChartRows(conversationsResponse([])))).toBe(false);
+  });
+});
+
+describe('replyLabelRows', () => {
+  it('gives each UTC day the judged reply counts and the generic comfort share', () => {
+    const response = conversationsResponse([
+      conversationDay({
+        date: '2026-10-15',
+        replyLabels: { generic_comfort: 3, specific_reflection: 4, question: 1 },
+      }),
+    ]);
+    expect(replyLabelRows(response)).toEqual([
+      { date: '2026-10-14', generic: '0', specific: '0', question: '0', genericRate: '–' },
+      { date: '2026-10-15', generic: '3', specific: '4', question: '1', genericRate: '37.5%' },
+      { date: '2026-10-16', generic: '0', specific: '0', question: '0', genericRate: '–' },
+    ]);
   });
 });

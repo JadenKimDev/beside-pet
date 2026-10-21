@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   failureRate,
   filterUsage,
+  PURPOSES,
   promptVersionsOf,
   purposesOf,
   sortByCalls,
   summarizeUsage,
 } from './breakdown';
+import { PURPOSE_LABELS } from './labels';
 import { usage } from './tests/fixtures';
 
 const rows = [
@@ -110,5 +112,16 @@ describe('sortByCalls', () => {
     const input = [rows[3], rows[0], rows[2]];
     expect(sortByCalls(input).map((r) => r.calls)).toEqual([40, 30, 5]);
     expect(input.map((r) => r.calls)).toEqual([5, 40, 30]);
+  });
+});
+
+describe('judge purpose', () => {
+  it('lists the reply judge after the report, named 판정', () => {
+    expect(PURPOSES).toEqual(['reply', 'crisis', 'report', 'judge']);
+    expect(PURPOSE_LABELS.judge).toBe('판정');
+    expect(purposesOf([usage({ purpose: 'judge' }), usage({ purpose: 'reply' })])).toEqual([
+      'reply',
+      'judge',
+    ]);
   });
 });

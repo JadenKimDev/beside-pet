@@ -65,12 +65,13 @@ describe('reconcileFilter', () => {
 });
 
 describe('options', () => {
-  it('lists all and the three purposes in a fixed order', () => {
+  it('lists all and the four purposes in a fixed order', () => {
     expect(purposeOptions().map((option) => option.value)).toEqual([
       'all',
       'reply',
       'crisis',
       'report',
+      'judge',
     ]);
     expect(purposeOptions()[1].label).toBe('발화 (reply)');
     expect(purposeOptions()[0].label).toBe('전체');

@@ -174,6 +174,33 @@
       "finished_at": "2026-10-21T14:35:36.172Z",
       "active_ms": 54847,
       "verify_ms": 1336
+    },
+    {
+      "id": "S8",
+      "title": "운영 화면의 대화 계측에 날짜별 라벨 수와 모델 호출 종류 judge",
+      "scope": [
+        "apps/server/src/metrics/",
+        "apps/server/tests/",
+        "apps/backoffice/src/entities/metrics/",
+        "apps/backoffice/src/widgets/conversation-dashboard/",
+        "apps/backoffice/src/widgets/model-dashboard/"
+      ],
+      "depends_on": [
+        "S1"
+      ],
+      "verify": [
+        "pnpm test:stack",
+        "pnpm -F @beside-pet/backoffice test"
+      ],
+      "tdd": true,
+      "red_at": "2026-10-21T15:38:01.629Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
+      "started_at": "2026-10-21T15:35:52.131Z",
+      "finished_at": "2026-10-21T15:41:01.232Z",
+      "active_ms": 309101,
+      "verify_ms": 8113
     }
   ]
 }

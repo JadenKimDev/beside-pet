@@ -65,4 +65,14 @@ describe('ModelDashboard', () => {
     expect(html.indexOf('reply-v2</td>')).toBeLessThan(html.indexOf('reply-v1</td>'));
     expect(html).not.toContain('crisis-v1</td>');
   });
+
+  it('names the reply judge calls 판정 in the breakdown', () => {
+    const data = modelsResponse({
+      models: [usageRow({ purpose: 'judge', promptVersion: 'judge-v1' })],
+      daily: [dailyRow({})],
+    });
+    const html = render({ data });
+    expect(html).toContain('>판정</span>');
+    expect(html).toContain('judge-v1</td>');
+  });
 });

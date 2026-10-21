@@ -8,7 +8,7 @@ use futures_util::future::BoxFuture;
 use serde_json::json;
 
 use beside_pet_server::metrics::{
-    ConversationDay, CrisisCounts, DailyUsage, MetricsSource, ModelUsage, Period,
+    ConversationDay, CrisisCounts, DailyUsage, MetricsSource, ModelUsage, Period, ReplyLabelCounts,
 };
 use beside_pet_server::shared::ApiError;
 
@@ -70,6 +70,11 @@ impl MetricsSource for Fixed {
                 crisis: CrisisCounts {
                     keyword: 0,
                     model: 1,
+                },
+                reply_labels: ReplyLabelCounts {
+                    generic_comfort: 2,
+                    specific_reflection: 1,
+                    question: 0,
                 },
             }])
         })
@@ -166,7 +171,10 @@ async fn 대화별_응답의_칸() {
         json!({
             "from": "2026-10-14T00:00:00.000Z",
             "to": "2026-10-20T00:00:00.000Z",
-            "daily": [{ "date": "2026-10-18", "sessions": 1, "turns": 3, "crisis": { "keyword": 0, "model": 1 } }]
+            "daily": [{
+                "date": "2026-10-18", "sessions": 1, "turns": 3, "crisis": { "keyword": 0, "model": 1 },
+                "replyLabels": { "generic_comfort": 2, "specific_reflection": 1, "question": 0 }
+            }]
         })
     );
 }

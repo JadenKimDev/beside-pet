@@ -33,7 +33,7 @@ export function Journey({
       aria-valuemax={JOURNEY_STEPS}
       aria-valuenow={progress.valueNow}
       aria-valuetext={valueText}
-      className={cx('grid gap-2', compact && 'max-w-[220px]', className)}
+      className={cx('grid grid-cols-[minmax(0,1fr)] gap-2', compact && 'max-w-[220px]', className)}
     >
       {!compact && (
         <div className="flex items-baseline justify-between gap-3 text-[13px]">

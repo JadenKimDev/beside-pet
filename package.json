@@ -45,6 +45,11 @@
     "docs:search": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:search",
     "docs:list": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:list",
     "docs:neighbors": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:neighbors",
-    "chat:eval": "node dev-tools/src/cli.ts chat:eval"
+    "chat:eval": "node dev-tools/src/cli.ts chat:eval",
+    "decision:label": "cd dev-tools/decision && uv run python -m decision.label",
+    "decision:synth": "cd dev-tools/decision && uv run python -m decision.synth",
+    "decision:split": "cd dev-tools/decision && uv run python -m decision.split",
+    "decision:eval": "cd dev-tools/decision && uv run python -m decision.eval",
+    "decision:train": "cd dev-tools/decision && uv run python -m decision.train"
   }
 }

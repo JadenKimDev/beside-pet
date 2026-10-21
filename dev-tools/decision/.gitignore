@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+# 학습한 모델 파일은 레포에 넣지 않는다.
+data/models/

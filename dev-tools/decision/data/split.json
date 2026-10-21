@@ -1,0 +1,12 @@
+{
+  "train_personas": [
+    "after-crisis",
+    "boundary-test",
+    "crisis",
+    "elderly-cat",
+    "english-anticipatory",
+    "sudden-loss-self-blame",
+    "teen-hamster"
+  ],
+  "eval_personas": ["euthanasia-anger", "resume-no-profile"]
+}

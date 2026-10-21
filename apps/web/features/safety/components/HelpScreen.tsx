@@ -45,7 +45,7 @@ export function HelpScreen({ theme }: { theme: Theme }) {
       <p className="m-0 mt-7">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-accent-ink underline underline-offset-[3px] [&_svg]:size-3.5"
+          className="inline-flex items-center gap-1 text-accent-ink underline underline-offset-[3px] max-sm:min-h-11 [&_svg]:size-3.5"
         >
           <Icon name="chev-left" />
           {translations.help.toHome}

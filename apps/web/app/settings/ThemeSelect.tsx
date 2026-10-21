@@ -5,7 +5,8 @@
  * swatch of that theme's own colours (the `swatch-*` tokens do not change with the
  * active theme). Choosing one flips `<html data-theme>` at once and stores it in the
  * cookie (a device setting: never the server or DB). Light/dark follows the OS, so
- * there is no dark toggle.
+ * there is no dark toggle. On a narrow screen the three names do not fit side by side
+ * ("Night sky and candle"), so the group becomes a vertical list, one theme per row.
  */
 import { Segmented } from '@/components/ui';
 import { useDocumentTheme } from '@/features/safety/use-document-theme';
@@ -41,6 +42,7 @@ export function ThemeSelect() {
   return (
     <Segmented
       label={t.theme}
+      className="max-sm:flex-col max-sm:rounded-lg max-sm:[&>button]:px-4 max-sm:[&>button]:text-left"
       value={theme}
       onChange={choose}
       options={THEMES.map((candidate) => ({

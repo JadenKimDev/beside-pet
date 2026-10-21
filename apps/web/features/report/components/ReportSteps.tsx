@@ -36,7 +36,7 @@ export function ReportSteps({
             <span
               aria-hidden="true"
               className={cx(
-                'relative grid size-9 place-items-center rounded-full border-2 text-small font-semibold tabular-nums',
+                'relative z-10 grid size-9 place-items-center rounded-full border-2 text-small font-semibold tabular-nums',
                 filled
                   ? 'border-accent bg-accent text-accent-fg'
                   : 'border-border bg-surface text-fg-muted',

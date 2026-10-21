@@ -68,7 +68,7 @@ export default function SettingsPage() {
       <header className="grid gap-3">
         <Link
           href="/sessions"
-          className="inline-flex w-fit items-center gap-1 text-small text-fg-muted no-underline hover:text-fg [&_svg]:size-4"
+          className="inline-flex w-fit items-center gap-1 text-small text-fg-muted no-underline hover:text-fg max-sm:min-h-11 [&_svg]:size-4"
         >
           <Icon name="chev-left" />
           {t.back}

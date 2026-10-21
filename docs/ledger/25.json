@@ -29,13 +29,15 @@
     },
     {
       "id": "S2",
-      "title": "바탕: `viewport` 메타, 대화 화면의 `100dvh`, 입력 글자 16px, 머리·바닥(도움 알약, 위기 띠, 면책)의 좁은 폭 배치, 공용 컴포넌트의 터치 타깃",
+      "title": "바탕: `viewport` 메타, 대화 화면의 `100dvh`, 입력 글자 16px, 머리·바닥(도움 알약, 위기 띠, 면책)의 좁은 폭 배치, 공용 컴포넌트의 터치 타깃, 대화 화면의 진행 머리와 위기 멈춤 안내",
       "scope": [
         "apps/web/app/layout.tsx",
         "apps/web/app/session/page.tsx",
         "apps/web/components/layout/",
         "apps/web/components/ui/",
-        "apps/web/components/chat/"
+        "apps/web/components/chat/",
+        "apps/web/features/session/",
+        "apps/web/i18n/LocaleSelect.tsx"
       ],
       "depends_on": [
         "S1"

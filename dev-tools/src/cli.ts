@@ -16,6 +16,9 @@
 //   pnpm docs:list [--type adr|devlog] [--status <s>] [--tag <t>]   결정 기록 목록
 //   pnpm docs:neighbors <id>                related 와 겹치는 태그로 이어진 글
 //   (docs:* 넷 모두 --json 이면 결과를 JSON 으로 찍는다)
+//   pnpm issue:label <이슈> [--add <라벨,...>] [--remove <라벨,...>]   라벨 붙이고 떼기 (없는 라벨은 만든다)
+//   pnpm issue:comment <이슈> --file <마크다운>                       이슈에 댓글 하나
+//   pnpm runner:report <이슈> --sha <sha> [--test-log <경로>] [--test-exit <코드>] [--qa <report.html>]   러너 결과 댓글을 stdout 에
 //   pnpm chat:eval run (--persona <이름> | --all) [--interactive] [--stream] [--baseline <날짜>]   대화 실측
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -70,6 +73,7 @@ import {
   updateLedger,
   withLedgerLock,
 } from "./lib/repo.ts";
+import { issueComment, issueLabel, runnerReport } from "./lib/runner/commands.ts";
 
 function need(value: string | undefined, usage: string): string {
   if (!value) {
@@ -572,6 +576,9 @@ const COMMANDS: Record<string, (root: string, args: string[]) => void | Promise<
   "docs:list": docsList,
   "docs:neighbors": docsNeighbors,
   "chat:eval": chatEval,
+  "issue:label": issueLabel,
+  "issue:comment": issueComment,
+  "runner:report": runnerReport,
 };
 
 const [name, ...rest] = process.argv.slice(2);

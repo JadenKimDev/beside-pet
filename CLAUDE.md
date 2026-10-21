@@ -2,13 +2,13 @@
 
 Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원(emotional support) 웹서비스다. 사용자에게 보이는 글에서는 상담, 치료라고 부르지 않는다(ADR-0003). 사용자 본인의 제품이고, 같은 레포에서 실제 제품과 포트폴리오용 구현을 함께 관리한다. 모바일 앱은 접었고 웹으로만 운영한다.
 
-모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, 서버(`apps/server`)는 Rust(axum, sqlx)와 PostgreSQL 이고, TS(NestJS) API 는 2026-10-16 에 지웠다(ADR-0019). AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(`apps/backoffice`)은 Next.js 이고 이 머신에서만 띄우며 서버의 관리자 API 만 부른다(ADR-0024). 포트폴리오용 구현(`showcase/`)은 앞으로 만든다.
+모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, 서버(`apps/server`)는 Rust(axum, sqlx)와 PostgreSQL 이고, TS(NestJS) API 는 2026-10-16 에 지웠다(ADR-0019). AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(`apps/backoffice`)은 Next.js 이고 이 머신에서만 띄우며 서버의 관리자 API 만 부른다(ADR-0024). 포트폴리오용 자료(`showcase/`)는 대화 웹의 공개 화면 `/showcase` 가 보인다(ADR-0029).
 
 조사 근거는 `docs/research/` 에 있다(로컬 전용, gitignore. 커밋하지 않는다). 제품과 구조의 결정과 그 이유는 `docs/adr/`, 해 봤는데 안 된 일은 `docs/devlog/` 에 적는다(추적 대상, 안내는 `docs/adr/README.md`). 매번 읽지 않고, PRD 를 쓰기 전과 결정이 갈릴 때 `pnpm docs:search` 로 찾아 나온 것만 읽는다.
 
 ## 제품 원칙
 
-- 실제 제품은 `apps/` 에, 포트폴리오로 보여 줄 구현은 `showcase/` 에 둔다. 제품 앱에 데모나 포트폴리오 전용 분기를 넣지 않는다.
+- 실제 제품은 `apps/` 에, 포트폴리오로 보여 줄 자료(지어낸 대화의 스크린샷과 전사, 개발 기록)는 `showcase/` 에 둔다. 제품 앱에 데모나 포트폴리오 전용 분기를 넣지 않는다. 예외는 그 자료를 그리기만 하는 공개 화면 `/showcase` 하나다(ADR-0029). 개발 기록(`showcase/dev-notes.json`)은 이슈를 마감할 때 사용자의 말로 손으로 쓰고, GitHub 를 읽어 만들지 않는다.
 - 서버 엔드포인트의 겉(경로, 요청과 응답의 모양, 상태 코드, 오류 문구, 환경 변수 이름)은 옛 TS API 의 것을 그대로 둔다(ADR-0015). 겉을 바꾸고 싶은 것은 웹과 함께 따로 PRD 로 다룬다.
 - 위기 발화(자해, 자살)를 감지해 안내로 잇는 흐름은 약하게 만들지 않는다. 바꿀 때는 감지 테스트를 먼저 쓴다.
 
@@ -120,7 +120,7 @@ herdr 는 선택이다. 없으면 워크트리는 git worktree 로만 만들고,
 | `apps/` | TypeScript | 제품 코드. 영역마다 `apps/<영역>/` 하나와 그 영역의 규칙을 담은 `apps/<영역>/CLAUDE.md` | 있음 |
 | `apps/server/` | Rust (axum, sqlx) | 서버. 엔드포인트의 겉은 옛 TS API 의 것을 그대로 가진다(ADR-0015, ADR-0019) | 있음 |
 | `apps/backoffice/` | TypeScript (Next.js) | 운영 화면. 서버의 관리자 API 만 부르고 본문을 보이지 않는다. 구조는 FSD(ADR-0024) | 있음 |
-| `showcase/` | - | 포트폴리오용 구현 | 계획 |
+| `showcase/` | JSON, WebP | 포트폴리오용 자료. 대화 웹이 빌드 때 자기 public 아래로 복사해 `/showcase` 에서 보인다(ADR-0029) | 있음 |
 | `packages/dev-checks/` | TypeScript | 개발 전용 검사. 레포 검사 규칙(큰 파일, 같은 몸체 함수, 범용 타입)의 순수 함수와 단위 테스트 | 있음 |
 | `dev-tools/scripts/` | bash | 워크트리, pane, 브라우저 탭 스크립트 | 있음 |
 | `dev-tools/src/` | TypeScript (Node 가 직접 실행) | 작업 대장 CLI(PRD 와 이슈, 프로젝트 보드, 원장 러너, 결정 기록 색인)와 레포 전체의 검사 | 있음 |

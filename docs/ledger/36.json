@@ -20,10 +20,10 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-21T10:48:47.396Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -42,13 +42,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T10:48:53.136Z",
+      "finished_at": "2026-10-21T10:50:43.866Z",
+      "active_ms": 110730,
+      "verify_ms": 1390
     },
     {
       "id": "S3",
@@ -90,13 +90,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
-      "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "status": "done",
+      "passes": true,
+      "retries": 1,
+      "started_at": "2026-10-21T10:48:53.482Z",
+      "finished_at": "2026-10-21T10:51:08.696Z",
+      "active_ms": 135214,
+      "verify_ms": 1442
     }
   ]
 }

@@ -40,13 +40,13 @@
       ],
       "tdd": true,
       "red_at": "2026-10-21T09:05:38.977Z",
-      "status": "doing",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
       "started_at": "2026-10-21T09:02:46.310Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-21T09:06:54.638Z",
+      "active_ms": 248328,
+      "verify_ms": 7636
     },
     {
       "id": "S3",
@@ -109,13 +109,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "doing",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 1,
       "started_at": "2026-10-21T09:02:46.942Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": 1411
+      "finished_at": "2026-10-21T09:06:57.815Z",
+      "active_ms": 250873,
+      "verify_ms": 2551
     }
   ]
 }

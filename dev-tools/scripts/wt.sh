@@ -127,7 +127,7 @@ ignored_source_files() {
   local shared; shared="$(printf '%s\n' "${SHARED_LOCAL[@]}" | sed 's/[.]/\\./g' | paste -sd'|' -)"
   git -C "$1" ls-files --others --ignored --exclude-standard \
     | grep -E '^(apps|packages|dev-tools)/' \
-    | grep -Ev '(^|/)(target|dist|build|\.next|\.turbo|node_modules)/' \
+    | grep -Ev '(^|/)(target|dist|build|\.next|\.turbo|node_modules|\.venv|__pycache__|\.pytest_cache|data/models)/' \
     | grep -Ev "^(${shared})$" \
     | grep -Ev '(\.tsbuildinfo|next-env\.d\.ts)$' || true
 }

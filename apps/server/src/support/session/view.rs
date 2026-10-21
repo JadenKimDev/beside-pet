@@ -57,8 +57,9 @@ impl Session {
         }
     }
 
+    /// 기록 응답. 중단한 턴의 메시지는 숨는다(`visible_messages`).
     pub fn history_response(&self) -> Vec<MessageResponse> {
-        self.history.iter().map(Message::to_response).collect()
+        self.visible_messages().map(Message::to_response).collect()
     }
 
     /// 분석 보기. 계획과 요약은 여기서 규칙으로 다시 구한다.

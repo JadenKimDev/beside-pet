@@ -1,7 +1,8 @@
 //! 세션 애그리게이트: 한 대화의 상태(과제, 재시도, 지원 수준, 닫힘, 전사, 턴, 턴 분석, 리포트)와 그 전이.
 //!
 //! 상태는 메서드로만 바뀐다. 닫힌 세션은 사용자 턴을 받지 않고, 리포트는 닫혔고 과제 2 이상일 때 한 번만 붙는다(ADR-0005, ADR-0008).
-//! 사용자 턴은 받기(메시지와 `pending` 턴만)와 끝내기(전이 적용, 답, 분석, `done`)로 나뉜다. 상태는 끝난 턴에서만 바뀐다(위기 제외).
+//! 사용자 턴은 받기(메시지와 `pending` 턴만), 흐르기(`streaming`), 끝내기(전이 적용, 답, 분석, `done`)로 나뉜다. 상태는 끝난 턴에서만
+//! 바뀐다(위기 제외). 중단한 턴(`cancelled`)은 메시지를 지우지 않고 숨긴다(ADR-0030).
 //! 계획과 요약은 저장하지 않고 프로필과 전사·분석에서 규칙으로 다시 구한다. 시각은 부르는 쪽이 넘긴다.
 
 use std::fmt;
@@ -23,6 +24,7 @@ mod message;
 mod snapshot;
 mod turn;
 mod view;
+mod visibility;
 
 pub use activity::MessageActivity;
 pub use message::Message;
@@ -42,7 +44,8 @@ pub enum SessionError {
     TurnAlreadyReceived,
     /// 그런 턴이 이 세션에 없다.
     TurnNotFound,
-    /// 턴이 이미 끝났다(`done` 또는 `failed`).
+    /// 턴이 이 요청을 받을 상태가 아니다: 이미 끝났거나(`done`, `failed`, `cancelled`), `start_streaming` 에 `pending` 이 아니거나,
+    /// `retry_turn` 에 `failed` 가 아니다.
     TurnNotPending,
 }
 
@@ -98,7 +101,10 @@ pub struct Session {
     retry_count: u32,
     support_level: SupportLevel,
     closed: bool,
-    history: Vec<Message>,
+    /// 저장할 전사 전부(숨은 메시지 포함).
+    transcript: Vec<Message>,
+    /// `transcript` 에서 프롬프트·규칙이 보는 것만 고른 사본. 저장하지 않고 바뀔 때마다 다시 고른다.
+    conversation: Vec<Message>,
     analyses: Vec<TurnAnalysis>,
     turns: Vec<Turn>,
     report: Option<MindReport>,
@@ -122,7 +128,8 @@ impl Session {
             retry_count: 0,
             support_level: SupportLevel::Safe,
             closed: false,
-            history: Vec::new(),
+            transcript: Vec::new(),
+            conversation: Vec::new(),
             analyses: Vec::new(),
             turns: Vec::new(),
             report: None,
@@ -131,7 +138,7 @@ impl Session {
 
     /// 저장에서 되살린다.
     pub fn rehydrate(snapshot: SessionSnapshot) -> Session {
-        Session {
+        let mut session = Session {
             id: snapshot.id,
             owner_id: snapshot.owner_id,
             started_at: snapshot.started_at,
@@ -140,14 +147,17 @@ impl Session {
             retry_count: snapshot.retry_count,
             support_level: snapshot.support_level,
             closed: snapshot.closed,
-            history: snapshot.history,
+            transcript: snapshot.history,
+            conversation: Vec::new(),
             analyses: snapshot.analyses,
             turns: snapshot.turns,
             report: snapshot.report,
-        }
+        };
+        session.refresh_conversation();
+        session
     }
 
-    /// 저장에 넘기는 모양.
+    /// 저장에 넘기는 모양. 숨은 메시지까지 든다(꼬리 삭제 upsert 가 지우지 않게, ADR-0018).
     pub fn snapshot(&self) -> SessionSnapshot {
         SessionSnapshot {
             id: self.id.clone(),
@@ -158,7 +168,7 @@ impl Session {
             retry_count: self.retry_count,
             support_level: self.support_level,
             closed: self.closed,
-            history: self.history.clone(),
+            history: self.transcript.clone(),
             analyses: self.analyses.clone(),
             turns: self.turns.clone(),
             report: self.report.clone(),
@@ -193,8 +203,10 @@ impl Session {
         self.closed
     }
 
+    /// 프롬프트의 대화 창, 깊이 게이트, 세션 잇기의 꼬리가 보는 전사: 턴 없는 옛 메시지, 끝난 턴, 도는 턴의 것.
+    /// 실패한 턴과 중단한 턴의 메시지는 빠진다. 기록 응답은 `visible_messages` 다.
     pub fn history(&self) -> &[Message] {
-        &self.history
+        &self.conversation
     }
 
     pub fn report(&self) -> Option<&MindReport> {
@@ -270,7 +282,7 @@ impl Session {
             return None;
         }
         let at = self
-            .history
+            .transcript
             .last()
             .map_or(self.started_at, |message| message.at);
         let turn_count = u32::try_from(self.analyses.len()).unwrap_or(u32::MAX);
@@ -279,13 +291,14 @@ impl Session {
 
     /// 전사에 지금 과제로 한 줄 더한다.
     fn push(&mut self, role: MessageRole, text: &str, at: DateTime<Utc>, turn_id: Option<&str>) {
-        self.history.push(Message {
+        self.transcript.push(Message {
             role,
             text: text.to_owned(),
             task: self.task,
             at,
             turn_id: turn_id.map(str::to_owned),
         });
+        self.refresh_conversation();
     }
 
     /// 깊이에 세는 사용자 메시지인가: 턴 없는 옛 메시지, 끝난 턴의 것, 지금 턴(`current`)의 것.
@@ -313,7 +326,7 @@ impl Session {
             };
         }
         let answers: Vec<&str> = self
-            .history
+            .transcript
             .iter()
             .filter(|message| message.role == MessageRole::User && message.task == from)
             .filter(|message| self.counts_toward_depth(message, current))
@@ -381,18 +394,18 @@ impl Session {
         Ok(())
     }
 
-    /// `pending` 턴의 전이를 계산한다. 세션을 바꾸지 않는다. 같은 전사와 같은 판정이면 같은 결과다(깊이 게이트는 결정론, ADR-0005).
+    /// 도는(`pending`·`streaming`) 턴의 전이를 계산한다. 세션을 바꾸지 않는다. 같은 전사와 같은 판정이면 같은 결과다(깊이 게이트는 결정론, ADR-0005).
     /// 깊이는 지금 과제의 사용자 메시지 중 끝난 턴(과 턴 없는 옛 메시지)과 이 턴의 것만 센다. 실패하거나 아직 도는 다른 턴은 세지 않는다.
     pub fn transition(
         &self,
         turn_id: &str,
         risk: RiskAssessment,
     ) -> Result<TurnStep, SessionError> {
-        self.pending_turn(turn_id)?;
+        self.active_turn_ref(turn_id)?;
         Ok(self.step_for(Some(turn_id), risk))
     }
 
-    /// `pending` 턴을 끝낸다: 전이를 적용하고(지원 수준, 과제, 재시도, 클로징·위기면 닫기), 답과 턴 분석을 적고, 턴을 `done` 으로 닫는다.
+    /// 도는(`pending`·`streaming`) 턴을 끝낸다: 전이를 적용하고(지원 수준, 과제, 재시도, 클로징·위기면 닫기), 답과 턴 분석을 적고, 턴을 `done` 으로 닫는다.
     pub fn complete_turn(
         &mut self,
         turn_id: &str,
@@ -408,18 +421,73 @@ impl Session {
         if step.closes() {
             self.closed = true;
         }
-        self.pending_turn_mut(turn_id)?.finish(at);
+        self.active_turn_mut(turn_id)?.finish(at);
         Ok(step)
     }
 
-    /// `pending` 턴을 `failed` 로 닫는다. 사용자 메시지는 남고 세션 상태는 움직이지 않는다.
+    /// 도는(`pending`·`streaming`) 턴을 `failed` 로 닫는다. 사용자 메시지는 남고(기록에 보인다) 세션 상태는 움직이지 않는다.
     pub fn fail_turn(
         &mut self,
         turn_id: &str,
         kind: TurnErrorKind,
         at: DateTime<Utc>,
     ) -> Result<(), SessionError> {
-        self.pending_turn_mut(turn_id)?.fail(kind, at);
+        self.active_turn_mut(turn_id)?.fail(kind, at);
+        self.refresh_conversation();
+        Ok(())
+    }
+
+    /// 답이 시작했다: `pending` → `streaming`. 세션 상태는 바꾸지 않는다.
+    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
+    pub fn start_streaming(
+        &mut self,
+        turn_id: &str,
+        _at: DateTime<Utc>,
+    ) -> Result<(), SessionError> {
+        let turn = self.active_turn_mut(turn_id)?;
+        if !turn.is_pending() {
+            return Err(SessionError::TurnNotPending);
+        }
+        turn.stream();
+        Ok(())
+    }
+
+    /// 도는 턴을 중단한다: 거기까지 온 답(비지 않았으면)을 그 턴의 답으로 적고 턴을 `cancelled` 로 닫는다. 턴 분석은 쓰지 않고
+    /// 세션 상태(과제, 재시도, 지원 수준, 닫힘)도 바꾸지 않는다. 이미 중단한 턴이면 아무것도 하지 않는다(멱등).
+    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
+    pub fn cancel_turn(
+        &mut self,
+        turn_id: &str,
+        partial_reply: Option<&str>,
+        at: DateTime<Utc>,
+    ) -> Result<(), SessionError> {
+        if self.find_turn(turn_id)?.status == TurnStatus::Cancelled {
+            return Ok(());
+        }
+        self.active_turn_mut(turn_id)?.cancel(at);
+        match partial_reply {
+            Some(text) if !text.is_empty() => {
+                self.push(MessageRole::Assistant, text, at, Some(turn_id))
+            }
+            _ => self.refresh_conversation(),
+        }
+        Ok(())
+    }
+
+    /// 실패한 턴의 답을 다시 받는다: `failed` → `pending`. 사용자 메시지는 그대로이고 다시 대화 창과 깊이에 든다.
+    /// 그 뒤는 처음 턴과 같다(`transition`, `start_streaming`, `complete_turn`). `failed` 가 아니면 `TurnNotPending`.
+    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
+    pub fn retry_turn(&mut self, turn_id: &str) -> Result<(), SessionError> {
+        if self.find_turn(turn_id)?.status != TurnStatus::Failed {
+            return Err(SessionError::TurnNotPending);
+        }
+        let turn = self
+            .turns
+            .iter_mut()
+            .find(|turn| turn.id == turn_id)
+            .ok_or(SessionError::TurnNotFound)?;
+        turn.reopen();
+        self.refresh_conversation();
         Ok(())
     }
 
@@ -464,20 +532,24 @@ impl Session {
         Ok(())
     }
 
-    fn pending_turn(&self, turn_id: &str) -> Result<&Turn, SessionError> {
-        let turn = self
-            .turns
+    fn find_turn(&self, turn_id: &str) -> Result<&Turn, SessionError> {
+        self.turns
             .iter()
             .find(|turn| turn.id == turn_id)
-            .ok_or(SessionError::TurnNotFound)?;
-        if !turn.is_pending() {
+            .ok_or(SessionError::TurnNotFound)
+    }
+
+    /// 도는(`pending`·`streaming`) 턴.
+    fn active_turn_ref(&self, turn_id: &str) -> Result<&Turn, SessionError> {
+        let turn = self.find_turn(turn_id)?;
+        if !turn.status.is_active() {
             return Err(SessionError::TurnNotPending);
         }
         Ok(turn)
     }
 
-    fn pending_turn_mut(&mut self, turn_id: &str) -> Result<&mut Turn, SessionError> {
-        self.pending_turn(turn_id)?;
+    fn active_turn_mut(&mut self, turn_id: &str) -> Result<&mut Turn, SessionError> {
+        self.active_turn_ref(turn_id)?;
         self.turns
             .iter_mut()
             .find(|turn| turn.id == turn_id)

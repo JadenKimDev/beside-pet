@@ -127,16 +127,18 @@ impl SessionStore {
         Ok(())
     }
 
-    /// 기동 때 정리: `pending` 으로 남은 모든 턴(앞 프로세스가 답을 끝내지 못한 턴)을 `failed`·`restart`·`at` 으로 닫는다.
-    /// 바꾼 행 수를 돌려준다.
+    /// 기동 때 정리: `pending`·`streaming` 으로 남은 모든 턴(앞 프로세스가 답을 끝내지 못한 턴)을 `failed`·`restart`·`at` 으로
+    /// 닫는다. 바꾼 행 수를 돌려준다.
     pub async fn fail_pending_turns(&self, at: DateTime<Utc>) -> Result<u64, StoreError> {
         let closed = sqlx::query(
-            "UPDATE turns SET status = $1, error_kind = $2, finished_at = $3 WHERE status = $4",
+            "UPDATE turns SET status = $1, error_kind = $2, finished_at = $3 \
+             WHERE status IN ($4, $5)",
         )
         .bind(TurnStatus::Failed.as_str())
         .bind(TurnErrorKind::Restart.as_str())
         .bind(at)
         .bind(TurnStatus::Pending.as_str())
+        .bind(TurnStatus::Streaming.as_str())
         .execute(&self.pool)
         .await?;
         Ok(closed.rows_affected())
@@ -172,7 +174,8 @@ impl SessionStore {
         .await
     }
 
-    /// 세션들의 메시지 집계(마지막 시각, 첫·마지막 사이의 분, 수)를 한 질의로 구한다. 메시지가 없는 세션은 빠진다.
+    /// 세션들의 메시지 집계(마지막 시각, 첫·마지막 사이의 분, 수)를 한 질의로 구한다. 중단한 턴의 메시지는 숨으므로 세지
+    /// 않는다. 메시지가 없는 세션은 빠진다.
     pub async fn message_activity(
         &self,
         session_ids: &[&str],
@@ -184,9 +187,12 @@ impl SessionStore {
             "SELECT session_id, max(at) AS last_message_at, \
                     floor(extract(epoch FROM max(at) - min(at)) / 60)::int4 AS duration_minutes, \
                     count(*)::int4 AS message_count \
-             FROM messages WHERE session_id = ANY($1) GROUP BY session_id",
+             FROM messages m WHERE session_id = ANY($1) \
+               AND NOT EXISTS (SELECT 1 FROM turns t WHERE t.id = m.turn_id AND t.status = $2) \
+             GROUP BY session_id",
         )
         .bind(session_ids)
+        .bind(TurnStatus::Cancelled.as_str())
         .fetch_all(&self.pool)
         .await?;
         rows.into_iter()

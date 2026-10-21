@@ -1,5 +1,6 @@
 // 세션 애그리게이트의 전이. 픽스처는 지어낸 값이다.
 
+mod states;
 mod turn;
 mod view;
 

@@ -1,32 +1,45 @@
-//! 턴 하나의 사실(id, 상태, 시작·끝 시각, 오류 종류)과 그 상태 전이(pending → done | failed). `turns` 행 하나다.
+//! 턴 하나의 사실(id, 상태, 시작·끝 시각, 오류 종류)과 그 상태 전이(pending → streaming → done | failed | cancelled, failed → pending). `turns` 행 하나다.
 
 use chrono::{DateTime, Utc};
 
 /// 턴의 상태. 값 문자열은 `turns.status` 의 것과 같다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TurnStatus {
-    /// 사용자 메시지를 받았고 답이 아직 끝나지 않았다.
+    /// 사용자 메시지를 받았고 답이 아직 시작하지 않았다.
     Pending,
+    /// 답이 흐르는 중이다.
+    Streaming,
     Done,
     Failed,
+    /// 사용자가 중단했다. 그 턴의 메시지는 남지만 숨는다.
+    Cancelled,
 }
 
 impl TurnStatus {
     pub fn as_str(self) -> &'static str {
         match self {
             TurnStatus::Pending => "pending",
+            TurnStatus::Streaming => "streaming",
             TurnStatus::Done => "done",
             TurnStatus::Failed => "failed",
+            TurnStatus::Cancelled => "cancelled",
         }
     }
 
     pub fn parse(value: &str) -> Option<TurnStatus> {
         match value {
             "pending" => Some(TurnStatus::Pending),
+            "streaming" => Some(TurnStatus::Streaming),
             "done" => Some(TurnStatus::Done),
             "failed" => Some(TurnStatus::Failed),
+            "cancelled" => Some(TurnStatus::Cancelled),
             _ => None,
         }
+    }
+
+    /// 답을 기다리거나 받는 중인가(`pending` 또는 `streaming`).
+    pub fn is_active(self) -> bool {
+        matches!(self, TurnStatus::Pending | TurnStatus::Streaming)
     }
 }
 
@@ -37,7 +50,7 @@ pub enum TurnErrorKind {
     Timeout,
     /// 모델 공급자가 오류를 냈다.
     Provider,
-    /// 서버가 다시 떠서 `pending` 으로 남은 턴을 닫았다.
+    /// 서버가 다시 떠서 `pending`·`streaming` 으로 남은 턴을 닫았다.
     Restart,
 }
 
@@ -60,7 +73,7 @@ impl TurnErrorKind {
     }
 }
 
-/// 턴 하나. `finished_at` 은 `pending` 일 때만 없고, `error_kind` 는 `failed` 일 때만 있다.
+/// 턴 하나. `finished_at` 은 `pending`·`streaming` 일 때만 없고, `error_kind` 는 `failed` 일 때만 있다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Turn {
     /// 클라이언트가 만든 UUID 이거나 서버가 만든 것. 세션은 받기만 한다.
@@ -86,16 +99,37 @@ impl Turn {
         self.status == TurnStatus::Pending
     }
 
-    /// pending → done.
+    /// pending → streaming.
+    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
+    pub(super) fn stream(&mut self) {
+        self.status = TurnStatus::Streaming;
+    }
+
+    /// pending | streaming → done.
     pub(super) fn finish(&mut self, at: DateTime<Utc>) {
         self.status = TurnStatus::Done;
         self.finished_at = Some(at);
     }
 
-    /// pending → failed.
+    /// pending | streaming → failed.
     pub(super) fn fail(&mut self, kind: TurnErrorKind, at: DateTime<Utc>) {
         self.status = TurnStatus::Failed;
         self.finished_at = Some(at);
         self.error_kind = Some(kind);
+    }
+
+    /// pending | streaming → cancelled.
+    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
+    pub(super) fn cancel(&mut self, at: DateTime<Utc>) {
+        self.status = TurnStatus::Cancelled;
+        self.finished_at = Some(at);
+    }
+
+    /// failed → pending(답 다시 받기). 시작 시각은 처음 값이 남는다.
+    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
+    pub(super) fn reopen(&mut self) {
+        self.status = TurnStatus::Pending;
+        self.finished_at = None;
+        self.error_kind = None;
     }
 }

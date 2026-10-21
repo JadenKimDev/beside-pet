@@ -125,9 +125,14 @@ fn 실패한_턴은_전이를_움직이지_않고_같은_메시지에서_같은_
     assert_eq!(turn.error_kind, Some(TurnErrorKind::Timeout));
     assert_eq!(turn.finished_at, Some(at(4)));
     assert_eq!(
-        failed.history().last().unwrap().text,
+        failed.snapshot().history.last().unwrap().text,
         ENGAGED,
         "사용자 메시지는 남는다"
+    );
+    assert_eq!(
+        failed.visible_messages().last().unwrap().text,
+        ENGAGED,
+        "기록에도 보인다"
     );
     assert_eq!(
         failed.transition(&id(3), safe()),
@@ -319,6 +324,8 @@ fn 턴_상태와_오류_종류의_문자열() {
         (TurnStatus::Pending, "pending"),
         (TurnStatus::Done, "done"),
         (TurnStatus::Failed, "failed"),
+        (TurnStatus::Streaming, "streaming"),
+        (TurnStatus::Cancelled, "cancelled"),
     ] {
         assert_eq!(status.as_str(), text);
         assert_eq!(TurnStatus::parse(text), Some(status));

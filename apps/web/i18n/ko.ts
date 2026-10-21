@@ -315,6 +315,34 @@ export const ko: Messages = {
   nav: {
     conversations: '대화',
     settings: '설정',
+    showcase: '둘러보기',
+  },
+  showcase: {
+    eyebrow: '로그인 없이 둘러보기',
+    title: '대화 한 번이 어떻게 흘러가는지 보여 드릴게요',
+    lead: '첫 인사부터 대화를 마치고 마음 리포트를 받기까지, 실제 화면과 그 화면에 오간 말을 차례로 옮겼어요. 아래에는 지금까지 달라진 점을 적은 개발 기록이 있어요.',
+    fictional: (petName, age) =>
+      `모든 글은 지어낸 대화예요. ${petName}${p(petName, '는/은')} ${age}살 포메라니안으로, 실제로 있는 아이가 아니에요. 보호자의 말도 지어낸 것이에요.`,
+    toHome: '로그인 화면으로',
+    walkthroughTitle: '대화 한 사이클',
+    walkthroughLead:
+      '처음 질문에 답하고, 마음이와 이야기를 나누고, 대화를 마친 뒤 마음 리포트를 받기까지예요.',
+    stepCount: (index, total) => `${index} / ${total}`,
+    stepKind: {
+      onboarding: '처음 질문',
+      closing: '대화 마치기',
+      report: '마음 리포트',
+      list: '대화 목록',
+    },
+    speaker: { user: '보호자', companion: '마음이' },
+    devNotesTitle: '개발 기록',
+    devNotesLead: '쓰는 분께 달라진 점을 최근 것부터 적었어요.',
+    noteKind: {
+      bug: '버그 고침',
+      feature: '새 기능',
+      improvement: '개선',
+      planned: '진행 중',
+    },
   },
   footer: {
     crisis: '지금 많이 힘드시다면 자살예방상담전화 109 (24시간) · 다누리콜센터 1577-1366 (다국어).',

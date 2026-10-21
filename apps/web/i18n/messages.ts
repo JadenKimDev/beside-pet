@@ -296,6 +296,26 @@ export interface Messages {
   nav: {
     conversations: string;
     settings: string;
+    /** 공개 머리의 쇼케이스 링크(/showcase). */
+    showcase: string;
+  };
+  /** 공개 쇼케이스(/showcase, ADR-0029). 전사와 개발 기록의 본문은 자료라 여기에 없다. */
+  showcase: {
+    eyebrow: string;
+    title: string;
+    lead: string;
+    /** 모든 글이 지어낸 것이라는 안내. 이름과 나이는 자료(showcase/pomo/transcript.json)의 값. */
+    fictional: (petName: string, age: number) => string;
+    toHome: string;
+    walkthroughTitle: string;
+    walkthroughLead: string;
+    /** 단계 번호, 예: "3 / 26". */
+    stepCount: (index: number, total: number) => string;
+    stepKind: { onboarding: string; closing: string; report: string; list: string };
+    speaker: { user: string; companion: string };
+    devNotesTitle: string;
+    devNotesLead: string;
+    noteKind: { bug: string; feature: string; improvement: string; planned: string };
   };
   footer: {
     crisis: string;

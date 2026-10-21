@@ -322,6 +322,34 @@ export const en: Messages = {
   nav: {
     conversations: 'Conversations',
     settings: 'Settings',
+    showcase: 'Tour',
+  },
+  showcase: {
+    eyebrow: 'Look around without signing in',
+    title: 'See how one conversation unfolds',
+    lead: 'From the first hello to closing the conversation and receiving the mind report, here are the real screens and the words exchanged on each, in order. The conversation is in Korean. Below it is a log of what has changed so far.',
+    fictional: (petName, age) =>
+      `Every word here is a made-up conversation. ${petName} is an imagined ${age}-year-old Pomeranian, not a real dog, and the guardian's words are made up too.`,
+    toHome: 'Back to sign in',
+    walkthroughTitle: 'One conversation, start to finish',
+    walkthroughLead:
+      'Answering the first questions, talking with Maeumi, closing the conversation, then the mind report.',
+    stepCount: (index, total) => `${index} / ${total}`,
+    stepKind: {
+      onboarding: 'First questions',
+      closing: 'Closing',
+      report: 'Mind report',
+      list: 'Conversation list',
+    },
+    speaker: { user: 'Guardian', companion: 'Maeumi' },
+    devNotesTitle: 'What has changed',
+    devNotesLead: 'Changes you would notice, newest first.',
+    noteKind: {
+      bug: 'Bug fix',
+      feature: 'New feature',
+      improvement: 'Improvement',
+      planned: 'In progress',
+    },
   },
   footer: {
     crisis: 'If things feel heavy right now: 109 (24h) · Danuri Helpline 1577-1366 (multilingual).',

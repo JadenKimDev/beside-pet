@@ -102,3 +102,17 @@ describe('chromeFor protected', () => {
     expect(chromeFor(null).protected).toBe(false);
   });
 });
+
+describe('chromeFor /showcase', () => {
+  it('/showcase 는 공개용 머리, 언어 선택, 도움 알약과 위기 띠가 있고 로그인 없이 열린다', () => {
+    for (const path of ['/showcase', '/showcase/']) {
+      const chrome = chromeFor(path);
+      expect(chrome.variant).toBe('public');
+      expect(chrome.showLocale).toBe(true);
+      expect(chrome.crisis).toBe(true);
+      expect(chrome.protected).toBe(false);
+      expect(chrome.stickyHeader).toBe(true);
+      expect(chrome.crisisDock).toBe(false);
+    }
+  });
+});

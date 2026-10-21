@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
-import { cx, Logo } from '@/components/ui';
+import { cx, Icon, Logo } from '@/components/ui';
 import { useTranslations } from '@/i18n/I18nProvider';
 import { LocaleSelect } from '@/i18n/LocaleSelect';
 import type { HeaderVariant } from './chrome';
@@ -11,11 +11,12 @@ import { HelpPill } from './HelpPill';
 
 /**
  * 전역 머리. 높이 64(모바일 56), 오른쪽 끝에 늘 도움 알약.
- * - public: [로고] … [앱 언어] [도움 알약]
+ * - public: [로고] … [앱 언어] [둘러보기] [도움 알약]. 둘러보기는 공개 쇼케이스(/showcase)로 간다
  * - app: [로고] [대화] [설정] … [도움 알약]
  * - chat: [start] [center] [end] [도움 알약]. 대화 화면이 뒤로·진행·마치기를 넘긴다. 넘기지 않으면 로고만.
  * 붙을지(`sticky`)는 chrome.ts 가 정한다. 대화 화면의 진행 머리는 이 머리 바로 아래(top 64, 모바일 56)에 붙는다.
  * 좁은 폭(public, app)에서는 로고 글자를 숨겨(읽는 이름은 남긴다) 언어 선택·내비와 도움 알약이 늘 한 줄에 들어간다.
+ * 380px 보다 좁으면 둘러보기는 아이콘만 보인다(읽는 이름은 남긴다). 360px 까지 한 줄에 들어간다.
  */
 export function SiteHeader({
   variant,
@@ -84,7 +85,7 @@ export function SiteHeader({
         scrolled || !sticky ? 'border-border' : 'border-transparent',
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-wide items-center gap-4 px-8 max-sm:h-14 max-sm:gap-2 max-sm:px-4">
+      <div className="mx-auto flex h-16 w-full max-w-wide items-center gap-4 px-8 max-sm:h-14 max-sm:gap-2 max-sm:px-4 max-[379px]:gap-1.5!">
         {variant === 'chat' ? (start ?? brand) : brand}
         {variant === 'app' && (
           <nav className="flex min-w-0 items-center gap-1 max-sm:gap-0.5">
@@ -96,6 +97,19 @@ export function SiteHeader({
         <span className="flex-1" />
         {variant === 'chat' && end}
         {variant === 'public' && showLocale && <LocaleSelect fill={false} />}
+        {variant === 'public' && (
+          <Link
+            href="/showcase"
+            aria-current={pathname === '/showcase' ? 'page' : undefined}
+            className={cx(
+              'inline-flex flex-none items-center justify-center gap-1.5 rounded-pill px-3 py-2 text-sm whitespace-nowrap no-underline transition-colors duration-(--t-fast) hover:bg-bg-sunk hover:text-fg focus-visible:shadow-focus focus-visible:outline-none max-sm:min-h-11 max-sm:px-2 max-[379px]:min-w-10 max-[379px]:px-0! [&_svg]:size-4 [&_svg]:max-[379px]:block [&_svg]:hidden',
+              pathname === '/showcase' ? 'bg-bg-sunk text-fg' : 'text-fg-muted',
+            )}
+          >
+            <Icon name="book" />
+            <span className="max-[379px]:sr-only">{translations.nav.showcase}</span>
+          </Link>
+        )}
         {showHelp && <HelpPill />}
       </div>
     </header>

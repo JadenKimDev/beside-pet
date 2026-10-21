@@ -21,7 +21,7 @@ export type Chrome = {
   crisisDock: boolean;
   /**
    * 로그인이 필요한 경로인지. 켜진 경로는 로그인 확인이 끝났는데 로그인 정보가 없으면 첫 화면으로 보낸다(AuthGuard).
-   * 첫 화면과 `/help`, 모르는 경로는 끈다. `/help` 는 서버가 내려가 있어도 열려야 해서 로그인 확인조차 하지 않는다.
+   * 첫 화면과 `/help`, `/showcase`, 모르는 경로는 끈다. `/help` 와 `/showcase` 는 서버가 내려가 있어도 열려야 해서 로그인 확인조차 하지 않는다.
    */
   protected: boolean;
 };
@@ -48,6 +48,7 @@ const APP: Chrome = {
 const RULES: Rule[] = [
   { path: '/', chrome: PUBLIC },
   { path: '/help', chrome: PUBLIC },
+  { path: '/showcase', chrome: PUBLIC },
   {
     path: '/session',
     chrome: {

@@ -24,7 +24,7 @@ async fn 키워드에_걸린_턴은_keyword_다() {
             detected_by: RiskDetector::Keyword,
         }
     );
-    assert_eq!(reply, crisis_reply());
+    assert_eq!(reply, crisis_reply("en"));
 }
 
 #[tokio::test]
@@ -39,7 +39,7 @@ async fn 키워드가_안_걸리고_모델이_yes_면_model_이다() {
     );
     assert_eq!(
         reply,
-        crisis_reply(),
+        crisis_reply("en"),
         "모델이 잡은 위기도 고정 문구로 닫는다"
     );
 }
@@ -66,5 +66,5 @@ async fn 모델이_실패하면_키워드_결과로_대신해_none_이다() {
             detected_by: RiskDetector::None,
         }
     );
-    assert_ne!(reply, crisis_reply());
+    assert_ne!(reply, crisis_reply("en"));
 }

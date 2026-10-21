@@ -28,16 +28,39 @@ fn 자원_목록은_고정값이다() {
 #[test]
 fn 위기_문구는_고정이고_자원의_번호를_싣는다() {
     assert_eq!(
-        crisis_reply(),
+        crisis_reply("en"),
         "It sounds like you're going through something very hard. You don't have to carry this alone — you can reach the crisis line right now at 109 (24h), or the multilingual Danuri Helpline at 1577-1366."
     );
     for resource in safety_resources() {
         assert!(
-            crisis_reply().contains(resource.phone),
+            crisis_reply("en").contains(resource.phone),
             "{}",
             resource.phone
         );
     }
+}
+
+#[test]
+fn 한국어_위기_문구는_고정이고_자원의_번호를_싣는다() {
+    assert_eq!(
+        crisis_reply("ko"),
+        "아주 힘든 시간을 지나고 있는 것 같아요. 혼자 짊어지지 않아도 돼요. 지금 바로 자살예방상담전화 109(24시간)나 다국어로 도움을 받을 수 있는 다누리콜센터 1577-1366으로 연락할 수 있어요."
+    );
+    for resource in safety_resources() {
+        assert!(
+            crisis_reply("ko").contains(resource.phone),
+            "{}",
+            resource.phone
+        );
+    }
+}
+
+#[test]
+fn 한국어가_아닌_언어는_영어_위기_문구다() {
+    for language in ["en", "ja", ""] {
+        assert_eq!(crisis_reply(language), crisis_reply("en"), "{language:?}");
+    }
+    assert_ne!(crisis_reply("ko"), crisis_reply("en"));
 }
 
 /// ADR-0003: 사용자에게 보이는 글에 쓰지 않는 말. 웹 `apps/web/i18n/catalog.test.ts` 의 BANNED 와 같은 범위다.
@@ -85,7 +108,7 @@ fn 금지어_검사는_변형과_예외를_가른다() {
 
 #[test]
 fn 사용자에게_보이는_고정_문구에_금지어가_없다() {
-    let texts = std::iter::once(crisis_reply()).chain(
+    let texts = [crisis_reply("en"), crisis_reply("ko")].into_iter().chain(
         safety_resources()
             .iter()
             .flat_map(|resource| [resource.name, resource.note]),

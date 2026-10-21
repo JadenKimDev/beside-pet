@@ -10,6 +10,7 @@ use super::access::session_conflict;
 use super::deadline::{CallFailure, Deadlined};
 use super::parts::FlowParts;
 use super::voice::Voice;
+use crate::identity::ChatLanguage;
 use crate::llm::{CallContext, CallPurpose, GenerationRequest};
 use crate::safety::{assess_risk_verdict, crisis_reply};
 use crate::shared::ApiError;
@@ -83,7 +84,7 @@ pub async fn handle(
     );
     // 위기는 받자마자 닫고 고정 문구로 끝낸다(저장 한 번).
     if risk.level.is_crisis() {
-        let reply = crisis_reply();
+        let reply = crisis_reply(language_code(session.grief_profile().language()));
         session
             .accept_crisis_turn(turn_id, text, reply, risk.detected_by, parts.clock.now())
             .map_err(|error| conflict(&session, error))?;
@@ -128,6 +129,14 @@ pub async fn handle(
         .map_err(|error| conflict(&session, error))?;
     parts.sessions.save(&session.snapshot()).await?;
     Ok(session.turn_response(reply))
+}
+
+/// `safety` 가 받는 대화 언어 코드.
+fn language_code(language: ChatLanguage) -> &'static str {
+    match language {
+        ChatLanguage::Ko => "ko",
+        ChatLanguage::En => "en",
+    }
 }
 
 /// 위기가 아닌 턴의 `meta`: 이번 턴이 끝나면 될 과제·진행률·지원 수준. 클로징도 답 뒤에 닫으므로 `done` 은 거짓이다.

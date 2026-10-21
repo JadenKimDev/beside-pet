@@ -86,5 +86,5 @@ async fn 위기_판정이_답하지_않으면_제한_뒤_키워드로_판정하�
     let crisis = bounded(h.flow.send(&owner(), SESSION_ID, message(KEYWORD_CRISIS)))
         .await
         .unwrap();
-    assert_eq!(crisis.reply, crisis_reply());
+    assert_eq!(crisis.reply, crisis_reply("en"));
 }

@@ -70,6 +70,30 @@
       "finished_at": "2026-10-21T14:30:52.080Z",
       "active_ms": 43511,
       "verify_ms": 1398
+    },
+    {
+      "id": "S4",
+      "title": "위기 고정 문구를 대화 언어에 맞춘다(한국어 세션은 한국어 고정 문구)",
+      "scope": [
+        "apps/server/src/safety/",
+        "apps/server/src/support/flow/orchestrator.rs",
+        "apps/server/src/support/flow/tests/"
+      ],
+      "depends_on": [
+        "S2"
+      ],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server -- safety support::flow::tests::crisis"
+      ],
+      "tdd": true,
+      "status": "done",
+      "passes": true,
+      "retries": 0,
+      "started_at": "2026-10-21T14:54:15.077Z",
+      "red_at": "2026-10-21T14:57:15.743Z",
+      "finished_at": "2026-10-21T14:57:20.390Z",
+      "active_ms": 185313,
+      "verify_ms": 4333
     }
   ]
 }

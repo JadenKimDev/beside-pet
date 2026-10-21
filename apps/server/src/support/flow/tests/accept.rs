@@ -232,7 +232,7 @@ async fn 위기_턴은_받자마자_닫히고_고정_문구와_함께_한_번_�
         .await
         .unwrap();
 
-    assert_eq!(turn.reply, crisis_reply());
+    assert_eq!(turn.reply, crisis_reply("en"));
     assert!(turn.done);
     assert_eq!(h.model.reply_calls(), replies);
     assert_eq!(h.sessions.saves().len(), saves + 1);
@@ -251,7 +251,7 @@ async fn 위기_턴은_받자마자_닫히고_고정_문구와_함께_한_번_�
         tail,
         vec![
             (MessageRole::User, KEYWORD_CRISIS, Some(TURN_ID)),
-            (MessageRole::Assistant, crisis_reply(), Some(TURN_ID)),
+            (MessageRole::Assistant, crisis_reply("en"), Some(TURN_ID)),
         ]
     );
     let crisis = saved.turns.iter().find(|t| t.id == TURN_ID).unwrap();

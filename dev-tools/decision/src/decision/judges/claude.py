@@ -24,7 +24,11 @@ from decision.judges import Judge, Judgment, failed, question_of
 
 SYSTEM_PROMPT = (
     "너는 분류기다. 반려동물을 떠나보낸 보호자와 동반자의 대화에서 동반자의 답(`reply`)이 어떤 성격인지 "
-    "주어진 옵션 가운데 하나만 고른다. 답에는 옵션의 이름 하나만 쓴다. 설명, 따옴표, 마침표를 붙이지 않는다."
+    "주어진 옵션 가운데 하나만 고른다. 답에는 옵션의 이름 하나만 쓴다. 설명, 따옴표, 마침표를 붙이지 않는다. "
+    "답에 여러 성격이 섞여 있으면 분량이 가장 큰 성격을 고른다. 보호자의 말을 되받는 문장이 하나뿐이고 그 뒤에 "
+    "질문(괄호의 예시 포함)이 이어지면 question 이다. 되받는 문장이 둘 이상이면 specific_reflection 이다. "
+    "보호자가 말한 구체를 받지 않은 위로나 안심이 주면 generic_comfort 다. 첫 인사처럼 받을 말이 없으면 "
+    "specific_reflection 이 아니다."
 )
 
 USER_PROMPT_TEMPLATE = """{instructions}

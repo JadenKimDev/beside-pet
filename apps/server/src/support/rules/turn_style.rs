@@ -9,6 +9,8 @@ use crate::support::ReplyPhase;
 const REFUSAL: &[&str] = &[
     "그만 물",
     "질문 그만",
+    "질문 좀 그만",
+    "그만해",
     "묻지 마",
     "포장하지",
     "몰라",

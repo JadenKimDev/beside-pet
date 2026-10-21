@@ -42,6 +42,16 @@ fn 거부_뒤에는_질문하지_않는다() {
 }
 
 #[test]
+fn 질문_좀_그만해요도_거부다() {
+    let s = style(
+        ReplyPhase::Deepen,
+        &["창가에 앉아 있던 모습이 떠오르네요."],
+        &[LONG_USER, "질문 좀 그만해요"],
+    );
+    assert_eq!(s.question, QuestionPolicy::Forbid);
+}
+
+#[test]
 fn 거부는_최근_사용자_말_세_개까지만_본다() {
     let s = style(
         ReplyPhase::Deepen,

@@ -120,10 +120,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-21T02:33:11.992Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -254,13 +254,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T02:33:12.615Z",
+      "finished_at": "2026-10-21T02:34:32.279Z",
+      "active_ms": 79664,
+      "verify_ms": 1389
     },
     {
       "id": "S11",
@@ -276,13 +276,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T02:33:12.924Z",
+      "finished_at": "2026-10-21T02:34:33.911Z",
+      "active_ms": 80987,
+      "verify_ms": 1296
     },
     {
       "id": "S12",
@@ -321,13 +321,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T02:33:12.303Z",
+      "finished_at": "2026-10-21T02:34:30.562Z",
+      "active_ms": 78259,
+      "verify_ms": 11
     }
   ]
 }

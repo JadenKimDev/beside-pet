@@ -1,6 +1,6 @@
 //! 위기 때 안내할 지원 기관 목록과 고정 위기 문구(순수 데이터).
 //!
-//! 위기 답은 모델이 만들지 않는다. 안전을 위해 고정 문구와 확인한 연락처만 쓴다. 값은 TS 의 `safety-resources.ts` 그대로다.
+//! 위기 답은 모델이 만들지 않는다. 안전을 위해 고정 문구와 확인한 연락처만 쓴다. 번호는 TS 의 `safety-resources.ts` 그대로이고, 글은 ADR-0003 의 금지어를 쓰지 않는다(테스트가 본다).
 
 use serde::Serialize;
 
@@ -18,7 +18,7 @@ const RESOURCES: &[SafetyResource] = &[
         name: "Suicide Prevention Hotline (Korea)",
         phone: "109",
         hours: "24h",
-        note: "Talk to a trained counselor right away.",
+        note: "Call right away, any time of day.",
     },
     SafetyResource {
         name: "Danuri Helpline (multilingual)",
@@ -28,7 +28,7 @@ const RESOURCES: &[SafetyResource] = &[
     },
 ];
 
-const CRISIS_REPLY: &str = "It sounds like you're going through something very hard. You don't have to carry this alone — you can reach a counselor right now at 109 (24h), or the multilingual Danuri Helpline at 1577-1366.";
+const CRISIS_REPLY: &str = "It sounds like you're going through something very hard. You don't have to carry this alone — you can reach the crisis line right now at 109 (24h), or the multilingual Danuri Helpline at 1577-1366.";
 
 pub fn safety_resources() -> &'static [SafetyResource] {
     RESOURCES

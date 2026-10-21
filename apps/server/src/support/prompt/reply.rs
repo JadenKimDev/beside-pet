@@ -1,6 +1,7 @@
 //! 발화 한 번의 모델 입력: 시스템 프롬프트와 단계 지침, 히스토리 창(TS 의 `reply.prompt.ts`).
 //!
-//! 단계와 과제는 규칙이 정해 넘긴다. 여기서는 그것을 글로 바꾸기만 한다. 문구는 TS 그대로다.
+//! 단계와 과제는 규칙이 정해 넘긴다. 여기서는 그것을 글로 바꾸기만 한다. 문구는 TS 에서 왔고, 0.2.0 에서 정체·화법
+//! 지시문을 다시 썼다(괄호 예시 필수, 안심 지침, 질문 강제를 걷어 냈다).
 
 use super::language::output_language;
 use super::transcript::{speaker_lines, to_prompt_role};
@@ -12,7 +13,7 @@ use crate::support::{ReplyPhase, SessionSummaryResponse};
 
 /// 이 프롬프트의 버전(`x.y.z`). 문구를 바꾸는 커밋이 같은 커밋에서 올린다: major 는 실측 기준선을 새로 잡는 변경,
 /// minor 는 같은 기준선에서 비교할 수 있는 문구 변경, patch 는 오탈자와 다듬기.
-pub const PROMPT_VERSION: &str = "0.1.0";
+pub const PROMPT_VERSION: &str = "0.2.0";
 
 /// 한 턴에 모델로 보내는 최근 메시지의 수.
 pub const HISTORY_WINDOW: usize = 10;
@@ -45,14 +46,17 @@ pub fn reply_system_prompt(context: &ReplyContext<'_>) -> String {
         .collect::<Vec<_>>()
         .join("\n");
     let lines = [
-        "You are a warm companion supporting someone through the grief of losing a beloved pet.".to_owned(),
+        "You are someone a grieving pet owner is talking with. Speak like a thoughtful person, not like a script.".to_owned(),
         format!(
             "The pet's name is \"{}\". Respond ONLY in {}.",
             context.pet_name,
             output_language(context.language)
         ),
-        "Speak about one thing at a time, in 2-3 short and gentle sentences. Do not use lists, assessments, or strings of advice.".to_owned(),
-        "Keep empathy and acknowledgement to one sentence at most, and every reply except a closing MUST end with exactly one concrete question the user can answer. Never reply with empathy alone.".to_owned(),
+        "Reply in 1-3 short sentences about one thing at a time. Do not use lists, assessments, or strings of advice.".to_owned(),
+        "Build your reply from what the user actually said (the places, things, and habits they mentioned), put in your own words.".to_owned(),
+        "Vary how you begin and end each reply.".to_owned(),
+        "Ask at most one question, and only when it helps. A reply does not have to end with a question.".to_owned(),
+        "Never invent details about the pet that the user has not mentioned (its looks, habits, or moments together).".to_owned(),
         format!("Current phase guidance: {}", phase_guide(context.phase)),
         context.previous.map(previous_session_block).unwrap_or_default(),
         if grounding.is_empty() {
@@ -118,19 +122,19 @@ fn join_non_empty(lines: &[String]) -> String {
 fn phase_guide(phase: ReplyPhase) -> &'static str {
     match phase {
         ReplyPhase::Intro => {
-            "Greet briefly, reassure them you are here together, then move straight into one concrete question that opens the story of the loss. Always include a short parenthetical example (e.g., ...) so the user knows what kind of answer fits."
+            "Greet briefly, then ask one question that opens the story of their pet. Since it is the first question, you may add a short example of what kind of answer fits."
         }
         ReplyPhase::Resume => {
-            "Briefly welcome them back, then ask one concrete question that reopens the current stage as a continuation of the previous conversation — do not start over from the beginning. Always include a short parenthetical example (e.g., ...)."
+            "Briefly welcome them back, then reopen the current stage as a continuation of the previous conversation — do not start over from the beginning."
         }
         ReplyPhase::Task => {
-            "Move the conversation forward with one question that opens the new stage. Include a short parenthetical example (e.g., ...) to make answering easier."
+            "Move the conversation forward with one question that opens the new stage."
         }
         ReplyPhase::Deepen => {
-            "Pick up what the user just said and ask one follow-up question that goes one layer deeper — do not switch topics. Always include a short parenthetical example (e.g., ...)."
+            "Pick up what the user just said and go one layer deeper — do not switch topics."
         }
         ReplyPhase::Retry => {
-            "Do not press. Reassure them that not answering is fine, then ask one low-pressure question. Include a very easy parenthetical example (even a single word is fine)."
+            "Do not press; not answering is fine. If you ask, keep it low-pressure, and you may add a very easy example (even a single word is fine)."
         }
         ReplyPhase::Closing => {
             "Acknowledge what they shared today and close warmly. Do not ask a new question."

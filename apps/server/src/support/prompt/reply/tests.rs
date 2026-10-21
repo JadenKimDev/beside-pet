@@ -1,8 +1,11 @@
-// 발화 프롬프트: 시스템 프롬프트(TS 문구 그대로), 단계 지침, 히스토리 창과 단계 씨앗. 픽스처는 지어낸 대화다.
+// 발화 프롬프트: 시스템 프롬프트(정체·화법 지시문), 단계 지침, 히스토리 창과 단계 씨앗. 픽스처는 지어낸 대화다.
 
 use chrono::{TimeZone, Utc};
 
-use super::{HISTORY_WINDOW, PreviousSession, ReplyContext, reply_messages, reply_system_prompt};
+use super::{
+    HISTORY_WINDOW, PROMPT_VERSION, PreviousSession, ReplyContext, reply_messages,
+    reply_system_prompt,
+};
 use crate::identity::ChatLanguage;
 use crate::llm::{PromptMessage, PromptRole};
 use crate::support::knowledge::KnowledgeChunk;
@@ -52,16 +55,34 @@ fn chunk(source: &str, content: &str) -> KnowledgeChunk {
     }
 }
 
+const IDENTITY: &str = "You are someone a grieving pet owner is talking with. Speak like a thoughtful person, not like a script.";
+const NO_INVENTING: &str = "Never invent details about the pet that the user has not mentioned (its looks, habits, or moments together).";
+
+fn phase_guidance(prompt: &str) -> &str {
+    prompt
+        .lines()
+        .find_map(|line| line.strip_prefix("Current phase guidance: "))
+        .expect("phase guidance line")
+}
+
 #[test]
-fn the_system_prompt_is_the_ts_text_with_grounding() {
+fn the_prompt_version_is_0_2_0() {
+    assert_eq!(PROMPT_VERSION, "0.2.0");
+}
+
+#[test]
+fn the_system_prompt_is_the_identity_and_style_text_with_grounding() {
     let knowledge = [chunk("출처A", "내용A"), chunk("출처B", "내용B")];
     let prompt = reply_system_prompt(&context(ReplyPhase::Deepen, &[], &knowledge));
     let expected = [
-        "You are a warm companion supporting someone through the grief of losing a beloved pet.",
+        IDENTITY,
         "The pet's name is \"보리\". Respond ONLY in Korean.",
-        "Speak about one thing at a time, in 2-3 short and gentle sentences. Do not use lists, assessments, or strings of advice.",
-        "Keep empathy and acknowledgement to one sentence at most, and every reply except a closing MUST end with exactly one concrete question the user can answer. Never reply with empathy alone.",
-        "Current phase guidance: Pick up what the user just said and ask one follow-up question that goes one layer deeper — do not switch topics. Always include a short parenthetical example (e.g., ...).",
+        "Reply in 1-3 short sentences about one thing at a time. Do not use lists, assessments, or strings of advice.",
+        "Build your reply from what the user actually said (the places, things, and habits they mentioned), put in your own words.",
+        "Vary how you begin and end each reply.",
+        "Ask at most one question, and only when it helps. A reply does not have to end with a question.",
+        NO_INVENTING,
+        "Current phase guidance: Pick up what the user just said and go one layer deeper — do not switch topics.",
         "Ground your words in the following verified grief theory, but never quote or cite it:\n- (출처A) 내용A\n- (출처B) 내용B",
     ]
     .join("\n");
@@ -69,18 +90,75 @@ fn the_system_prompt_is_the_ts_text_with_grounding() {
 }
 
 #[test]
-fn without_knowledge_or_previous_the_prompt_has_five_lines_in_english() {
+fn every_phase_carries_the_identity_and_the_no_inventing_rule() {
+    for phase in ALL_PHASES {
+        let prompt = reply_system_prompt(&context(phase, &[], &[]));
+        assert!(prompt.starts_with(IDENTITY), "{phase:?}");
+        assert!(prompt.contains(NO_INVENTING), "{phase:?}");
+        assert!(!prompt.contains("warm companion"), "{phase:?}");
+    }
+}
+
+#[test]
+fn no_phase_forces_a_question_or_stock_reassurance() {
+    for phase in ALL_PHASES {
+        let prompt = reply_system_prompt(&context(phase, &[], &[]));
+        assert!(
+            !prompt.contains("MUST end with exactly one concrete question"),
+            "{phase:?}"
+        );
+        assert!(
+            !prompt.contains("Never reply with empathy alone"),
+            "{phase:?}"
+        );
+        assert!(
+            !prompt.contains("reassure them you are here together"),
+            "{phase:?}"
+        );
+    }
+}
+
+#[test]
+fn no_phase_requires_a_parenthetical_example() {
+    for phase in ALL_PHASES {
+        let prompt = reply_system_prompt(&context(phase, &[], &[]));
+        assert!(!prompt.contains("parenthetical"), "{phase:?}");
+        assert!(!prompt.contains("(e.g., ...)"), "{phase:?}");
+        for sentence in prompt.split(['.', '\n']) {
+            if sentence.contains("example") {
+                let lower = sentence.to_lowercase();
+                assert!(
+                    !lower.contains("always") && !lower.contains("must"),
+                    "{phase:?}: {sentence}"
+                );
+                assert!(lower.contains("may"), "{phase:?}: {sentence}");
+            }
+        }
+    }
+}
+
+#[test]
+fn only_intro_and_retry_may_add_a_short_example() {
+    for phase in ALL_PHASES {
+        let guide = phase_guidance(&reply_system_prompt(&context(phase, &[], &[]))).to_owned();
+        let allows = matches!(phase, ReplyPhase::Intro | ReplyPhase::Retry);
+        assert_eq!(guide.contains("example"), allows, "{phase:?}: {guide}");
+    }
+}
+
+#[test]
+fn without_knowledge_or_previous_the_prompt_ends_with_the_phase_guidance_in_english() {
     let mut ctx = context(ReplyPhase::Closing, &[], &[]);
     ctx.language = ChatLanguage::En;
     let prompt = reply_system_prompt(&ctx);
     let lines: Vec<&str> = prompt.lines().collect();
-    assert_eq!(lines.len(), 5);
+    assert_eq!(lines.len(), 8);
     assert_eq!(
         lines[1],
         "The pet's name is \"보리\". Respond ONLY in English."
     );
     assert_eq!(
-        lines[4],
+        lines[7],
         "Current phase guidance: Acknowledge what they shared today and close warmly. Do not ask a new question."
     );
 }
@@ -89,21 +167,21 @@ fn without_knowledge_or_previous_the_prompt_has_five_lines_in_english() {
 fn every_phase_has_its_own_guidance() {
     let guides: Vec<String> = ALL_PHASES
         .iter()
-        .map(|&phase| {
-            let prompt = reply_system_prompt(&context(phase, &[], &[]));
-            prompt.lines().nth(4).unwrap().to_owned()
-        })
+        .map(|&phase| phase_guidance(&reply_system_prompt(&context(phase, &[], &[]))).to_owned())
         .collect();
-    assert!(guides[0].contains("Greet briefly, reassure them you are here together"));
+    assert!(guides[0].starts_with("Greet briefly, then ask one question that opens"));
     assert!(guides[1].contains("Briefly welcome them back"));
+    assert!(guides[1].contains("do not start over from the beginning"));
     assert!(
         guides[2]
             .contains("Move the conversation forward with one question that opens the new stage.")
     );
-    assert!(guides[3].contains("goes one layer deeper"));
-    assert!(guides[4].contains("Do not press. Reassure them that not answering is fine"));
-    assert!(guides[4].contains("(even a single word is fine)"));
-    assert!(guides[5].contains("close warmly"));
+    assert!(guides[3].contains("go one layer deeper — do not switch topics"));
+    assert!(guides[4].starts_with("Do not press"));
+    assert!(guides[4].contains("not answering is fine"));
+    assert!(guides[5].contains("close warmly. Do not ask a new question."));
+    let distinct: std::collections::HashSet<&String> = guides.iter().collect();
+    assert_eq!(distinct.len(), ALL_PHASES.len());
 }
 
 #[test]

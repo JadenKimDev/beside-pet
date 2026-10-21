@@ -1,5 +1,5 @@
 ---
-id: ADR-0026
+id: ADR-0027
 date: 2026-10-21
 status: accepted
 tags: [llm, prompt, reply, cliche, turn-style, haiku]

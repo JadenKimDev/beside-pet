@@ -160,6 +160,14 @@ pnpm chat:eval run --all --baseline <이전 날짜>
 - 서버의 겉(문구 포함)을 바꿔야 하는 감은 ADR-0015 의 예외라 따로 PRD 로 다룬다고 적는다.
 - PRD 를 직접 쓰지 않는다. 보고서 경로와 후속 PRD 감을 팀장에게 돌려주고, PRD 는 팀장이 `.claude/skills/prd/SKILL.md` 로 쓴다.
 
+## 8. 상투성 판정기의 재료와 평가 (`dev-tools/decision`)
+
+전사는 상투성 판정기(#26)의 라벨 재료이기도 하다. 재료는 `outputs/chat-eval/**/*.run.json` 의 지어낸 인물 대화와 `pnpm decision:synth` 가 만든 합성 답뿐이고, 실제 사용자 세션은 쓰지 않는다. 절차와 형식은 `dev-tools/decision/README.md` 에 있다.
+
+- **라벨 후보를 다시 뽑는 때**: 이 스킬로 전사를 새로 남겼고 그 전사를 판정기 재료에 더하고 싶을 때 `pnpm decision:label` 을 돌린다. 후보 파일의 chat-eval 줄만 다시 뽑고 합성 줄은 남긴다. 새 줄은 라벨이 비어 있으므로 라벨(`data/labels/`)을 다시 붙이고 `pnpm decision:split` 으로 분할을 다시 만든다. 라벨 정의(`src/decision/schema.py` 의 criteria)를 고쳤을 때도 후보를 다시 뽑는다(검증기가 문자열을 비교한다).
+- **판정기를 다시 재는 때**: 발화 프롬프트(`reply.rs`)나 모델을 바꿔 답의 분포가 달라졌을 때, 판정기의 프롬프트(`src/decision/judges/claude.py` 의 상수. 서버의 HaikuJudge 와 같은 문자열)를 고쳤을 때, 라벨 집합이나 평가셋이 바뀌었을 때 `pnpm decision:eval --judge claude --model haiku` 로 잰다. 결과는 `outputs/decision/<날짜>/report.md` 에 쌓이고, ADR 의 수치 표와 임계값을 바꿔야 하면 ADR 을 고친다. 호출은 `claude -p`(구독)뿐이고 Anthropic API 는 부르지 않는다.
+- 대화 실측의 마감 보고에는 판정기 평가를 넣지 않는다. 두 일은 재료만 겹친다.
+
 ## 팀장에게 돌려줄 것
 
 보고서 경로(`outputs/chat-eval/<날짜>/report.md`), 띄운 커밋, 돌린 인물, 회귀 줄(없으면 "없음"), 후속 PRD 감의 목록.

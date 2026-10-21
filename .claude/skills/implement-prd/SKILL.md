@@ -27,6 +27,8 @@ echo "${HARNESS_IMPL:-}"
 
   출력된 pane 과 agent 이름(`impl-<이슈>`)을 사용자에게 알린다. 포커스는 옮기지 않는다. 그 세션이 막히면(`herdr agent get impl-<이슈>` 가 `blocked`) 사용자가 그 pane 으로 가서 답한다. 이 세션은 구현에 손대지 않는다. herdr 가 없어 pane 을 열지 못하면 `wt:pane` 이 알려 준 명령(`cd <워크트리> && HARNESS_IMPL=<이슈> claude '/implement-prd <이슈>'`)을 사용자에게 그대로 전하고 멈춘다. main 에서 구현을 시작하지 않는다.
 
+- **러너 세션이면**(`HARNESS_RUNNER=1`, 이 Mac 의 self-hosted 러너가 띄운 `claude -p`, ADR-0032) 사람에게 물을 수 없다. 묻거나 승인을 받아야 하는 자리(`needs_spec`, `parked`, QA `확인 불가`, 파괴적 변경, 분류기가 막은 명령)를 만나면 무엇이 막혔는지 마지막 출력에 적고 멈춘다. 러너 스크립트가 그것을 댓글과 `run:blocked` 로 남긴다.
+
 - **이 이슈면** 구현 세션이다. 아래를 전부 따른다. 작업 디렉터리는 워크트리(`pnpm wt:status` 가 보여 주는 `prd-<이슈>`)이고 브랜치는 `prd/<이슈>` 다.
 
 ## 시작하기 전에 확인한다

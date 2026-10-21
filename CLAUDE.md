@@ -152,6 +152,7 @@ herdr 는 선택이다. 없으면 워크트리는 git worktree 로만 만들고,
 | 결정의 이유를 찾거나 적는다 | `docs/adr/README.md` (`pnpm docs:search`) |
 
 - PRD 의 정본은 `JadenKimDev/beside-pet` 의 GitHub 이슈다.
+- 구현은 라벨로도 시킬 수 있다. 이슈에 `run:implement`(또는 `run:again`)를 붙이면 이 Mac 의 self-hosted 러너가 워크트리에서 `implement-prd` 를 돌린다(ADR-0032, 러너 등록은 사용자가 `dev-tools/scripts/runner/README.md` 대로). 러너의 결과는 이슈 댓글과 라벨(`review:ready`, 막히면 `run:blocked`)이고, 이슈를 닫는 것은 사람이다.
 - 작업의 이름은 이슈 번호다. 따로 만든 티켓 번호는 쓰지 않는다. PRD 안의 작업은 `S1`, `S2` 로 부른다.
 - 이슈는 프로젝트 보드(`project.config.json` 의 `boardNumber`)에서 본다. `prd:push` 가 이슈를 보드에 올리고, 첫 작업을 집으면 러너가 In progress 로 옮긴다. 닫힌 이슈를 Done 으로 옮기는 것은 보드의 자동화다. 보드는 창이고 판정의 정본은 원장이라, 보드 번호가 없거나 보드에 닿지 못해도 러너는 멈추지 않는다.
 - 원장의 판정 칸(`status`, `passes`, `retries`, `red_at`, 시각)은 `pnpm work`, `pnpm ledger:red`, `pnpm ledger:verify`, `pnpm finish` 만 쓴다. 작업이 끝났는지는 검증 명령의 종료 코드가 정한다.

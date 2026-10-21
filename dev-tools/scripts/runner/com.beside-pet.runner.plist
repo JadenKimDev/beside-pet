@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Beside Pet 의 GitHub Actions self-hosted 러너를 로그인할 때 띄운다(LaunchAgent, 사용자 세션).
+  __HOME__ 은 설치할 때 README 의 명령이 $HOME 으로 바꾼다. 토큰은 여기에 두지 않는다(러너 디렉터리의 .env).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.beside-pet.runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/actions-runner-beside-pet/run.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__HOME__/actions-runner-beside-pet</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__HOME__/.local/bin:__HOME__/.local/share/fnm/aliases/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <key>LANG</key>
+    <string>ko_KR.UTF-8</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/beside-pet-runner.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/beside-pet-runner.log</string>
+</dict>
+</plist>

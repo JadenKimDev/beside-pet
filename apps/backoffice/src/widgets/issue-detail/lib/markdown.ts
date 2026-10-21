@@ -42,3 +42,26 @@ export function htmlImagesToMarkdown(text: string): string {
     })
     .join('\n');
 }
+
+/**
+ * 본문 맨 위의 YAML 머리말(`---` 줄과 닫는 `---` 줄 사이)을 ```yaml 울타리 코드 블록으로 바꾼다.
+ * 그대로 두면 첫 `---` 가 수평선, 안쪽이 문단과 목록으로 그려진다. 닫는 줄이 없거나 첫 줄이 아니면 그대로 둔다.
+ */
+export function frontMatterToCode(text: string): string {
+  const lines = text.split(/\r?\n/);
+  if (lines[0]?.trimEnd() !== '---') return text;
+  const end = lines.findIndex((line, index) => index > 0 && line.trimEnd() === '---');
+  if (end < 0) return text;
+  const inner = lines.slice(1, end);
+  const longest = Math.max(
+    2,
+    ...inner.map((line) => line.match(/`+/g)?.join('') ?? '').map((ticks) => ticks.length),
+  );
+  const fence = '`'.repeat(longest + 1);
+  return [`${fence}yaml`, ...inner, fence, ...lines.slice(end + 1)].join('\n');
+}
+
+/** 렌더 전의 손질: 머리말을 코드 블록으로 바꾼 뒤(그 안의 태그는 글로 남는다) 이미지 태그를 바꾼다. */
+export function prepareMarkdown(text: string): string {
+  return htmlImagesToMarkdown(frontMatterToCode(text));
+}

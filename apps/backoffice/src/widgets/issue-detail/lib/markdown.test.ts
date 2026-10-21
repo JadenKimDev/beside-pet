@@ -2,10 +2,15 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import Markdown from 'react-markdown';
 import { describe, expect, it } from 'vitest';
-import { htmlImagesToMarkdown, MARKDOWN_OPTIONS } from './markdown';
+import {
+  frontMatterToCode,
+  htmlImagesToMarkdown,
+  MARKDOWN_OPTIONS,
+  prepareMarkdown,
+} from './markdown';
 
 const render = (text: string) =>
-  renderToStaticMarkup(createElement(Markdown, MARKDOWN_OPTIONS, htmlImagesToMarkdown(text)));
+  renderToStaticMarkup(createElement(Markdown, MARKDOWN_OPTIONS, prepareMarkdown(text)));
 
 describe('MARKDOWN_OPTIONS', () => {
   it('drops raw HTML instead of rendering it', () => {
@@ -61,6 +66,48 @@ describe('htmlImagesToMarkdown', () => {
   it('escapes brackets in alt and spaces in the address', () => {
     expect(htmlImagesToMarkdown('<img alt="a]b" src="https://example.com/a b.png">')).toBe(
       '![a\\]b](<https://example.com/a b.png>)',
+    );
+  });
+});
+
+describe('frontMatterToCode', () => {
+  it('turns the leading YAML front matter into a yaml code block', () => {
+    const text = '---\nid: 0000\ntags: [예시]\n---\n\n# 제목\n\n본문';
+    expect(frontMatterToCode(text)).toBe('```yaml\nid: 0000\ntags: [예시]\n```\n\n# 제목\n\n본문');
+    expect(render(text)).toContain('<code class="language-yaml">');
+    expect(render(text)).not.toContain('<hr');
+  });
+
+  it('leaves a body without front matter alone', () => {
+    const text = '# 제목\n\n본문';
+    expect(frontMatterToCode(text)).toBe(text);
+  });
+
+  it('leaves a horizontal rule in the middle alone', () => {
+    const text = '# 제목\n\n---\n\n본문\n\n---\n';
+    expect(frontMatterToCode(text)).toBe(text);
+  });
+
+  it('leaves an opening rule without a closing line alone', () => {
+    const text = '---\n본문';
+    expect(frontMatterToCode(text)).toBe(text);
+  });
+
+  it('uses a longer fence when the front matter holds backticks', () => {
+    expect(frontMatterToCode('---\na: "```"\n---\n본문')).toBe('````yaml\na: "```"\n````\n본문');
+  });
+
+  it('accepts CRLF line ends', () => {
+    expect(frontMatterToCode('---\r\na: 1\r\n---\r\n본문')).toBe('```yaml\na: 1\n```\n본문');
+  });
+});
+
+describe('prepareMarkdown', () => {
+  it('fences the front matter so image tags inside it stay text', () => {
+    const text =
+      '---\nshot: <img src="https://example.com/a.png">\n---\n<img src="https://example.com/b.png">';
+    expect(prepareMarkdown(text)).toBe(
+      '```yaml\nshot: <img src="https://example.com/a.png">\n```\n![](https://example.com/b.png)',
     );
   });
 });

@@ -200,12 +200,10 @@ describe('streamFrames', () => {
     stubFetch(jsonResponse(401, { message: 'Unauthorized' }));
     const client = createHttpClient({ baseUrl: BASE });
 
-    const error = await collect(client.streamFrames('/v1/stream')).catch(
-      (caught: unknown) => caught,
-    );
+    const pending = collect(client.streamFrames('/v1/stream'));
 
-    expect(error).toBeInstanceOf(HttpError);
-    expect(error).toMatchObject({ status: 401, message: 'Unauthorized' });
+    await expect(pending).rejects.toBeInstanceOf(HttpError);
+    await expect(pending).rejects.toMatchObject({ status: 401, message: 'Unauthorized' });
   });
 });
 

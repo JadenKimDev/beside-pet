@@ -4,27 +4,12 @@
  * (a wrong hotline number, "counselor" in en, a broken en sentence).
  */
 import { describe, expect, it } from 'vitest';
+import { bannedWordsIn } from './banned-words';
 import { en } from './en';
 import { ko } from './ko';
 import { walkCatalog } from './walk';
 
 const catalogs = { ko, en } as const;
-
-/** ADR-0003: words never used in user-facing copy. */
-const BANNED_EN = [
-  /\bcounsel(?:ing|ling|or|lor|ors|lors)?\b/i,
-  /\btherap(?:y|ies|ist|ists|eutic)\b/i,
-  /\btreatments?\b/i,
-  /\bclinical(?:ly)?\b/i,
-  /\bdiagnos(?:e|es|is|ed|ing)\b/i,
-  /\bcure[sd]?\b/i,
-  /\bpatients?\b/i,
-];
-const BANNED_KO = [/상담/, /치료/];
-const BANNED = [...BANNED_EN, ...BANNED_KO];
-
-/** The proper name of an outside institution, not a description of this product. */
-const PROPER_NAMES = ['자살예방상담전화'];
 
 /**
  * ADR-0003's only exception: disclaimers stating the negative ("not a substitute for …").
@@ -33,9 +18,6 @@ const PROPER_NAMES = ['자살예방상담전화'];
 const DISCLAIMERS: Record<string, RegExp> = {
   'footer.disclaimer': /대신하지 않아요|not a substitute/,
 };
-
-const stripProperNames = (text: string): string =>
-  PROPER_NAMES.reduce((acc, name) => acc.split(name).join(''), text);
 
 describe.each(Object.entries(catalogs))('%s catalog wording', (_locale, catalog) => {
   const entries = walkCatalog(catalog);
@@ -48,9 +30,7 @@ describe.each(Object.entries(catalogs))('%s catalog wording', (_locale, catalog)
     const hits = entries
       .filter((entry) => !(entry.path in DISCLAIMERS))
       .flatMap((entry) =>
-        BANNED.filter((pattern) => pattern.test(stripProperNames(entry.text))).map(
-          (pattern) => `${entry.path}: ${pattern} in "${entry.text}"`,
-        ),
+        bannedWordsIn(entry.text).map((pattern) => `${entry.path}: ${pattern} in "${entry.text}"`),
       );
     expect(hits).toEqual([]);
   });

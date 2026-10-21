@@ -1,6 +1,7 @@
 // 라우트의 겉: 상태 코드, 인증, 검증 문구, 501, SSE. 서비스와 인증은 더블이다(DB 를 쓰지 않는다).
 
 mod double;
+mod turns;
 
 use std::sync::Arc;
 
@@ -64,7 +65,7 @@ fn send_body() -> Value {
     json!({ "text": "hello" })
 }
 
-/// 11 라우트와 올바른 본문.
+/// 14 라우트와 올바른 본문.
 fn routes() -> Vec<(Method, &'static str, Option<Value>)> {
     vec![
         (Method::POST, "/v1/sessions", Some(start_body())),
@@ -82,6 +83,9 @@ fn routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::GET, "/v1/sessions/s-1/messages", None),
         (Method::GET, "/v1/sessions/s-1/analysis", None),
         (Method::GET, "/v1/sessions/s-1/report", None),
+        (Method::GET, "/v1/sessions/s-1/turns/t-1/stream", None),
+        (Method::POST, "/v1/sessions/s-1/turns/t-1/cancel", None),
+        (Method::POST, "/v1/sessions/s-1/turns/t-1/retry", None),
     ]
 }
 
@@ -89,6 +93,7 @@ fn routes() -> Vec<(Method, &'static str, Option<Value>)> {
 
 #[tokio::test]
 async fn 쿠키가_없으면_모두_401_이다() {
+    assert_eq!(routes().len(), 14);
     for (method, path, body) in routes() {
         let reply = call(app(Arc::new(Echo)), method.clone(), path, None, body).await;
         assert_eq!(reply.status, StatusCode::UNAUTHORIZED, "{method} {path}");

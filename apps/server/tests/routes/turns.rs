@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use axum::http::{Method, StatusCode};
 use chrono::Utc;
 use futures_util::future::BoxFuture;
-use futures_util::stream;
+use futures_util::{StreamExt, stream};
 use serde_json::{Value, json};
 
 use beside_pet_server::app::Services;
@@ -21,16 +21,21 @@ use crate::harness::Harness;
 
 const USERNAME: &str = "wren-fixture";
 const PASSWORD: &str = "fixture-pass-turns";
-const SESSION: &str = "s-turns-fixture";
-const TURN_ID: &str = "3e9a1c7b-5d2f-4b86-a0c4-9f7e2b1d8a53";
-const FAILED_TURN_ID: &str = "c1d8e2f4-7a3b-4e59-8b6d-2a0f9c3e7b14";
-const WORDS: &str = "We used to nap together in the sun.";
+pub const SESSION: &str = "s-turns-fixture";
+pub const TURN_ID: &str = "3e9a1c7b-5d2f-4b86-a0c4-9f7e2b1d8a53";
+pub const FAILED_TURN_ID: &str = "c1d8e2f4-7a3b-4e59-8b6d-2a0f9c3e7b14";
+pub const WORDS: &str = "We used to nap together in the sun.";
 
-/// 위기 판정은 NO, 발화는 고정 글. `fail` 을 켜면 발화가 공급자 오류를 낸다.
+/// 위기 판정은 NO, 발화는 고정 글. `fail` 을 켜면 발화가 공급자 오류를 내고,
+/// `hold` 를 켜면 스트림이 첫 조각 뒤에 멈춘다(중단할 때까지 흐르는 답).
 #[derive(Default)]
-struct Scripted {
-    fail: AtomicBool,
+pub struct Scripted {
+    pub fail: AtomicBool,
+    pub hold: AtomicBool,
 }
+
+/// `hold` 일 때의 첫 조각.
+pub const FIRST_CHUNK: &str = "A made-up ";
 
 impl TextModel for Scripted {
     fn generate(&self, request: GenerationRequest) -> BoxFuture<'_, Result<String, ApiError>> {
@@ -43,6 +48,9 @@ impl TextModel for Scripted {
     }
 
     fn stream(&self, _: GenerationRequest) -> TextStream {
+        if self.hold.load(Ordering::SeqCst) {
+            return Box::pin(stream::iter([Ok(FIRST_CHUNK.to_owned())]).chain(stream::pending()));
+        }
         let chunk = if self.fail.load(Ordering::SeqCst) {
             Err(ApiError::Internal)
         } else {
@@ -52,14 +60,14 @@ impl TextModel for Scripted {
     }
 }
 
-struct Fixture {
-    schema: TestSchema,
-    model: Arc<Scripted>,
-    h: Harness,
-    token: String,
+pub struct Fixture {
+    pub schema: TestSchema,
+    pub model: Arc<Scripted>,
+    pub h: Harness,
+    pub token: String,
 }
 
-async fn fixture() -> Fixture {
+pub async fn fixture() -> Fixture {
     let schema = TestSchema::open().await;
     let identity = Arc::new(
         IdentityService::start(schema.pool.clone(), "fixture-secret-not-real", Some("1h"))
@@ -71,39 +79,17 @@ async fn fixture() -> Fixture {
         accounts: identity.clone(),
         authenticator: identity.clone(),
         session_presence: support::session_presence(schema.pool.clone()),
-        support: support::SupportFlow::live(schema.pool.clone(), model.clone(), identity),
+        support: support::SupportFlow::live(
+            schema.pool.clone(),
+            model.clone(),
+            identity,
+            Arc::new(support::UnimplementedJudge),
+            1,
+            0.5,
+        ),
         ..Services::unimplemented()
     });
-    let reply = h
-        .send(
-            Method::POST,
-            "/v1/auth/register",
-            None,
-            Some(json!({ "username": USERNAME, "password": PASSWORD, "company": "Fictional Pets" })),
-        )
-        .await;
-    assert_eq!(reply.status, StatusCode::CREATED, "{}", reply.text);
-    schema
-        .exec("UPDATE accounts SET status = 'active' WHERE username = 'wren-fixture'")
-        .await;
-    let reply = h
-        .send(
-            Method::POST,
-            "/v1/auth/login",
-            None,
-            Some(json!({ "username": USERNAME, "password": PASSWORD })),
-        )
-        .await;
-    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text);
-    let token = reply
-        .headers
-        .get_all("set-cookie")
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .find_map(|v| v.strip_prefix("beside-pet.token="))
-        .and_then(|v| v.split(';').next())
-        .expect("인증 쿠키가 없다")
-        .to_owned();
+    let token = account_token(&h, &schema, USERNAME, PASSWORD).await;
     let start = json!({ "sessionId": SESSION, "griefProfile": { "griefPath": "afterLoss", "petName": "Pebble" } });
     let reply = h
         .send(Method::POST, "/v1/sessions", Some(&token), Some(start))
@@ -117,8 +103,51 @@ async fn fixture() -> Fixture {
     }
 }
 
+/// 계정을 만들어 활성으로 바꾸고 로그인해 인증 쿠키의 값을 낸다.
+pub async fn account_token(
+    h: &Harness,
+    schema: &TestSchema,
+    username: &str,
+    password: &str,
+) -> String {
+    let reply = h
+        .send(
+            Method::POST,
+            "/v1/auth/register",
+            None,
+            Some(
+                json!({ "username": username, "password": password, "company": "Fictional Pets" }),
+            ),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::CREATED, "{}", reply.text);
+    schema
+        .exec(&format!(
+            "UPDATE accounts SET status = 'active' WHERE username = '{username}'"
+        ))
+        .await;
+    let reply = h
+        .send(
+            Method::POST,
+            "/v1/auth/login",
+            None,
+            Some(json!({ "username": username, "password": password })),
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK, "{}", reply.text);
+    reply
+        .headers
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .find_map(|v| v.strip_prefix("beside-pet.token="))
+        .and_then(|v| v.split(';').next())
+        .expect("인증 쿠키가 없다")
+        .to_owned()
+}
+
 impl Fixture {
-    async fn say(&self, body: Value) -> crate::harness::Reply {
+    pub async fn say(&self, body: Value) -> crate::harness::Reply {
         self.h
             .send(
                 Method::POST,
@@ -129,7 +158,7 @@ impl Fixture {
             .await
     }
 
-    async fn history(&self) -> Vec<Value> {
+    pub async fn history(&self) -> Vec<Value> {
         let reply = self
             .h
             .send(
@@ -143,7 +172,7 @@ impl Fixture {
         reply.body.as_array().unwrap().clone()
     }
 
-    async fn count(&self, sql: &str, id: &str) -> i64 {
+    pub async fn count(&self, sql: &str, id: &str) -> i64 {
         sqlx::query_scalar(sqlx::AssertSqlSafe(sql.to_owned()))
             .bind(id)
             .fetch_one(&self.schema.pool)
@@ -221,9 +250,8 @@ async fn 발화가_실패하면_500_이고_사용자_메시지와_실패한_턴�
         )
         .await;
     assert_eq!(failed, 1);
-    let state = f
-        .h
-        .send(
+    let state =
+        f.h.send(
             Method::GET,
             &format!("/v1/sessions/{SESSION}"),
             Some(&f.token),
@@ -248,9 +276,8 @@ async fn 스트림이_실패해도_사용자_메시지는_기록에_남는다() 
     let f = fixture().await;
     f.model.fail.store(true, Ordering::SeqCst);
 
-    let reply = f
-        .h
-        .send(
+    let reply =
+        f.h.send(
             Method::POST,
             &format!("/v1/sessions/{SESSION}/messages/stream"),
             Some(&f.token),
@@ -270,7 +297,9 @@ async fn 스트림이_실패해도_사용자_메시지는_기록에_남는다() 
 async fn 턴_id_가_uuid_가_아니면_400_이다() {
     let f = fixture().await;
 
-    let reply = f.say(json!({ "text": WORDS, "turnId": "not-a-uuid" })).await;
+    let reply = f
+        .say(json!({ "text": WORDS, "turnId": "not-a-uuid" }))
+        .await;
 
     assert_eq!(reply.status, StatusCode::BAD_REQUEST);
     assert_eq!(reply.body["message"], json!(["turnId must be a UUID"]));

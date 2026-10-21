@@ -14,10 +14,10 @@ use crate::identity::{
 };
 use crate::shared::ApiError;
 use crate::support::{
-    MessageResponse, MessageRole, MindReportResponse, Requester, SendMessageRequest,
-    SessionAnalysisResponse,
-    SessionListItemResponse, SessionStateResponse, SharedSupportService, StartSessionRequest,
-    StreamEvent, SupportService, TurnResponse, TurnStream,
+    CancelledTurnResponse, MessageResponse, MessageRole, MindReportResponse, Requester,
+    SendMessageRequest, SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse,
+    SharedSupportService, StartSessionRequest, StreamEvent, SupportService, TurnResponse,
+    TurnStream,
 };
 
 pub struct Accounts;
@@ -83,6 +83,43 @@ fn state_of(session_id: String) -> SessionStateResponse {
 
 fn at() -> chrono::DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 10, 16, 9, 0, 0).unwrap()
+}
+
+/// 턴 경로의 대본: 이 id 의 턴은 409 를 낸다.
+pub const GONE_TURN: &str = "gone";
+/// 이 id 의 턴은 `meta` 뒤에 `cancelled` 로 끝난다.
+pub const CUT_TURN: &str = "cut";
+
+fn conflict_stream(message: &str) -> TurnStream {
+    let error = ApiError::Conflict(message.to_owned());
+    Box::pin(stream::once(async move { Err(error) }))
+}
+
+fn cut_events() -> TurnStream {
+    Box::pin(stream::iter(vec![
+        Ok(StreamEvent::Meta {
+            task: 1,
+            progress: 0.0,
+            support_level: 1,
+            done: false,
+        }),
+        Ok(StreamEvent::Cancelled),
+    ]))
+}
+
+/// 턴 경로의 스트림: 409 턴, 중단되는 턴, 나머지는 받은 인자를 비춘 세 프레임.
+fn turn_route_events(
+    verb: &str,
+    requester: &Requester,
+    session_id: &str,
+    turn_id: &str,
+    conflict: &str,
+) -> TurnStream {
+    match turn_id {
+        GONE_TURN => conflict_stream(conflict),
+        CUT_TURN => cut_events(),
+        _ => turn_events(format!("{verb} {} {session_id} {turn_id}", who(requester))),
+    }
 }
 
 fn turn_events(reply: String) -> TurnStream {
@@ -251,6 +288,42 @@ impl SupportService for Echo {
                 sections: vec![],
             })
         })
+    }
+
+    fn turn_stream(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {
+        turn_route_events(
+            "reattach",
+            &requester,
+            &session_id,
+            &turn_id,
+            "Turn is not active",
+        )
+    }
+
+    fn cancel_turn<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+        turn_id: &'a str,
+    ) -> BoxFuture<'a, Result<CancelledTurnResponse, ApiError>> {
+        let echoed = format!("cancel {} {session_id} {turn_id}", who(requester));
+        Box::pin(async move {
+            match turn_id {
+                GONE_TURN => Err(ApiError::Conflict("Turn already finished".to_owned())),
+                "missing" => Err(ApiError::NotFound(format!("Turn not found: {turn_id}"))),
+                _ => Ok(CancelledTurnResponse::of(&echoed)),
+            }
+        })
+    }
+
+    fn retry_turn(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {
+        turn_route_events(
+            "retry",
+            &requester,
+            &session_id,
+            &turn_id,
+            "Turn is not failed",
+        )
     }
 }
 

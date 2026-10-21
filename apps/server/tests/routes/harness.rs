@@ -17,10 +17,10 @@ use beside_pet_server::identity::{
 use beside_pet_server::metrics::SharedMetricsSource;
 use beside_pet_server::shared::{ApiError, Config};
 use beside_pet_server::support::{
-    MessageResponse, MindReportResponse, MindReportSectionResponse, ReportSectionKey, Requester,
-    SendMessageRequest,
-    SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse, SharedSupportService,
-    StartSessionRequest, StreamEvent, SupportService, TurnResponse, TurnStream,
+    CancelledTurnResponse, MessageResponse, MindReportResponse, MindReportSectionResponse,
+    ReportSectionKey, Requester, SendMessageRequest, SessionAnalysisResponse,
+    SessionListItemResponse, SessionStateResponse, SharedSupportService, StartSessionRequest,
+    StreamEvent, SupportService, TurnResponse, TurnStream,
 };
 
 pub use beside_pet_server::support::Unimplemented;
@@ -49,6 +49,7 @@ impl Authenticator for TokenAuthenticator {
 }
 
 /// 스트림 턴은 `meta`, `token`, `done` 셋을 흘리고, 목록과 리포트는 지어낸 값을 내고, 나머지는 `Unimplemented` 에 넘긴다.
+/// 턴 경로는 다시 붙기가 셋을, 답 다시 받기가 `meta` 뒤 `cancelled` 를 흘리고, 중단은 받은 턴 id 로 답한다.
 pub struct Scripted;
 
 pub fn at(text: &str) -> DateTime<Utc> {
@@ -134,6 +135,11 @@ fn turn_stream() -> TurnStream {
     Box::pin(stream::iter(three_events().into_iter().map(Ok)))
 }
 
+/// 답 다시 받기의 대본: 첫 `meta` 뒤에 중단된다.
+pub fn cut_events() -> Vec<StreamEvent> {
+    vec![three_events().remove(0), StreamEvent::Cancelled]
+}
+
 impl SupportService for Scripted {
     fn start<'a>(
         &'a self,
@@ -204,6 +210,20 @@ impl SupportService for Scripted {
     ) -> futures_util::future::BoxFuture<'a, Result<MindReportResponse, ApiError>> {
         Box::pin(async { Ok(mind_report()) })
     }
+    fn turn_stream(&self, _: Requester, _: String, _: String) -> TurnStream {
+        turn_stream()
+    }
+    fn cancel_turn<'a>(
+        &'a self,
+        _: &'a Requester,
+        _: &'a str,
+        turn_id: &'a str,
+    ) -> futures_util::future::BoxFuture<'a, Result<CancelledTurnResponse, ApiError>> {
+        Box::pin(async move { Ok(CancelledTurnResponse::of(turn_id)) })
+    }
+    fn retry_turn(&self, _: Requester, _: String, _: String) -> TurnStream {
+        Box::pin(stream::iter(cut_events().into_iter().map(Ok)))
+    }
 }
 
 pub struct Reply {
@@ -215,6 +235,8 @@ pub struct Reply {
 }
 
 /// 계정 서비스와 모델은 `Unimplemented`, 인증은 `TokenAuthenticator`, 대화 서비스와 계측 저장은 고른 것.
+/// 복제는 같은 앱(같은 상태)을 가리킨다. 동시에 여러 요청을 보내는 테스트가 쓴다.
+#[derive(Clone)]
 pub struct Harness {
     app: Router,
 }

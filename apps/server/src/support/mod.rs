@@ -24,7 +24,8 @@ pub use request::{
     Situation, SleepState, StartSessionRequest, TogetherRange,
 };
 pub use response::{
-    KnowledgeRefResponse, MessageResponse, MessageRole, MindReportResponse,
+    ActiveTurnResponse, ActiveTurnStatus, CancelledStatus, CancelledTurnResponse,
+    FailedTurnResponse, KnowledgeRefResponse, MessageResponse, MessageRole, MindReportResponse,
     MindReportSectionResponse, ReplyPhase, ReportSectionKey, RiskAssessmentResponse, RiskDetector,
     SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse, SessionSummaryResponse,
     StreamEvent, SupervisionQuality, SupervisionResponse, SupportPlanResponse, TaskFocusResponse,

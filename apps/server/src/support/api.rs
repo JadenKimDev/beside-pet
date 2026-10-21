@@ -10,7 +10,7 @@ use axum::routing::{get, post};
 use super::request::{parse_send_message, parse_start_session};
 use super::sse::sse_response;
 use super::{
-    MessageResponse, MindReportResponse, Requester, SessionAnalysisResponse,
+    CancelledTurnResponse, MessageResponse, MindReportResponse, Requester, SessionAnalysisResponse,
     SessionListItemResponse, SessionStateResponse, SharedSupportService, TurnResponse,
 };
 use crate::identity::{CurrentAccount, SharedAuthenticator};
@@ -33,6 +33,12 @@ where
         .route("/v1/sessions/{id}/close", post(close))
         .route("/v1/sessions/{id}/analysis", get(analysis))
         .route("/v1/sessions/{id}/report", get(report))
+        .route("/v1/sessions/{id}/turns/{turn_id}/stream", get(turn_stream))
+        .route(
+            "/v1/sessions/{id}/turns/{turn_id}/cancel",
+            post(cancel_turn),
+        )
+        .route("/v1/sessions/{id}/turns/{turn_id}/retry", post(retry_turn))
 }
 
 type Service = State<SharedSupportService>;
@@ -134,6 +140,35 @@ async fn report(
     Path(id): Path<String>,
 ) -> Result<Json<MindReportResponse>, ApiError> {
     Ok(Json(service.report(&Requester::of(&account), &id).await?))
+}
+
+/// 턴의 답에 다시 붙는다(ADR-0030). 소유 확인과 409 는 서비스가 첫 항목으로 낸다.
+async fn turn_stream(
+    State(service): Service,
+    CurrentAccount(account): CurrentAccount,
+    Path((id, turn_id)): Path<(String, String)>,
+) -> Response {
+    sse_response(service.turn_stream(Requester::of(&account), id, turn_id)).await
+}
+
+async fn cancel_turn(
+    State(service): Service,
+    CurrentAccount(account): CurrentAccount,
+    Path((id, turn_id)): Path<(String, String)>,
+) -> Result<Json<CancelledTurnResponse>, ApiError> {
+    let cancelled = service
+        .cancel_turn(&Requester::of(&account), &id, &turn_id)
+        .await?;
+    Ok(Json(cancelled))
+}
+
+/// 실패한 턴의 답만 다시 받는다. 응답은 `/messages/stream` 과 같다.
+async fn retry_turn(
+    State(service): Service,
+    CurrentAccount(account): CurrentAccount,
+    Path((id, turn_id)): Path<(String, String)>,
+) -> Response {
+    sse_response(service.retry_turn(Requester::of(&account), id, turn_id)).await
 }
 
 #[cfg(test)]

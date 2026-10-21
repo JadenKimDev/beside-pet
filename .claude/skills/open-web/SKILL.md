@@ -65,6 +65,19 @@ terminal-browser action --browser <키> -- eval "document.title"
 
 호스트 이름은 API 와 화면이 같아야 한다(sandbox 는 둘 다 `localhost`, 로컬 production 은 둘 다 `127.0.0.1`). 계정이 그 DB 에 없으면 `401` 이 나므로 먼저 QA 계정을 만든다(`ops-triage` 스킬).
 
+## 좁은 폭으로 보기 (터미널 브라우저)
+
+제품은 웹으로만 운영하므로 휴대폰 브라우저가 곧 모바일 앱이다. 화면을 고친 PRD 는 데스크톱 폭과 함께 390px(iPhone 기준)도 한 번 본다. Chrome 확장의 창 크기 바꾸기는 이 머신에서 먹지 않으므로(요청 390 → 실제 948, 2026-10-20 확인) 좁은 폭은 터미널 브라우저로만 잰다. `set viewport 390 760` 은 실제로 400×781 안팎으로 잡힌다. 재단 수치는 `eval` 로 읽은 값을 쓴다.
+
+```bash
+terminal-browser action --browser <키> -- set viewport 390 760
+terminal-browser action --browser <키> -- eval "window.innerWidth + 'x' + window.innerHeight"
+terminal-browser action --browser <키> -- eval "document.documentElement.scrollWidth > window.innerWidth"   # true 면 가로 넘침
+terminal-browser action --browser <키> -- snapshot                                                           # 잘린 글, 겹친 요소는 스냅샷으로
+```
+
+화면마다 보는 것: 가로 넘침(`scrollWidth <= innerWidth`), 버튼·선택지의 높이 44px 이상(`getBoundingClientRect().height`), 입력 글자 16px 이상(`getComputedStyle(el).fontSize`, iOS 자동 확대 방지), 머리의 도움 알약과 바닥의 위기 띠·면책이 보이는가, 대화 화면에서 입력창이 뷰포트 안에 있는가. 확인이 끝나면 `set viewport 1280 800` 으로 되돌려 데스크톱 배치가 그대로인지 한 번 본다.
+
 ## 화면을 볼 때의 선
 
 - 루트 `CLAUDE.md` "지키는 선"과 "읽지 않는 것"이 그대로 적용된다. 확인용 데이터는 지어낸 값으로 새로 만들고, 끝나면 지운다. 실제 고객 데이터가 보이는 화면은 캡처하지 않는다.

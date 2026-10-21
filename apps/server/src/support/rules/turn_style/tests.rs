@@ -1,5 +1,6 @@
 use super::{QuestionPolicy, TurnStyle};
-use crate::support::ReplyPhase;
+use crate::support::rules::ReplyJudgement;
+use crate::support::{ReplyLabel, ReplyPhase};
 
 fn style(phase: ReplyPhase, companion: &[&str], user: &[&str]) -> TurnStyle {
     TurnStyle::from_history(phase, companion, user)
@@ -305,4 +306,59 @@ Do not say their feelings are natural, understandable, or proof of how much they
 Already said earlier in this chat, so say something else instead: \"천천히\". \
 Refer to what they said in your own words; do not open by repeating their sentence."
     );
+}
+
+/// 직전 답의 판정(지어낸 값).
+fn judged(label: ReplyLabel, probability: Option<f32>) -> ReplyJudgement {
+    ReplyJudgement {
+        label,
+        label_probability: probability,
+        judge: "fixture@0.0.1".to_owned(),
+    }
+}
+
+const AFTER_GENERIC: &str =
+    "Your last reply was general comfort; this time pick up one concrete thing they said.";
+
+#[test]
+fn 직전_답이_임계값_이상의_일반_위로면_구체_하나를_받는_줄이_붙는다() {
+    let previous = judged(ReplyLabel::GenericComfort, Some(0.5));
+    let s = style(
+        ReplyPhase::Task,
+        &["그 시간이 길게 느껴졌겠어요."],
+        &[LONG_USER],
+    )
+    .after_judgement(Some(&previous), 0.5);
+    assert!(s.after_generic);
+    assert!(
+        s.instruction().contains(AFTER_GENERIC),
+        "{}",
+        s.instruction()
+    );
+}
+
+#[test]
+fn 직전_답의_일반_위로_확률이_임계값_밑이면_줄이_없다() {
+    let previous = judged(ReplyLabel::GenericComfort, Some(0.49));
+    let s = style(ReplyPhase::Task, &[], &[LONG_USER]).after_judgement(Some(&previous), 0.5);
+    assert!(!s.after_generic);
+    assert!(!s.instruction().contains(AFTER_GENERIC));
+}
+
+#[test]
+fn 확률이_없는_판정기는_라벨만으로_본다() {
+    let generic = judged(ReplyLabel::GenericComfort, None);
+    let s = style(ReplyPhase::Task, &[], &[LONG_USER]).after_judgement(Some(&generic), 0.5);
+    assert!(s.instruction().contains(AFTER_GENERIC));
+    let question = judged(ReplyLabel::Question, None);
+    let s = style(ReplyPhase::Task, &[], &[LONG_USER]).after_judgement(Some(&question), 0.5);
+    assert!(!s.instruction().contains(AFTER_GENERIC));
+}
+
+#[test]
+fn 다른_라벨이나_판정_없음이면_지금과_같다() {
+    let base = style(ReplyPhase::Deepen, &["어떤 아이였나요?"], &[LONG_USER]);
+    let specific = judged(ReplyLabel::SpecificReflection, Some(0.9));
+    assert_eq!(base.clone().after_judgement(None, 0.5), base);
+    assert_eq!(base.clone().after_judgement(Some(&specific), 0.5), base);
 }

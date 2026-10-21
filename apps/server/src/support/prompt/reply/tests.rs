@@ -77,7 +77,7 @@ fn phase_guidance(prompt: &str) -> &str {
 
 #[test]
 fn the_prompt_version_is_0_2_0() {
-    assert_eq!(PROMPT_VERSION, "0.2.0");
+    assert_eq!(PROMPT_VERSION, "0.3.0");
 }
 
 #[test]

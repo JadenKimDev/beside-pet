@@ -1,9 +1,10 @@
-//! 이번 턴의 화법: 최근 대화에서 질문 여부, 정상화 위로 쉬기, 어미 반복, 이미 쓴 상투구를 정해 발화 지시 한 줄로 만든다.
+//! 이번 턴의 화법: 최근 대화와 직전 답의 판정에서 질문 여부, 정상화 위로 쉬기, 어미 반복, 이미 쓴 상투구, 구체 하나 받기를 정해 발화 지시 한 줄로 만든다.
 //!
 //! 저장하지 않는다. 매 턴 세션 기록에서 다시 구한다. 패턴은 이 모듈 한 곳에만 두고,
 //! 영어 패턴은 소문자로 바꾼 본문에 맞춘다. 한국어 패턴은 영어 대화에 맞지 않을 뿐 규칙은 같다.
 
-use crate::support::ReplyPhase;
+use super::ReplyJudgement;
+use crate::support::{ReplyLabel, ReplyPhase};
 
 /// 사용자가 질문을 그만 받고 싶다는 표현.
 const REFUSAL: &[&str] = &[
@@ -70,6 +71,8 @@ pub struct TurnStyle {
     pub avoid_reassure: bool,
     pub repeated_ending: Option<String>,
     pub used_stock: Vec<&'static str>,
+    /// 직전 답이 일반 위로로 판정됐다(ADR-0031). 이번엔 사용자가 말한 구체 하나를 받는다.
+    pub after_generic: bool,
 }
 
 impl TurnStyle {
@@ -88,6 +91,22 @@ impl TurnStyle {
                 .filter(|stock| companion.iter().any(|reply| reply.contains(stock)))
                 .filter(|stock| !user.iter().any(|said| said.contains(stock)))
                 .collect(),
+            after_generic: false,
+        }
+    }
+
+    /// 직전 답의 판정을 더한다. 라벨이 `generic_comfort` 이고 확률이 `threshold` 이상이면(확률이 없는 판정기는 라벨만으로)
+    /// 이번 턴에 구체 하나를 받게 한다. 판정이 없으면 그대로다.
+    pub fn after_judgement(self, previous: Option<&ReplyJudgement>, threshold: f32) -> TurnStyle {
+        let after_generic = previous.is_some_and(|reply| {
+            reply.label == ReplyLabel::GenericComfort
+                && reply
+                    .label_probability
+                    .is_none_or(|probability| probability >= threshold)
+        });
+        TurnStyle {
+            after_generic,
+            ..self
         }
     }
 
@@ -115,6 +134,12 @@ impl TurnStyle {
             hints.push(format!(
                 "Your last two replies ended the same way (\"…{ending}\"); end this one differently."
             ));
+        }
+        if self.after_generic {
+            hints.push(
+                "Your last reply was general comfort; this time pick up one concrete thing they said."
+                    .into(),
+            );
         }
         if !self.used_stock.is_empty() {
             let quoted: Vec<String> = self.used_stock.iter().map(|s| format!("\"{s}\"")).collect();

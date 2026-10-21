@@ -11,6 +11,8 @@ use super::active::ActiveTurns;
 use super::adapters::{AccountLanguages, SystemClock};
 use super::cancel::cancel;
 use super::deadline::{CallLimits, Deadlined};
+use super::judge::SharedReplyJudge;
+use super::judging::Judging;
 use super::orchestrator::{Finished, greet, handle, new_turn_id, retry};
 use super::parts::FlowParts;
 use super::reattach::reattach;
@@ -56,11 +58,15 @@ impl SupportFlow {
         }
     }
 
-    /// 서버의 조립: Postgres 저장, 작업 디렉터리의 지식 파일, 계정 서비스의 대화 언어, 시스템 시계, 실제 제한.
+    /// 서버의 조립: Postgres 저장, 작업 디렉터리의 지식 파일, 계정 서비스의 대화 언어, 시스템 시계, 실제 제한,
+    /// 설정이 고른 답 판정기(`judge`)와 동기 턴의 후보 수, 직전 답의 임계값.
     pub fn live(
         db: PgPool,
         model: SharedTextModel,
         accounts: SharedAccountService,
+        judge: SharedReplyJudge,
+        candidates: u8,
+        threshold: f32,
     ) -> SharedSupportService {
         Arc::new(SupportFlow::new(FlowParts {
             model,
@@ -69,6 +75,11 @@ impl SupportFlow {
             languages: Arc::new(AccountLanguages(accounts)),
             clock: Arc::new(SystemClock),
             limits: CallLimits::default(),
+            judging: Judging {
+                judge,
+                candidates,
+                threshold,
+            },
         }))
     }
 

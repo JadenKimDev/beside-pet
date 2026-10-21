@@ -191,7 +191,7 @@ pub enum ReplyPhase {
     Closing,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnAnalysisResponse {
     #[serde(with = "crate::shared::iso_millis")]
@@ -203,6 +203,15 @@ pub struct TurnAnalysisResponse {
     pub knowledge: Vec<KnowledgeRefResponse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub supervision: Option<SupervisionResponse>,
+    /// 답의 판정 라벨(ADR-0031). 판정이 없으면(끔, 실패, 위기 턴) 칸을 뺀다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply_label: Option<String>,
+    /// 판정기가 그 라벨에 준 확률. 확률을 주지 않는 판정기면 칸을 뺀다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply_label_probability: Option<f32>,
+    /// 판정기와 그 버전(`<이름>@<x.y.z>`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply_judge: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

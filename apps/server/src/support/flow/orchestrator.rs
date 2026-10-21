@@ -5,15 +5,19 @@
 //! 고정 문구로 받자마자 닫는다(ADR-0004). 동기와 스트림은 답이 나가는 길(`Voice`)만 다르다.
 //! 위기가 아닌 사용자 턴은 받은 때부터 끝날 때까지 진행 중 턴 등록부에 있고, 답이 시작하면 `streaming` 을 저장하며, 도중에 중단되면
 //! 거기까지 온 답과 함께 `cancelled` 로 닫는다(ADR-0030). 실패한 턴의 답 다시 받기도 같은 길을 밟는다.
+//! 끝난 답은 판정기가 잰다(ADR-0031): 동기 턴은 저장 전에(후보가 둘 이상이면 판정으로 하나를 고르고), 스트림 턴은 `done` 을
+//! 보낸 뒤에. 위기 턴, 첫 인사, 중단·실패한 턴은 판정하지 않는다.
 
 use uuid::Uuid;
 
 use super::access::{TURN_ALREADY_RECEIVED, TURN_NOT_FAILED, session_conflict};
 use super::active::ActiveTurns;
 use super::deadline::{CallFailure, Deadlined};
+use super::judge::Judgement;
+use super::judging::{choose, judge_input, judge_once, record_after_stream};
 use super::live::LiveTurn;
 use super::parts::FlowParts;
-use super::voice::{Composed, Voice};
+use super::voice::{Composed, Voice, compose_candidates};
 use crate::identity::ChatLanguage;
 use crate::llm::{CallContext, CallPurpose, GenerationRequest};
 use crate::safety::{assess_risk_verdict, crisis_reply};
@@ -67,7 +71,7 @@ pub async fn greet(
     };
     let knowledge = parts.knowledge.retrieve(session.task(), KNOWLEDGE_LIMIT);
     voice.announce(session.meta_event()).await;
-    let request = reply_request(&session, phase, &knowledge, previous);
+    let request = reply_request(parts, &session, phase, &knowledge, previous);
     // 첫 인사는 받은 사용자 말이 없어 중단 대상이 아니다(등록부에 오르지 않는다).
     let Composed::Reply(reply) = voice
         .compose(replies, request, None)
@@ -180,12 +184,27 @@ async fn answer(
     voice.announce(meta_for(&session, &step)).await;
     // 4) 지식 검색, 5) 발화(시작을 저장한 뒤).
     let knowledge = parts.knowledge.retrieve(step.to, KNOWLEDGE_LIMIT);
-    let request = reply_request(&session, step.phase, &knowledge, None);
+    let request = reply_request(parts, &session, step.phase, &knowledge, None);
     session
         .start_streaming(turn_id, parts.clock.now())
         .map_err(|error| conflict(&session, error))?;
     parts.sessions.save(&session.snapshot()).await?;
-    let composed = voice.compose(replies, request, Some(&mut live)).await;
+    // 동기 턴은 후보가 둘 이상이면 병렬로 받아 판정으로 하나를 고른다(고른 답의 판정도 함께).
+    let candidates = parts.judging.candidates;
+    let (composed, chosen) = match voice {
+        Voice::Whole if candidates >= 2 => {
+            match compose_candidates(replies, request, candidates, &mut live).await {
+                Ok(Some(replies)) => {
+                    let (reply, judgement) =
+                        choose(parts.judging.judge.as_ref(), &session, replies).await;
+                    (Ok(Composed::Reply(reply)), Some(judgement))
+                }
+                Ok(None) => (Ok(Composed::Cancelled), None),
+                Err(failure) => (Err(failure), None),
+            }
+        }
+        _ => (voice.compose(replies, request, Some(&mut live)).await, None),
+    };
     let reply = match composed {
         // 답이 끝나는 순간에 온 중단도 중단이다(중단을 부른 쪽은 `cancelled` 를 기다린다).
         Ok(Composed::Reply(reply)) if !live.is_cancelled() => reply,
@@ -216,12 +235,44 @@ async fn answer(
             parts.clock.now(),
         )
         .map_err(|error| conflict(&session, error))?;
-    parts.sessions.save(&session.snapshot()).await?;
+    match voice {
+        Voice::Whole => {
+            // 7) 동기 턴은 저장 전에 판정을 적는다(저장은 한 번).
+            let judgement = match chosen {
+                Some(judgement) => judgement,
+                None => {
+                    judge_once(parts.judging.judge.as_ref(), judge_input(&session, &reply)).await
+                }
+            };
+            keep_judgement(&mut session, turn_id, judgement);
+            parts.sessions.save(&session.snapshot()).await?;
+        }
+        Voice::Streamed(out) => {
+            // 7) 스트림 턴은 저장하고 `done` 을 보낸 뒤에 판정한다(응답 지연에 더하지 않는다).
+            parts.sessions.save(&session.snapshot()).await?;
+            out.after_last(record_after_stream(
+                parts.sessions.clone(),
+                parts.judging.judge.clone(),
+                session.id().to_owned(),
+                turn_id.to_owned(),
+                judge_input(&session, &reply),
+            ));
+        }
+    }
     Ok(Finished::Done(session.turn_response(reply)))
 }
 
-/// `safety` 가 받는 대화 언어 코드.
-fn language_code(language: ChatLanguage) -> &'static str {
+/// 판정이 있으면 끝난 턴의 분석에 적는다. 적을 수 없는 턴이면(위기 분석) 버린다.
+fn keep_judgement(session: &mut Session, turn_id: &str, judgement: Option<Judgement>) {
+    if let Some(judgement) = judgement
+        && session.record_reply_judgement(turn_id, judgement).is_err()
+    {
+        tracing::info!("the turn has no reply to judge; the judgement is not kept");
+    }
+}
+
+/// `safety` 와 판정기가 받는 대화 언어 코드.
+pub(super) fn language_code(language: ChatLanguage) -> &'static str {
     match language {
         ChatLanguage::Ko => "ko",
         ChatLanguage::En => "en",
@@ -239,13 +290,15 @@ fn meta_for(session: &Session, step: &TurnStep) -> StreamEvent {
 }
 
 fn reply_request(
+    parts: &FlowParts,
     session: &Session,
     phase: ReplyPhase,
     knowledge: &[KnowledgeChunk],
     previous: Option<&Previous>,
 ) -> GenerationRequest {
     let profile = session.grief_profile();
-    let turn_style = turn_style(phase, session.history());
+    let turn_style = turn_style(phase, session.history())
+        .after_judgement(session.last_reply_judgement(), parts.judging.threshold);
     let context = ReplyContext {
         phase,
         pet_name: profile.display_pet_name(),
@@ -271,6 +324,7 @@ fn reply_request(
 }
 
 /// 이 세션의 기록(재개 인사의 직전 세션은 넣지 않는다)을 동반자 답과 사용자 말로 갈라 이번 턴의 화법을 정한다.
+/// 직전 답의 판정은 부르는 쪽이 `after_judgement` 로 더한다.
 fn turn_style(phase: ReplyPhase, history: &[Message]) -> TurnStyle {
     let said_by = |role: MessageRole| -> Vec<&str> {
         history

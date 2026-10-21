@@ -11,7 +11,7 @@ mod validation;
 
 #[cfg(test)]
 pub use config::test_database_url;
-pub use config::{AppEnv, Config, ConfigError, ENV_NAMES};
+pub use config::{AppEnv, Config, ConfigError, ENV_NAMES, JudgeEnv, ReplyJudgeKind};
 pub use db::{MIGRATOR, connect, connect_lazy};
 pub use error::{ApiError, Message};
 pub use http::{JsonBody, cors_layer, route_not_found};

@@ -9,18 +9,18 @@ use std::fmt;
 
 use chrono::{DateTime, Utc};
 
-use super::Judgement;
 use super::response::{
     KnowledgeRefResponse, MessageRole, ReplyPhase, RiskDetector, SessionSummaryResponse,
     SupportPlanResponse,
 };
 use super::rules::{
-    GriefProfile, MindReport, ReplyJudgement, RiskAssessment, SupportLevel, Task, TaskTransition,
+    GriefProfile, MindReport, RiskAssessment, SupportLevel, Task, TaskTransition,
     TurnAnalysis, evaluate, is_report_available, plan, review, should_review, summarize,
 };
 use crate::identity::ChatLanguage;
 
 mod activity;
+mod judgement;
 mod message;
 mod snapshot;
 mod turn;
@@ -254,39 +254,6 @@ impl Session {
             supervision,
             reply: None,
         });
-    }
-
-    /// 끝난(`done`) 턴의 분석에 답의 판정을 적는다(ADR-0031). 이미 적혔으면 새 판정으로 덮는다.
-    /// 분석 행에는 턴 id 가 없으므로 턴을 끝낸 시각(`finished_at` = 분석의 `at`, `complete_turn` 이 같은 값을 쓴다)으로 잇는다.
-    /// 확률이 0~1 밖이거나 수가 아니면 적지 않고 라벨만 남긴다(저장 칸의 CHECK). 없는 턴은 `TurnNotFound`, 끝나지 않은 턴과
-    /// 판정할 답이 없는 턴(분석이 없는 첫 인사, 위기 고정 문구)은 `TurnNotPending` 이고 아무것도 바꾸지 않는다.
-    #[allow(dead_code)] // #27 S5 의 흐름(스트림 턴 끝의 판정, 동기 턴의 후보 고르기)이 쓴다. S5 에서 뗀다.
-    pub fn record_reply_judgement(
-        &mut self,
-        turn_id: &str,
-        judgement: Judgement,
-    ) -> Result<(), SessionError> {
-        let turn = self.find_turn(turn_id)?;
-        let finished_at = match (turn.status, turn.finished_at) {
-            (TurnStatus::Done, Some(at)) => at,
-            _ => return Err(SessionError::TurnNotPending),
-        };
-        let analysis = self
-            .analyses
-            .iter_mut()
-            .rev()
-            .find(|analysis| analysis.at == finished_at)
-            .filter(|analysis| !analysis.risk.level.is_crisis())
-            .ok_or(SessionError::TurnNotPending)?;
-        let label_probability = judgement
-            .label_probability()
-            .filter(|probability| (0.0..=1.0).contains(probability));
-        analysis.reply = Some(ReplyJudgement {
-            label: judgement.label,
-            label_probability,
-            judge: format!("{}@{}", judgement.judge, judgement.version),
-        });
-        Ok(())
     }
 
     /// 닫는다. 이미 닫혔으면 그대로다.

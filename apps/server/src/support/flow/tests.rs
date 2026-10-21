@@ -8,6 +8,7 @@ mod crisis;
 mod deadline;
 mod detector;
 mod doubles;
+mod judging;
 mod lifecycle;
 mod reattach;
 mod registry;

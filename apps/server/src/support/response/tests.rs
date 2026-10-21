@@ -169,6 +169,9 @@ fn 분석의_없는_칸은_빠진다() {
             },
             knowledge: vec![],
             supervision: None,
+            reply_label: None,
+            reply_label_probability: None,
+            reply_judge: None,
         }],
         summary: None,
         history: vec![],
@@ -227,6 +230,9 @@ fn 분석의_모든_칸() {
                 flags: vec!["f".to_owned()],
                 note: Some("n".to_owned()),
             }),
+            reply_label: Some("generic_comfort".to_owned()),
+            reply_label_probability: Some(0.75),
+            reply_judge: Some("systemone@0.1.0".to_owned()),
         }],
         summary: Some(SessionSummaryResponse {
             at: at(),
@@ -251,6 +257,9 @@ fn 분석의_모든_칸() {
         json!({ "evaluated": true, "quality": "review", "flags": ["f"], "note": "n" })
     );
     assert_eq!(value["analyses"][0]["phase"], "intro");
+    assert_eq!(value["analyses"][0]["replyLabel"], "generic_comfort");
+    assert_eq!(value["analyses"][0]["replyLabelProbability"], 0.75);
+    assert_eq!(value["analyses"][0]["replyJudge"], "systemone@0.1.0");
     assert_eq!(value["analyses"][0]["risk"]["detectedBy"], "keyword");
     assert_eq!(
         value["analyses"][0]["knowledge"],
@@ -353,7 +362,10 @@ fn 상태의_진행_중_턴과_실패한_턴() {
         }),
     };
     let value = serde_json::to_value(state).unwrap();
-    assert_eq!(value["activeTurn"], json!({ "turnId": "t-2", "status": "streaming" }));
+    assert_eq!(
+        value["activeTurn"],
+        json!({ "turnId": "t-2", "status": "streaming" })
+    );
     assert_eq!(value["failedTurn"], json!({ "turnId": "t-1" }));
     let pending = ActiveTurnResponse {
         turn_id: "t-3".to_owned(),

@@ -3,6 +3,7 @@
 use std::future::Future;
 
 use futures_util::StreamExt;
+use futures_util::future::join_all;
 
 use super::deadline::{CallFailure, Deadlined};
 use super::live::LiveTurn;
@@ -49,13 +50,7 @@ impl Voice<'_> {
                 let Some(text) = watch(live, model.generate_within(request)).await else {
                     return Ok(Composed::Cancelled);
                 };
-                let text = text?;
-                let reply = text.trim();
-                if reply.is_empty() {
-                    tracing::warn!("model returned an empty reply");
-                    return Err(CallFailure::Failed(ApiError::Internal));
-                }
-                Ok(Composed::Reply(reply.to_owned()))
+                Ok(Composed::Reply(whole_reply(text?)?))
             }
             Voice::Streamed(out) => {
                 let mut chunks = model.stream_within(request);
@@ -76,6 +71,44 @@ impl Voice<'_> {
             }
         }
     }
+}
+
+/// 동기 턴의 후보 `count` 개를 같은 요청으로 병렬로 받는다(ADR-0031). 하나라도 쓰면 쓴 것들(요청 순서), 모두 실패하면
+/// 첫 실패다. 기다리는 사이에 중단되면 모든 호출을 버리고 `None` 이다.
+pub async fn compose_candidates(
+    model: &Deadlined,
+    request: GenerationRequest,
+    count: u8,
+    live: &mut LiveTurn,
+) -> Result<Option<Vec<String>>, CallFailure> {
+    let calls = (0..count).map(|_| model.generate_within(request.clone()));
+    let Some(results) = live.unless_cancelled(join_all(calls)).await else {
+        return Ok(None);
+    };
+    let mut replies = Vec::new();
+    let mut first_failure = None;
+    for result in results {
+        match result.and_then(whole_reply) {
+            Ok(reply) => replies.push(reply),
+            Err(failure) => {
+                first_failure.get_or_insert(failure);
+            }
+        }
+    }
+    match first_failure {
+        Some(failure) if replies.is_empty() => Err(failure),
+        _ => Ok(Some(replies)),
+    }
+}
+
+/// 동기 답: 앞뒤 공백을 걷고 빈 답은 실패로 본다(TS 와 같다).
+fn whole_reply(text: String) -> Result<String, CallFailure> {
+    let reply = text.trim();
+    if reply.is_empty() {
+        tracing::warn!("model returned an empty reply");
+        return Err(CallFailure::Failed(ApiError::Internal));
+    }
+    Ok(reply.to_owned())
 }
 
 /// 답을 다 썼거나, 도중에 중단됐다.

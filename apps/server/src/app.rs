@@ -2,6 +2,7 @@
 
 use std::fmt;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::extract::FromRef;
 use axum::routing::get;
@@ -15,7 +16,9 @@ use crate::identity::{
 };
 use crate::llm::SharedTextModel;
 use crate::metrics::SharedMetricsSource;
-use crate::shared::{Config, connect, connect_lazy, cors_layer, route_not_found};
+use crate::shared::{
+    Config, JudgeEnv, ReplyJudgeKind, connect, connect_lazy, cors_layer, route_not_found,
+};
 use crate::support::SharedSupportService;
 use crate::{identity, llm, metrics, safety, support};
 
@@ -67,6 +70,9 @@ impl Services {
     }
 }
 
+/// systemone 판정 한 번의 제한(ADR-0031).
+const SYSTEMONE_TIMEOUT: Duration = Duration::from_secs(1);
+
 /// 핸들러가 받는 상태. 복제가 싸야 하므로 칸은 `Arc` 나 풀(안이 `Arc`)로 둔다.
 /// 기능의 라우터는 `FromRef` 로 필요한 칸만 꺼낸다.
 #[derive(Clone)]
@@ -110,8 +116,15 @@ impl AppState {
         close_unfinished_turns(db.clone()).await;
         let usage: llm::SharedUsageSink = Arc::new(llm::PostgresUsageSink::spawn(db.clone()));
         let base = Services::with_usage(&config, usage);
-        let support =
-            support::SupportFlow::live(db.clone(), base.text_model.clone(), identity.clone());
+        let judge = reply_judge(&config.judge, &base.text_model);
+        let support = support::SupportFlow::live(
+            db.clone(),
+            base.text_model.clone(),
+            identity.clone(),
+            judge,
+            config.judge.candidates,
+            config.judge.threshold,
+        );
         Ok(AppState {
             services: Services {
                 accounts: identity.clone(),
@@ -134,6 +147,26 @@ impl AppState {
             db,
             services,
         })
+    }
+}
+
+/// `REPLY_JUDGE` 가 고른 답 판정기(ADR-0031). `systemone` 인데 `SYSTEMONE_URL` 이 없으면 경고 한 줄을 남기고 끈다.
+/// `haiku` 는 발화와 같은 모델 라우터로 부른다(호출은 `llm_calls` 에 `judge` 역할로 남는다).
+fn reply_judge(judge: &JudgeEnv, model: &SharedTextModel) -> support::SharedReplyJudge {
+    match (judge.kind, judge.systemone_url.as_deref()) {
+        (ReplyJudgeKind::Off, _) => Arc::new(support::UnimplementedJudge),
+        (ReplyJudgeKind::SystemOne, Some(url)) => Arc::new(support::SystemOneReplyJudge(
+            llm::SystemOneJudge::new(url.to_owned(), SYSTEMONE_TIMEOUT),
+        )),
+        (ReplyJudgeKind::SystemOne, None) => {
+            tracing::warn!(
+                "REPLY_JUDGE is systemone but SYSTEMONE_URL is not set; replies are not judged"
+            );
+            Arc::new(support::UnimplementedJudge)
+        }
+        (ReplyJudgeKind::Haiku, _) => Arc::new(support::HaikuReplyJudge(llm::HaikuJudge::new(
+            model.clone(),
+        ))),
     }
 }
 

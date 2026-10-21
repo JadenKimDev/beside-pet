@@ -91,6 +91,15 @@ impl TurnAnalysis {
             },
             knowledge: self.knowledge.clone(),
             supervision: self.supervision.clone(),
+            reply_label: self
+                .reply
+                .as_ref()
+                .map(|reply| reply.label.as_str().to_owned()),
+            reply_label_probability: self
+                .reply
+                .as_ref()
+                .and_then(|reply| reply.label_probability),
+            reply_judge: self.reply.as_ref().map(|reply| reply.judge.clone()),
         }
     }
 }

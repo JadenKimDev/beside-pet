@@ -8,6 +8,7 @@ mod adapters;
 mod cancel;
 mod deadline;
 mod judge;
+mod judging;
 mod live;
 mod orchestrator;
 mod outside;

@@ -12,6 +12,7 @@ use futures_util::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
 
 use super::super::deadline::CallLimits;
+use super::super::judging::Judging;
 use super::super::outside::{ChatLanguages, Clock, SessionRepository};
 use super::super::{FlowParts, SupportFlow};
 use crate::identity::ChatLanguage;
@@ -95,6 +96,8 @@ pub struct ScriptedModel {
     contexts: Mutex<Vec<CallContext>>,
     /// 있으면 발화 스트림이 첫 조각 뒤의 조각마다 이 문의 허가를 하나씩 기다린다.
     pace: Option<Arc<Semaphore>>,
+    /// 동기 발화가 차례로 낼 답(후보마다 다른 글). 다 쓰면 `statement` 나 `reply_text()` 로 돌아간다.
+    answers: Mutex<std::collections::VecDeque<&'static str>>,
 }
 
 impl ScriptedModel {
@@ -114,7 +117,13 @@ impl ScriptedModel {
             calls: Mutex::new(Vec::new()),
             contexts: Mutex::new(Vec::new()),
             pace: None,
+            answers: Mutex::new(std::collections::VecDeque::new()),
         }
+    }
+
+    /// 이제부터 동기 발화가 이 답들을 차례로 낸다.
+    pub fn answer_in_turn(&self, answers: &[&'static str]) {
+        self.answers.lock().unwrap().extend(answers.iter().copied());
     }
 
     /// 발화 스트림이 첫 조각을 곧바로 내고, 나머지 조각은 `pace()` 의 허가마다 하나씩 낸다.
@@ -263,7 +272,10 @@ impl TextModel for ScriptedModel {
             return Box::pin(future::pending());
         }
         // 앞뒤 공백은 흐름이 걷는다.
-        let text = self.statement.map_or_else(reply_text, str::to_owned);
+        let next = self.answers.lock().unwrap().pop_front();
+        let text = next
+            .or(self.statement)
+            .map_or_else(reply_text, str::to_owned);
         Box::pin(async move { Ok(format!("  {text}\n")) })
     }
 
@@ -480,7 +492,21 @@ impl Harness {
         Harness::assemble(model, FixedLanguages::default(), SLOW_LIMITS)
     }
 
+    /// 답 판정기를 끼운다(후보 수와 임계값도). 도중에 끼어드는 턴도 쓰도록 제한은 넉넉히(`SLOW_LIMITS`) 둔다.
+    pub fn judged(model: ScriptedModel, judging: Judging) -> Harness {
+        Harness::build(model, FixedLanguages::default(), SLOW_LIMITS, judging)
+    }
+
     fn assemble(model: ScriptedModel, languages: FixedLanguages, limits: CallLimits) -> Harness {
+        Harness::build(model, languages, limits, Judging::off())
+    }
+
+    fn build(
+        model: ScriptedModel,
+        languages: FixedLanguages,
+        limits: CallLimits,
+        judging: Judging,
+    ) -> Harness {
         let model = Arc::new(model);
         let sessions = Arc::new(MemorySessions::default());
         let flow = SupportFlow::new(FlowParts {
@@ -492,6 +518,7 @@ impl Harness {
                 ticks: AtomicI64::new(0),
             }),
             limits,
+            judging,
         });
         Harness {
             flow,

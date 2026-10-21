@@ -7,6 +7,7 @@ import {
   echoedOpening,
   endsWithExampleTail,
   type Flag,
+  genericRate,
   reassureRate,
   type SessionTurn,
 } from "./checks.ts";
@@ -191,4 +192,15 @@ test("reassureRate: 정상화 위로가 들어간 답의 비율", () => {
     checkSession({ language: "ko", turns: turns(["당연히 그리우시죠.", "그만큼 아끼셨으니까요."]) }),
     [],
   );
+});
+
+test("genericRate: 라벨이 있는 턴 가운데 generic_comfort 의 비율, 라벨 없는 턴은 분모에서 뺀다", () => {
+  assert.equal(genericRate(["generic_comfort", "specific_reflection", undefined, "question", "generic_comfort"]), 0.5);
+  assert.equal(genericRate(["specific_reflection", "question"]), 0);
+  assert.equal(genericRate(["generic_comfort"]), 1);
+});
+
+test("genericRate: 라벨이 하나도 없거나 턴이 없으면 null", () => {
+  assert.equal(genericRate([undefined, undefined]), null);
+  assert.equal(genericRate([]), null);
 });

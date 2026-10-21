@@ -10,6 +10,7 @@ import {
   cell,
   chatEvalDir,
   checkCounts,
+  genericText,
   loadRuns,
   localDate,
   minTaskShortfall,
@@ -17,6 +18,7 @@ import {
   personaMarkdown,
   readBaseline,
   reassureText,
+  runGenericRate,
   type SavedRun,
   saveRun,
   summaryMarkdown,
@@ -231,7 +233,7 @@ test("summaryMarkdown: 인물 × 검사와 인물별 결과", () => {
   assert.match(md, /\| a \| 0 \| 0 \| 0 \| 0 \| 1 \| 0 \| 0 \| 0 \|\n\| b \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \|/);
   assert.match(
     md,
-    /\| 인물 \| 턴 \| closedBy \| 도달 과제 \| 평균 지연 \| 평균 첫 토큰 \| 정상화 위로\(reassureRate\) \|\n/,
+    /\| 인물 \| 턴 \| closedBy \| 도달 과제 \| 평균 지연 \| 평균 첫 토큰 \| 정상화 위로\(reassureRate\) \| 일반 위로\(genericRate\) \|\n/,
   );
   assert.match(md, /\| b \| 2 \| script \| 1 \| 2.0s \| 0.3s \| 0% \|/);
   assert.match(md, /\| a \| 2 \| script \| 1 \| 2.0s \| - \| 0% \|/);
@@ -273,6 +275,78 @@ test("summaryMarkdown: 기준이 있으면 칸이 `기준 → 지금`, 한쪽만
   assert.match(md, /\| c \| - → 0 \|/);
   assert.match(md, /\| z \| 0 → - \|/);
   assert.match(md, /\| a \| 1 → 2 \| script → script \|/);
+});
+
+// 지어낸 분석 항목. 라벨 칸은 판정기가 돈 턴에만 있다(#27).
+const analysisItem = (
+  label?: "generic_comfort" | "specific_reflection" | "question",
+  extra: { replyLabelProbability?: number; replyJudge?: string } = {},
+) => ({
+  at: "2026-10-21T03:00:01Z",
+  task: 1,
+  phase: "task" as const,
+  risk: { level: 1, detectedBy: "none" as const },
+  transition: { from: 1, to: 1, advanced: false, retryCount: 0 },
+  knowledge: [],
+  ...(label === undefined ? {} : { replyLabel: label }),
+  ...extra,
+});
+
+const labeled = (name: string, labels: ("generic_comfort" | "specific_reflection" | "question" | undefined)[]) =>
+  run(name, {
+    analysis: { sessionId: "s", closed: true, history: [], analyses: labels.map((label) => analysisItem(label)) },
+  });
+
+test("runGenericRate, genericText: 분석 항목의 replyLabel 로 세고, 라벨이 없으면 null 과 -", () => {
+  const r = labeled("a", ["generic_comfort", undefined, "specific_reflection", "generic_comfort", "question"]);
+  assert.equal(runGenericRate(r), 0.5);
+  assert.equal(genericText(r), "50%");
+  assert.equal(runGenericRate(labeled("a", [undefined, undefined])), null);
+  assert.equal(genericText(labeled("a", [undefined])), "-");
+  assert.equal(genericText(run("a")), "-");
+});
+
+test("summaryMarkdown: 인물별 결과의 끝 칸이 genericRate, 기준이 없으면 차이 절이 없다", () => {
+  const md = summaryMarkdown("2026-10-21", [labeled("a", ["generic_comfort", "question", "question", "question"])]);
+  assert.match(md, /\| a \| 2 \| script \| 1 \| 2.0s \| - \| 0% \| 25% \|\n/);
+  assert.doesNotMatch(md, /기준 대비 차이/);
+  const none = summaryMarkdown("2026-10-21", [run("b")]);
+  assert.match(none, /\| b \| 2 \| script \| 1 \| 2.0s \| - \| 0% \| - \|\n/);
+});
+
+test("summaryMarkdown: 기준이 있으면 genericRate 는 `기준 → 지금`, 차이 절에 평균 지연과 genericRate 의 차이", () => {
+  const before = labeled("a", ["generic_comfort", "generic_comfort", "question", "question"]);
+  const now = {
+    ...labeled("a", ["generic_comfort", "question", "question", "question"]),
+    turns: [turn(1, { latencyMs: 2500 }), turn(2, { latencyMs: 3500 })],
+  };
+  const md = summaryMarkdown("2026-10-21", [now, run("c")], { date: "2026-10-20", runs: [before, run("z")] });
+  assert.match(md, /\| a \| 2 → 2 \| script → script \| 1 → 1 \| 2.0s → 3.0s \| - → - \| 0% → 0% \| 50% → 25% \|\n/);
+  assert.match(md, /## 기준 대비 차이 \(지금 − 기준\)/);
+  assert.match(md, /\| 인물 \| 평균 지연 차이 \| 일반 위로\(genericRate\) 차이 \|\n/);
+  assert.match(md, /\| a \| \+1.0s \| -25%p \|\n/);
+  // 한쪽에만 있는 인물과 라벨이 없는 쪽은 -.
+  assert.match(md, /\| c \| - \| - \|\n/);
+  assert.match(md, /\| z \| - \| - \|\n/);
+});
+
+test("personaMarkdown: 분석 표의 replyLabel 칸, 확률과 판정기를 붙이고 없으면 -", () => {
+  const md = personaMarkdown(
+    run("p", {
+      analysis: {
+        sessionId: "s",
+        closed: true,
+        history: [],
+        analyses: [
+          analysisItem("generic_comfort", { replyLabelProbability: 0.823, replyJudge: "haiku" }),
+          analysisItem(),
+        ],
+      },
+    }),
+  );
+  assert.match(md, /\| # \| 시각 \| 과제 \| phase \| risk \| transition \| replyLabel \|\n/);
+  assert.match(md, /\| 1 \| .* \| generic_comfort 0.82 \(haiku\) \|\n/);
+  assert.match(md, /\| 2 \| .* \| 1→1, retry 0 \| - \|\n/);
 });
 
 test("localDate: 로컬 날짜", () => {

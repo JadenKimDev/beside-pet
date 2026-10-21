@@ -249,6 +249,19 @@ export function reassureRate(answers: string[]): number | null {
   return nonEmpty.filter((answer) => REASSURE.test(answer)).length / nonEmpty.length;
 }
 
+/** 판정기의 라벨(#27). 서버의 턴 분석 항목 `replyLabel` 과 같은 값이다. 위기 턴과 판정 실패 턴에는 없다. */
+export type ReplyLabel = "generic_comfort" | "specific_reflection" | "question";
+
+/**
+ * 판정기 라벨이 있는 턴 가운데 `generic_comfort` 의 비율(0~1). 라벨이 없는 턴은 분모에서 뺀다.
+ * 라벨이 하나도 없으면 null. 사전 기준인 `reassureRate` 와 달리 판정기 기준이다.
+ */
+export function genericRate(labels: (ReplyLabel | undefined)[]): number | null {
+  const judged = labels.filter((label) => label !== undefined);
+  if (judged.length === 0) return null;
+  return judged.filter((label) => label === "generic_comfort").length / judged.length;
+}
+
 function crisisTurns(turns: SessionTurn[]): number[] {
   return turns.flatMap((turn, index) => (turn.supportLevel >= CRISIS_LEVEL ? [index + 1] : []));
 }

@@ -10,7 +10,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
-import { type CheckId, type Flag, reassureRate } from "./checks.ts";
+import { type CheckId, type Flag, genericRate, type ReplyLabel, reassureRate } from "./checks.ts";
+import type { TurnAnalysisResponse } from "./client.ts";
 import type { RunResult, TurnRecord } from "./runner.ts";
 
 /** 저장하는 실행 결과. 머리에 쓸 서버 주소를 더한다. */
@@ -134,8 +135,33 @@ export function averageFirstToken(run: RunResult): number | null {
 
 /** 정상화 위로가 들어간 답의 비율을 퍼센트 글로. 답이 없으면 `-`. */
 export function reassureText(run: RunResult): string {
-  const rate = reassureRate(run.turns.map((turn) => turn.answer));
-  return rate === null ? "-" : `${Math.round(rate * 100)}%`;
+  return percent(reassureRate(run.turns.map((turn) => turn.answer)));
+}
+
+/**
+ * 판정기가 더한 턴 분석의 칸(#27). 서버가 채우기 전의 결과와 위기·판정 실패 턴에는 없다.
+ * `client.ts` 의 응답 타입에 아직 없어 여기서 덧붙여 읽는다.
+ */
+type JudgedAnalysis = TurnAnalysisResponse & {
+  replyLabel?: ReplyLabel;
+  replyLabelProbability?: number;
+  replyJudge?: string;
+};
+
+function judgedAnalyses(run: RunResult): JudgedAnalysis[] {
+  return run.analysis.analyses as JudgedAnalysis[];
+}
+
+/** 판정기 라벨 기준 일반 위로의 비율(0~1). 라벨이 하나도 없으면 null. */
+export function runGenericRate(run: RunResult): number | null {
+  return genericRate(judgedAnalyses(run).map((a) => a.replyLabel));
+}
+
+const percent = (rate: number | null): string => (rate === null ? "-" : `${Math.round(rate * 100)}%`);
+
+/** 판정기 라벨 기준 일반 위로의 비율을 퍼센트 글로. 라벨이 없으면 `-`. */
+export function genericText(run: RunResult): string {
+  return percent(runGenericRate(run));
 }
 
 /** `expect.minTask` 에 못 미치면 그 문구, 아니면 null. */
@@ -241,8 +267,16 @@ function reportSection(run: RunResult): string[] {
   ];
 }
 
+/** `generic_comfort 0.82 (haiku)` 꼴. 라벨이 없으면 `-`. */
+function replyLabelText(a: JudgedAnalysis): string {
+  if (a.replyLabel === undefined) return "-";
+  const probability = a.replyLabelProbability === undefined ? "" : ` ${a.replyLabelProbability.toFixed(2)}`;
+  const judge = a.replyJudge === undefined ? "" : ` (${a.replyJudge})`;
+  return `${a.replyLabel}${probability}${judge}`;
+}
+
 function analysisSection(run: RunResult): string[] {
-  const analyses = run.analysis.analyses;
+  const analyses = judgedAnalyses(run);
   const lines = ["## 분석 요약", ""];
   const summary = run.analysis.summary;
   if (summary !== undefined) lines.push(`- 요약: ${summary.headline} / 다음: ${summary.followUp}`, "");
@@ -254,8 +288,9 @@ function analysisSection(run: RunResult): string[] {
     a.phase,
     `${a.risk.level} (${a.risk.detectedBy})`,
     `${a.transition.from}→${a.transition.to}${a.transition.advanced ? " 전이" : ""}, retry ${a.transition.retryCount}`,
+    replyLabelText(a),
   ]);
-  return [...lines, ...table(["#", "시각", "과제", "phase", "risk", "transition"], rows)];
+  return [...lines, ...table(["#", "시각", "과제", "phase", "risk", "transition", "replyLabel"], rows)];
 }
 
 function verdictSection(run: RunResult): string[] {
@@ -306,7 +341,33 @@ function stats(run: RunResult): Stats {
     latency: seconds(averageLatency(run)),
     firstToken: seconds(averageFirstToken(run)),
     reassure: reassureText(run),
+    generic: genericText(run),
   };
+}
+
+/** 지금 − 기준. 한쪽이 없으면 `-`. */
+function delta(now: number | null, before: number | null, unit: (diff: number) => string): string {
+  if (now === null || before === null) return "-";
+  return unit(now - before);
+}
+
+const signed = (text: string, diff: number): string => (diff > 0 ? `+${text}` : text);
+const latencyDelta = (diff: number): string => signed(`${(diff / 1000).toFixed(1)}s`, diff);
+const pointDelta = (diff: number): string => signed(`${Math.round(diff * 100)}%p`, diff);
+
+/** 기준 대비 평균 지연과 genericRate 의 차이. 판정기와 후보 고르기가 지연과 상투성을 얼마나 바꿨는지 본다(#27). */
+function deltaSection(names: string[], now: Map<string, RunResult>, before: Map<string, RunResult>): string[] {
+  const latencyOf = (run: RunResult | undefined) => (run === undefined ? null : averageLatency(run));
+  const genericOf = (run: RunResult | undefined) => (run === undefined ? null : runGenericRate(run));
+  const rows = names.map((name) => {
+    const [n, b] = [now.get(name), before.get(name)];
+    return [name, delta(latencyOf(n), latencyOf(b), latencyDelta), delta(genericOf(n), genericOf(b), pointDelta)];
+  });
+  return [
+    "## 기준 대비 차이 (지금 − 기준)",
+    "",
+    ...table(["인물", "평균 지연 차이", "일반 위로(genericRate) 차이"], rows),
+  ];
 }
 
 /** 날짜 폴더의 결과로 summary 를 만든다. 기준이 있으면 인물은 두 날짜의 합집합, 칸은 `기준 → 지금`. */
@@ -323,7 +384,7 @@ export function summaryMarkdown(date: string, runs: SavedRun[], baseline: Baseli
     name,
     ...CHECK_IDS.map((id) => pair(countOf(now.get(name), id), countOf(before.get(name), id), withBaseline)),
   ]);
-  const statKeys = ["turns", "closedBy", "reached", "latency", "firstToken", "reassure"];
+  const statKeys = ["turns", "closedBy", "reached", "latency", "firstToken", "reassure", "generic"];
   const statRows = names.map((name) => [
     name,
     ...statKeys.map((key) => pair(statOf(now.get(name), key), statOf(before.get(name), key), withBaseline)),
@@ -346,9 +407,19 @@ export function summaryMarkdown(date: string, runs: SavedRun[], baseline: Baseli
     "## 인물별 결과",
     "",
     ...table(
-      ["인물", "턴", "closedBy", "도달 과제", "평균 지연", "평균 첫 토큰", "정상화 위로(reassureRate)"],
+      [
+        "인물",
+        "턴",
+        "closedBy",
+        "도달 과제",
+        "평균 지연",
+        "평균 첫 토큰",
+        "정상화 위로(reassureRate)",
+        "일반 위로(genericRate)",
+      ],
       statRows,
     ),
+    ...(withBaseline ? ["", ...deltaSection(names, now, before)] : []),
     ...(shortfalls.length === 0 ? [] : ["", "## minTask 미달", "", ...shortfalls]),
   ].join("\n")}\n`;
 }

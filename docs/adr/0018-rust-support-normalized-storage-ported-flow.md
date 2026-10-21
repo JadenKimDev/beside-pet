@@ -50,5 +50,5 @@ ADR-0015 는 엔드포인트의 겉을 먼저 옮기고 기능의 속은 PRD 마
 ## 근거
 
 - `apps/api/src/support/application/support.orchestrator.ts`, `start-session.usecase.ts`, `send-message.usecase.ts`, `close-session.usecase.ts`, `delete-session.usecase.ts`, `support.query.ts`, `ownership.ts`, `agent/mind-report.agent.ts`, `infrastructure/llm/reply-composer.adapter.ts`(320/900 토큰).
-- Rust: `apps/server/src/support/flow/`(흐름, 시간 제한은 `flow/deadline.rs`), `apps/server/src/support/store.rs`, `apps/server/migrations/20261016120000_messages_table.sql`.
+- Rust: `apps/server/src/support/flow/`(흐름. 시간 제한은 처음 `flow/deadline.rs` 에 있었고 #22(2026-10-21)가 `llm/router` 로 옮겼다: 제한을 넘긴 호출을 `timeout` 으로 기록하려면 기록하는 쪽이 제한을 걸어야 한다), `apps/server/src/support/store.rs`, `apps/server/migrations/20261016120000_messages_table.sql`.
 - 이슈 #10 의 "방식" 표, 루트 `CLAUDE.md` "데이터를 두는 원칙".

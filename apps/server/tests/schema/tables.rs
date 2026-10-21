@@ -1,4 +1,4 @@
-//! 테이블과 뷰가 있고, 호출 기록에 본문 칸이 없고, 지금 단가 넷이 들어 있다.
+//! 테이블과 뷰가 있고, 호출 기록과 턴에 본문 칸이 없고, 지금 단가 넷이 들어 있다.
 
 use sqlx::Row;
 
@@ -153,5 +153,135 @@ async fn accounts_has_a_nullable_tokens_valid_from() {
     .unwrap();
     assert_eq!(row.get::<String, _>(0), "timestamp with time zone");
     assert_eq!(row.get::<String, _>(1), "YES");
+    schema.close().await;
+}
+
+#[tokio::test]
+async fn turns_has_the_fact_columns_and_no_text() {
+    let schema = TestSchema::open().await;
+    let got = columns(&schema, "turns").await;
+    assert_eq!(
+        got,
+        [
+            "id",
+            "session_id",
+            "status",
+            "started_at",
+            "finished_at",
+            "error_kind"
+        ]
+    );
+    for banned in ["text", "body", "content", "message", "duration_ms"] {
+        assert!(!got.iter().any(|c| c == banned), "{banned} 칸이 있다");
+    }
+    assert_eq!(
+        columns(&schema, "messages")
+            .await
+            .last()
+            .map(String::as_str),
+        Some("turn_id")
+    );
+    schema.close().await;
+}
+
+/// 지어낸 세션 하나를 넣는다.
+async fn insert_session(schema: &TestSchema) {
+    sqlx::query(
+        "INSERT INTO sessions (id, owner_id, task, retry_count, support_level, closed, grief_profile) \
+         VALUES ('session-a', 'owner-a', 1, 0, 0, false, '{}'::jsonb)",
+    )
+    .execute(&schema.pool)
+    .await
+    .unwrap();
+}
+
+async fn insert_turn(
+    schema: &TestSchema,
+    id: &str,
+    status: &str,
+    finished: bool,
+    error_kind: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO turns (id, session_id, status, started_at, finished_at, error_kind) \
+         VALUES ($1, 'session-a', $2, now(), CASE WHEN $3 THEN now() END, $4)",
+    )
+    .bind(id)
+    .bind(status)
+    .bind(finished)
+    .bind(error_kind)
+    .execute(&schema.pool)
+    .await
+    .map(|_| ())
+}
+
+#[tokio::test]
+async fn turn_status_and_error_kind_are_closed_and_consistent() {
+    let schema = TestSchema::open().await;
+    insert_session(&schema).await;
+    for (id, status, finished, kind) in [
+        ("turn-pending", "pending", false, None),
+        ("turn-done", "done", true, None),
+        ("turn-timeout", "failed", true, Some("timeout")),
+        ("turn-provider", "failed", true, Some("provider")),
+        ("turn-restart", "failed", true, Some("restart")),
+    ] {
+        insert_turn(&schema, id, status, finished, kind)
+            .await
+            .unwrap_or_else(|e| panic!("{status}/{kind:?} 가 들어가지 않았다: {e}"));
+    }
+    for (id, status, finished, kind) in [
+        ("bad-status", "streaming", true, None),
+        ("bad-kind", "failed", true, Some("cancelled")),
+        ("pending-finished", "pending", true, None),
+        ("done-unfinished", "done", false, None),
+        ("failed-without-kind", "failed", true, None),
+        ("done-with-kind", "done", true, Some("timeout")),
+    ] {
+        assert!(
+            insert_turn(&schema, id, status, finished, kind)
+                .await
+                .is_err(),
+            "{id} 가 들어갔다"
+        );
+    }
+    schema.close().await;
+}
+
+async fn insert_message(
+    schema: &TestSchema,
+    seq: i32,
+    turn_id: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO messages (session_id, seq, role, text, task, at, turn_id) \
+         VALUES ('session-a', $1, 'assistant', '지어낸 인사', 1, now(), $2)",
+    )
+    .bind(seq)
+    .bind(turn_id)
+    .execute(&schema.pool)
+    .await
+    .map(|_| ())
+}
+
+#[tokio::test]
+async fn messages_turn_id_is_optional_and_points_to_a_turn() {
+    let schema = TestSchema::open().await;
+    insert_session(&schema).await;
+    insert_turn(&schema, "turn-a", "done", true, None)
+        .await
+        .unwrap();
+    insert_message(&schema, 0, None)
+        .await
+        .expect("turn_id 없는 행이 들어가지 않았다");
+    insert_message(&schema, 1, Some("turn-a"))
+        .await
+        .expect("turn_id 있는 행이 들어가지 않았다");
+    assert!(
+        insert_message(&schema, 2, Some("turn-missing"))
+            .await
+            .is_err(),
+        "없는 턴을 가리켰다"
+    );
     schema.close().await;
 }

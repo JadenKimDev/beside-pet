@@ -19,13 +19,13 @@
       ],
       "tdd": true,
       "red_at": "2026-10-21T09:31:25.710Z",
-      "status": "doing",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
       "started_at": "2026-10-21T09:04:44.069Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-21T09:31:41.721Z",
+      "active_ms": 1617652,
+      "verify_ms": 9569
     },
     {
       "id": "S2",

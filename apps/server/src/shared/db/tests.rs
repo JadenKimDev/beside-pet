@@ -107,7 +107,8 @@ async fn 마이그레이션이_초기_스키마를_만든다() {
             "messages",
             "model_prices",
             "sessions",
-            "turn_analyses"
+            "turn_analyses",
+            "turns"
         ]
     );
 
@@ -129,6 +130,7 @@ async fn 마이그레이션이_초기_스키마를_만든다() {
             "idx_turn_analyses_risk",
             "idx_turn_analyses_session",
             "idx_turn_analyses_to_task",
+            "idx_turns_session",
             "uq_accounts_username",
         ]
     );

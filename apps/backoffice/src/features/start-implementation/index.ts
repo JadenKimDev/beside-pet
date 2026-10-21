@@ -13,7 +13,6 @@ export {
 export {
   canStartImplementation,
   RUN_IMPLEMENT_LABEL,
-  START_COLUMN,
   type StartableIssue,
 } from './model/visibility';
 export {

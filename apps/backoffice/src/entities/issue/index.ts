@@ -4,7 +4,6 @@ export { ISSUE_STATE_LABELS, ISSUE_STATE_TONES } from './model/labels';
 export { GITHUB_TOKEN_MISSING, isTokenMissing } from './model/token';
 export type {
   AddLabelResponse,
-  BoardColumnName,
   BoardResponse,
   IssueCard,
   IssueComment,

@@ -19,6 +19,8 @@ export type IssueDetailFailure = 'tokenMissing' | 'failed';
 export type IssueDetailPanelProps = {
   /** 고른 보드 카드. null 이면 닫힌다. 상세가 오기 전에는 카드의 제목과 라벨을 보인다. */
   card: IssueCard | null;
+  /** 보드의 첫 열 이름(`board.columns[0] ?? null`). "구현 시작"은 이 열의 이슈에만 보인다. */
+  firstColumn: string | null;
   detail: IssueDetail | null;
   failure: IssueDetailFailure | null;
   /** "구현 시작" 뒤의 알림과 실패 문구. views 가 정한다. */
@@ -68,6 +70,7 @@ function LoadingBody() {
 /** 오른쪽에서 열리는 이슈 상세(네이티브 <dialog>). Esc, 바깥 누르기, 닫기 버튼으로 닫는다. */
 export function IssueDetailPanel({
   card,
+  firstColumn,
   detail,
   failure,
   notice,
@@ -124,6 +127,7 @@ export function IssueDetailPanel({
               <StartImplementationButton
                 key={card.number}
                 issue={startableIssue(card, shown)}
+                firstColumn={firstColumn}
                 label={T.start}
                 onStarted={onStarted}
                 onError={onActionError}

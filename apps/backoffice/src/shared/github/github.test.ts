@@ -79,8 +79,17 @@ const boardItem = (number: number, status: string | null, repo = 'fake-owner/fak
   content: { number, repository: { nameWithOwner: repo } },
 });
 
-const graphqlBoard = (nodes: object[], pageInfo = { hasNextPage: false, endCursor: null }) =>
-  json(200, { data: { user: { projectV2: { items: { pageInfo, nodes } } } } });
+/** 지어낸 보드의 Status 선택지. 차례가 열의 차례다. */
+const STATUS_OPTIONS = { options: [{ name: 'Todo' }, { name: 'In Progress' }, { name: 'Done' }] };
+
+const graphqlBoard = (
+  nodes: object[],
+  pageInfo: { hasNextPage: boolean; endCursor: string | null } = {
+    hasNextPage: false,
+    endCursor: null,
+  },
+  field: object | null = STATUS_OPTIONS,
+) => json(200, { data: { user: { projectV2: { field, items: { pageInfo, nodes } } } } });
 
 const isGraphql = (url: URL) => url.pathname === '/graphql';
 const isIssueList = (url: URL) => url.pathname === '/repos/fake-owner/fake-repo/issues';
@@ -278,13 +287,15 @@ describe('board', () => {
           restIssue(2, { state: 'closed' }),
           restIssue(3),
           restIssue(4, { pull_request: { url: 'x' } }),
+          restIssue(5),
         ]);
       }
       if (isGraphql(url)) {
         return graphqlBoard([
-          boardItem(1, 'In progress'),
+          boardItem(1, 'In Progress'),
           boardItem(2, 'Done'),
-          boardItem(1, 'Backlog', 'someone/else'),
+          boardItem(3, 'Archived'),
+          boardItem(1, 'Todo', 'someone/else'),
           { fieldValueByName: null, content: {} },
         ]);
       }
@@ -295,7 +306,7 @@ describe('board', () => {
     expect(response.status).toBe(200);
     const board = (await response.json()) as BoardResponse;
 
-    expect(board.columns).toEqual(['Backlog', 'In progress', 'In review', 'Done']);
+    expect(board.columns).toEqual(['Todo', 'In Progress', 'Done']);
     expect(board.cards).toEqual([
       {
         number: 1,
@@ -303,17 +314,35 @@ describe('board', () => {
         labels: [{ name: 'prd', color: 'ededed' }],
         updatedAt: '2026-01-02T03:04:05Z',
         state: 'open',
-        column: 'In progress',
+        column: 'In Progress',
         url: 'https://github.com/fake-owner/fake-repo/issues/1',
       },
       expect.objectContaining({ number: 2, state: 'closed', column: 'Done' }),
-      expect.objectContaining({ number: 3, column: null }),
+      // options 에 없는 열 이름도 카드에는 그대로 둔다.
+      expect.objectContaining({ number: 3, column: 'Archived' }),
+      expect.objectContaining({ number: 5, column: null }),
     ]);
 
     const list = new URL(calls.find((call) => isIssueList(new URL(call.url)))!.url);
     expect(list.searchParams.get('state')).toBe('all');
     expect(list.searchParams.get('per_page')).toBe('100');
     expect(list.searchParams.get('page')).toBe('1');
+  });
+
+  it.each([
+    ['missing', null],
+    ['not single select', {}],
+  ])('answers columns [] when the Status field is %s', async (_case, field) => {
+    stubGitHub((url) => {
+      if (isIssueList(url)) return json(200, [restIssue(1)]);
+      if (isGraphql(url)) return graphqlBoard([boardItem(1, 'Todo')], undefined, field);
+      return undefined;
+    });
+
+    const board = (await (await getBoardResponse(signedIn())).json()) as BoardResponse;
+
+    expect(board.columns).toEqual([]);
+    expect(board.cards[0]?.column).toBe('Todo');
   });
 
   it('queries Projects v2 with the board owner, number and the Status field name', async () => {
@@ -333,6 +362,8 @@ describe('board', () => {
     expect(payload.query).toMatch(/user\(login: \$login\)/);
     expect(payload.query).toMatch(/projectV2\(number: \$number\)/);
     expect(payload.query).toMatch(/fieldValueByName\(name: \$statusField\)/);
+    expect(payload.query).toMatch(/field\(name: \$statusField\)/);
+    expect(payload.query).toMatch(/\.\.\. on ProjectV2SingleSelectField \{\s*options \{ name \}/);
     expect(payload.variables).toEqual({
       login: 'fake-owner',
       number: 7,
@@ -356,8 +387,10 @@ describe('board', () => {
         const { after } = JSON.parse(String(init.body)).variables;
         graphqlAfter.push(after);
         return after === null
-          ? graphqlBoard([boardItem(1, 'Backlog')], { hasNextPage: true, endCursor: 'c1' } as never)
-          : graphqlBoard([boardItem(102, 'In review')]);
+          ? graphqlBoard([boardItem(1, 'Todo')], { hasNextPage: true, endCursor: 'c1' })
+          : graphqlBoard([boardItem(102, 'Done')], undefined, {
+              options: [{ name: 'Later page is ignored' }],
+            });
       }
       return undefined;
     });
@@ -365,8 +398,9 @@ describe('board', () => {
     const board = (await (await getBoardResponse(signedIn())).json()) as BoardResponse;
 
     expect(board.cards).toHaveLength(102);
-    expect(board.cards.find((c) => c.number === 1)?.column).toBe('Backlog');
-    expect(board.cards.find((c) => c.number === 102)?.column).toBe('In review');
+    expect(board.columns).toEqual(['Todo', 'In Progress', 'Done']);
+    expect(board.cards.find((c) => c.number === 1)?.column).toBe('Todo');
+    expect(board.cards.find((c) => c.number === 102)?.column).toBe('Done');
     expect(calls.filter((c) => isIssueList(new URL(c.url)))).toHaveLength(2);
     expect(graphqlAfter).toEqual([null, 'c1']);
   });

@@ -1,9 +1,5 @@
 /** Route Handler(`/api/github/...`)가 돌려주는 모양. 화면(entities)이 이 타입으로 받는다. */
 
-/** 보드의 열 이름. 보드의 Status 필드 값 그대로다. */
-export const BOARD_COLUMNS = ['Backlog', 'In progress', 'In review', 'Done'] as const;
-export type BoardColumnName = (typeof BOARD_COLUMNS)[number];
-
 export type IssueState = 'open' | 'closed';
 
 export type IssueLabel = { name: string; color: string };
@@ -19,9 +15,12 @@ export type IssueCard = {
   url: string;
 };
 
-/** `GET /api/github/board`. `columns` 는 열의 차례, `cards` 는 이 레포의 이슈 전부(열린 것과 닫힌 것). */
+/**
+ * `GET /api/github/board`. `columns` 는 보드 Status 필드의 선택지 이름을 보드의 차례대로 담는다(필드가 없거나
+ * single select 가 아니면 빈 배열). `cards` 는 이 레포의 이슈 전부(열린 것과 닫힌 것).
+ */
 export type BoardResponse = {
-  columns: readonly BoardColumnName[];
+  columns: string[];
   cards: IssueCard[];
 };
 

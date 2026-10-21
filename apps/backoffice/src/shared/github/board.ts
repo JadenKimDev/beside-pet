@@ -2,7 +2,7 @@ import { cached, cacheKeys } from './cache';
 import { githubGraphql, githubPages } from './client';
 import type { ProjectConfig } from './config';
 import { type RestIssue, toLabels } from './mapping';
-import { BOARD_COLUMNS, type BoardResponse, type IssueCard } from './types';
+import type { BoardResponse, IssueCard } from './types';
 
 /** 보드에서 열을 정하는 필드의 이름. 보드마다 다를 수 있어 여기 한 곳에 둔다. */
 export const STATUS_FIELD_NAME = 'Status';
@@ -10,6 +10,9 @@ export const STATUS_FIELD_NAME = 'Status';
 const BOARD_QUERY = `query Board($login: String!, $number: Int!, $statusField: String!, $after: String) {
   user(login: $login) {
     projectV2(number: $number) {
+      field(name: $statusField) {
+        ... on ProjectV2SingleSelectField { options { name } }
+      }
       items(first: 100, after: $after) {
         pageInfo { hasNextPage endCursor }
         nodes {
@@ -33,6 +36,7 @@ type BoardItem = {
 type BoardData = {
   user: {
     projectV2: {
+      field: { options?: { name: string }[] } | null;
       items: {
         pageInfo: { hasNextPage: boolean; endCursor: string | null };
         nodes: (BoardItem | null)[];
@@ -41,10 +45,18 @@ type BoardData = {
   } | null;
 };
 
-/** 이 레포 이슈 번호 → 보드의 열 이름. 다른 레포의 카드와 이슈가 아닌 카드는 뺀다. */
-async function boardColumns(config: ProjectConfig, token: string): Promise<Map<number, string>> {
+type BoardState = {
+  /** Status 필드의 선택지 이름, 보드의 차례대로. 첫 페이지에서 읽는다. */
+  columns: string[];
+  /** 이 레포 이슈 번호 → 보드의 열 이름. */
+  placed: Map<number, string>;
+};
+
+/** 보드의 열과 카드의 자리. 다른 레포의 카드와 이슈가 아닌 카드는 뺀다. */
+async function boardState(config: ProjectConfig, token: string): Promise<BoardState> {
   const repo = `${config.owner}/${config.repo}`.toLowerCase();
-  const columns = new Map<number, string>();
+  const placed = new Map<number, string>();
+  let columns: string[] | null = null;
   let after: string | null = null;
   for (;;) {
     const data: BoardData = await githubGraphql<BoardData>(
@@ -57,28 +69,30 @@ async function boardColumns(config: ProjectConfig, token: string): Promise<Map<n
       },
       token,
     );
-    const items = data.user?.projectV2?.items;
-    if (!items) return columns;
+    const project = data.user?.projectV2;
+    columns ??= (project?.field?.options ?? []).map((option) => option.name);
+    const items = project?.items;
+    if (!items) return { columns, placed };
     for (const node of items.nodes) {
       const number = node?.content?.number;
       const owner = node?.content?.repository?.nameWithOwner?.toLowerCase();
       const name = node?.fieldValueByName?.name;
-      if (typeof number === 'number' && owner === repo && name) columns.set(number, name);
+      if (typeof number === 'number' && owner === repo && name) placed.set(number, name);
     }
-    if (!items.pageInfo.hasNextPage || !items.pageInfo.endCursor) return columns;
+    if (!items.pageInfo.hasNextPage || !items.pageInfo.endCursor) return { columns, placed };
     after = items.pageInfo.endCursor;
   }
 }
 
 export function loadBoard(config: ProjectConfig, token: string): Promise<BoardResponse> {
   return cached(cacheKeys.board, async () => {
-    const [issues, columns] = await Promise.all([
+    const [issues, { columns, placed }] = await Promise.all([
       githubPages<RestIssue>(
         `/repos/${config.owner}/${config.repo}/issues`,
         { state: 'all' },
         token,
       ),
-      boardColumns(config, token),
+      boardState(config, token),
     ]);
     const cards: IssueCard[] = issues
       .filter((issue) => !issue.pull_request)
@@ -88,9 +102,9 @@ export function loadBoard(config: ProjectConfig, token: string): Promise<BoardRe
         labels: toLabels(issue.labels),
         updatedAt: issue.updated_at,
         state: issue.state,
-        column: columns.get(issue.number) ?? null,
+        column: placed.get(issue.number) ?? null,
         url: issue.html_url,
       }));
-    return { columns: BOARD_COLUMNS, cards };
+    return { columns, cards };
   });
 }

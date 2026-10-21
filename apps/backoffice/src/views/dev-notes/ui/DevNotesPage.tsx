@@ -19,7 +19,8 @@ import {
 
 const DEV_NOTES_TEXT = {
   title: '개발노트',
-  description: 'GitHub 이슈(PRD)와 보드를 봐요. Backlog 의 이슈는 여기서 구현을 시작할 수 있어요.',
+  description:
+    'GitHub 이슈(PRD)와 보드를 봐요. 보드 첫 열의 이슈는 여기서 구현을 시작할 수 있어요.',
   refresh: '새로 받기',
 } as const;
 
@@ -109,6 +110,7 @@ export function DevNotesPage() {
       />
       <IssueDetailPanel
         card={findCard(board.board, selected)}
+        firstColumn={board.board?.columns[0] ?? null}
         detail={detail.detail}
         failure={detail.failure}
         notice={notice}

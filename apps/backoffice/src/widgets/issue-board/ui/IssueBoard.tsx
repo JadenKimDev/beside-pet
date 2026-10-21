@@ -43,7 +43,7 @@ function Retry({ message, onRetry }: { message: string; onRetry: () => void }) {
   );
 }
 
-/** 보드의 열(Backlog, In progress, In review, Done, 그 뒤 알 수 없는 열과 보드 밖)별 카드. 받기는 views 가 한다. */
+/** 보드의 열(Status 선택지의 차례, 그 뒤 알 수 없는 열과 보드 밖)별 카드. 받기는 views 가 한다. */
 export function IssueBoard({ board, failure, selected, onSelect, onRetry }: IssueBoardProps) {
   const { view, staleFailure } = boardScreen(board, failure);
 

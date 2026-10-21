@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BoardResponse, IssueCard } from '@/shared/github';
 import { groupByColumn, sortCards } from './columns';
 
-const COLUMNS = ['Backlog', 'In progress', 'In review', 'Done'] as const;
+const COLUMNS = ['Backlog', 'In progress', 'In review', 'Done'];
 
 function card(number: number, overrides: Partial<IssueCard> = {}): IssueCard {
   return {

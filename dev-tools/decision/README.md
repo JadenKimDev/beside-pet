@@ -65,3 +65,18 @@ cd dev-tools/decision && uv run pytest -q
 평가로 둔다. 그래서 두 출처가 함께 20% 에 가깝게 비례한다. 30줄을 채우는 조합이 없으면 이 조건 없이 고른다.
 같은 거리의 조합이 여럿이면 시드(26)로 섞은 차례의 처음 것을 고른다. 모든 인물을 평가로 두지는 않는다. 인물이
 16명을 넘으면 모든 조합을 보지 않고 시드로 섞은 차례대로 거리가 줄어들 때만 더한다.
+
+## 서버에 붙이기 (`laya serve`, `/v1/systemone`)
+
+제품 서버의 `REPLY_JUDGE=systemone` 이 부르는 판정 서버는 이 하네스의 가상환경으로 띄운다(uvicorn·fastapi 는 의존성에 있다). `laya serve` 는 플래그가 아니라 환경 변수로 설정하고, 이름 없는 요청은 언어로 모델을 고르므로(한국어 → `multilingual`, 영어 → `english`) 파인튜닝 모델을 그 두 이름으로 등록해야 모든 요청이 파인튜닝 모델로 간다.
+
+```bash
+cd dev-tools/decision
+M=$PWD/data/models/laya-cliche-2026-10-21-multilingual-e8
+LAYA_PORT=8011 LAYA_HOST=127.0.0.1 \
+LAYA_EXTRA_MODELS="{\"multilingual\": \"$M\", \"english\": \"$M\"}" LAYA_DEFAULT_MODEL=multilingual \
+uv run python -m laya.serve
+# 제품 서버: REPLY_JUDGE=systemone SYSTEMONE_URL=http://127.0.0.1:8011
+```
+
+확인: `routing.repo` 가 모델 경로이고 `probabilities` 가 셋이면 된다(2026-10-22 실측: 같은 문장에 기본 `multilingual` 은 generic 0.64, 파인튜닝은 0.96).

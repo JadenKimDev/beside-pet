@@ -76,6 +76,8 @@ fn state_of(session_id: String) -> SessionStateResponse {
         support_level: 1,
         closed: true,
         report_available: true,
+        active_turn: None,
+        failed_turn: None,
     }
 }
 

@@ -1,12 +1,14 @@
 //! 대화 기능의 관문(`SupportService` trait)과 요청자, 아직 구현이 없는 `Unimplemented`.
 //!
 //! 핸들러는 확인한 계정을 `Requester` 로 넘기고, 소유 확인과 대화의 속은 구현이 맡는다. 구현은 `app.rs` 가 끼운다.
+//! 턴의 다시 붙기·중단·답 다시 받기(ADR-0030)는 구현하지 않은 쪽이 `501` 을 내도록 기본 몸체를 둔다.
 
 use std::sync::Arc;
 
 use futures_util::future::BoxFuture;
 use futures_util::stream::{self, BoxStream};
 
+use super::response::CancelledTurnResponse;
 use super::{
     MessageResponse, MindReportResponse, SendMessageRequest, SessionAnalysisResponse,
     SessionListItemResponse, SessionStateResponse, StartSessionRequest, StreamEvent, TurnResponse,
@@ -90,6 +92,27 @@ pub trait SupportService {
         requester: &'a Requester,
         session_id: &'a str,
     ) -> BoxFuture<'a, Result<MindReportResponse, ApiError>>;
+    /// 턴의 답에 다시 붙는다. 진행 중이면 `meta` → 모은 글 `token` 하나 → 이어지는 조각 → `done`(중단되면 `cancelled`),
+    /// 끝났으면 `meta` → 답 전체 `token` → `done`. 실패했거나 중단된 턴은 첫 항목이 409 "Turn is not active" 다.
+    fn turn_stream(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {
+        let _ = (requester, session_id, turn_id);
+        not_implemented_stream()
+    }
+    /// 답을 기다리거나 받는 중인 턴을 중단한다. 이미 중단된 턴이면 같은 응답(멱등), 끝났거나 실패한 턴은 409 "Turn already finished".
+    fn cancel_turn<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+        turn_id: &'a str,
+    ) -> BoxFuture<'a, Result<CancelledTurnResponse, ApiError>> {
+        let _ = (requester, session_id, turn_id);
+        not_implemented()
+    }
+    /// 실패한 턴의 답만 다시 받는다. 이벤트는 `send_stream` 과 같다. 실패한 턴이 아니면 첫 항목이 409 "Turn is not failed".
+    fn retry_turn(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {
+        let _ = (requester, session_id, turn_id);
+        not_implemented_stream()
+    }
 }
 
 pub type SharedSupportService = Arc<dyn SupportService + Send + Sync>;

@@ -3,13 +3,17 @@
 //! 구조(과제, 진행률, 지원 수준)는 세션 규칙이 정하고 모델은 글만 쓴다. 사용자 메시지는 답보다 먼저 `pending` 턴으로 저장하고,
 //! 답이 실패하면 턴을 `failed` 로 닫아 저장한다(사용자 메시지는 남고 상태는 그대로다). 위기면 발화 모델을 부르지 않고 `safety` 의
 //! 고정 문구로 받자마자 닫는다(ADR-0004). 동기와 스트림은 답이 나가는 길(`Voice`)만 다르다.
+//! 위기가 아닌 사용자 턴은 받은 때부터 끝날 때까지 진행 중 턴 등록부에 있고, 답이 시작하면 `streaming` 을 저장하며, 도중에 중단되면
+//! 거기까지 온 답과 함께 `cancelled` 로 닫는다(ADR-0030). 실패한 턴의 답 다시 받기도 같은 길을 밟는다.
 
 use uuid::Uuid;
 
-use super::access::session_conflict;
+use super::access::{TURN_ALREADY_RECEIVED, TURN_NOT_FAILED, session_conflict};
+use super::active::ActiveTurns;
 use super::deadline::{CallFailure, Deadlined};
+use super::live::LiveTurn;
 use super::parts::FlowParts;
-use super::voice::Voice;
+use super::voice::{Composed, Voice};
 use crate::identity::ChatLanguage;
 use crate::llm::{CallContext, CallPurpose, GenerationRequest};
 use crate::safety::{assess_risk_verdict, crisis_reply};
@@ -35,6 +39,13 @@ pub struct Previous {
     pub recent_history: Vec<Message>,
 }
 
+/// 사용자 턴이 끝난 모양: 답이 끝났거나, 도중에 중단됐다.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Finished {
+    Done(TurnResponse),
+    Cancelled,
+}
+
 /// 서버가 만드는 턴 id(UUID v4). 첫 인사와 `turnId` 없이 온 사용자 턴에 쓴다.
 pub fn new_turn_id() -> String {
     Uuid::new_v4().to_string()
@@ -57,10 +68,15 @@ pub async fn greet(
     let knowledge = parts.knowledge.retrieve(session.task(), KNOWLEDGE_LIMIT);
     voice.announce(session.meta_event()).await;
     let request = reply_request(&session, phase, &knowledge, previous);
-    let reply = voice
-        .compose(replies, request)
+    // 첫 인사는 받은 사용자 말이 없어 중단 대상이 아니다(등록부에 오르지 않는다).
+    let Composed::Reply(reply) = voice
+        .compose(replies, request, None)
         .await
-        .map_err(CallFailure::into_error)?;
+        .map_err(CallFailure::into_error)?
+    else {
+        // 등록부에 없는 턴은 중단될 수 없다.
+        return Err(ApiError::Internal);
+    };
     session
         .greet(new_turn_id(), &reply, parts.clock.now())
         .map_err(|error| session_conflict(session.id(), error))?;
@@ -69,14 +85,16 @@ pub async fn greet(
 }
 
 /// 사용자 턴 하나. 세션은 열려 있어야 하고(닫혔으면 409) `turn_id` 는 이 세션에 처음이어야 한다(아니면 409).
+/// 같은 턴 id 가 이 프로세스에서 아직 돌고 있으면(동시에 두 번 왔다) 둘째는 저장 전에 409 다.
 pub async fn handle(
     parts: &FlowParts,
     replies: &Deadlined,
+    turns: &ActiveTurns,
     mut session: Session,
     turn_id: String,
     text: &str,
     voice: &Voice<'_>,
-) -> Result<TurnResponse, ApiError> {
+) -> Result<Finished, ApiError> {
     let conflict = |session: &Session, error| session_conflict(session.id(), error);
     // 1) 안전 확인: 키워드 ∪ 모델 판정. 누가 잡았는지도 턴 분석까지 싣는다.
     let risk = RiskAssessment::from(
@@ -91,36 +109,107 @@ pub async fn handle(
         parts.sessions.save(&session.snapshot()).await?;
         voice.announce(session.meta_event()).await;
         voice.fixed(reply).await;
-        return Ok(session.turn_response(reply.to_owned()));
+        return Ok(Finished::Done(session.turn_response(reply.to_owned())));
     }
-    // 2) 받기와 저장: 메시지와 `pending` 턴. 세션 상태는 아직 그대로다.
+    // 2) 받기, 등록, 저장: 메시지와 `pending` 턴. 세션 상태는 아직 그대로다. 등록이 저장보다 앞서므로 저장소에 보이는
+    //    도는 턴은 늘 등록부에도 있다.
     session
         .accept_user_turn(turn_id.clone(), text, parts.clock.now())
         .map_err(|error| conflict(&session, error))?;
+    let live = LiveTurn::register(turns, session.id(), &turn_id)
+        .map_err(|_| ApiError::Conflict(TURN_ALREADY_RECEIVED.to_owned()))?;
     parts.sessions.save(&session.snapshot()).await?;
+    answer(parts, replies, live, session, &turn_id, risk, voice).await
+}
+
+/// 실패한 턴의 답을 다시 받는다: 같은 사용자 메시지로 안전 확인과 전이를 다시 계산하고, 처음 턴과 같은 길(`pending` → `streaming` → `done`)을 밟는다.
+/// 사용자 메시지는 다시 적지 않는다. 다시 판정한 결과가 위기면 받은 턴처럼 고정 문구로 닫는다(ADR-0004).
+pub async fn retry(
+    parts: &FlowParts,
+    replies: &Deadlined,
+    turns: &ActiveTurns,
+    mut session: Session,
+    turn_id: &str,
+    voice: &Voice<'_>,
+) -> Result<Finished, ApiError> {
+    let not_failed = || ApiError::Conflict(TURN_NOT_FAILED.to_owned());
+    session.retry_turn(turn_id).map_err(|_| not_failed())?;
+    let text = session
+        .history()
+        .iter()
+        .rev()
+        .find(|message| {
+            message.role == MessageRole::User && message.turn_id.as_deref() == Some(turn_id)
+        })
+        .map(|message| message.text.clone())
+        .ok_or_else(not_failed)?;
+    let risk = RiskAssessment::from(
+        assess_risk_verdict(&text, Some(session.id()), parts.model.as_ref()).await,
+    );
+    if risk.level.is_crisis() {
+        let reply = crisis_reply(language_code(session.grief_profile().language()));
+        session
+            .complete_turn(turn_id, risk, reply, Vec::new(), parts.clock.now())
+            .map_err(|error| session_conflict(session.id(), error))?;
+        parts.sessions.save(&session.snapshot()).await?;
+        voice.announce(session.meta_event()).await;
+        voice.fixed(reply).await;
+        return Ok(Finished::Done(session.turn_response(reply.to_owned())));
+    }
+    let live = LiveTurn::register(turns, session.id(), turn_id).map_err(|_| not_failed())?;
+    parts.sessions.save(&session.snapshot()).await?;
+    answer(parts, replies, live, session, turn_id, risk, voice).await
+}
+
+/// 받아 저장한 `pending` 턴의 답: 전이(계산만)와 `meta` → 지식 검색 → `streaming` 저장 → 발화 → 끝내기와 저장.
+/// 발화가 실패하면 `failed`, 중단되면 거기까지 모은 답과 함께 `cancelled` 로 닫아 저장한다. 어느 쪽이든 저장한 뒤에 등록부에서 빠진다.
+async fn answer(
+    parts: &FlowParts,
+    replies: &Deadlined,
+    mut live: LiveTurn,
+    mut session: Session,
+    turn_id: &str,
+    risk: RiskAssessment,
+    voice: &Voice<'_>,
+) -> Result<Finished, ApiError> {
+    let conflict = |session: &Session, error| session_conflict(session.id(), error);
     // 3) 과제 전이(계산만)와 `meta`: 저장한 뒤에 이번 턴이 끝나면 될 구조를 알린다.
     let step = session
-        .transition(&turn_id, risk)
+        .transition(turn_id, risk)
         .map_err(|error| conflict(&session, error))?;
     voice.announce(meta_for(&session, &step)).await;
-    // 4) 지식 검색, 5) 발화.
+    // 4) 지식 검색, 5) 발화(시작을 저장한 뒤).
     let knowledge = parts.knowledge.retrieve(step.to, KNOWLEDGE_LIMIT);
     let request = reply_request(&session, step.phase, &knowledge, None);
-    let reply = match voice.compose(replies, request).await {
-        Ok(reply) => reply,
-        Err(failure) => {
+    session
+        .start_streaming(turn_id, parts.clock.now())
+        .map_err(|error| conflict(&session, error))?;
+    parts.sessions.save(&session.snapshot()).await?;
+    let composed = voice.compose(replies, request, Some(&mut live)).await;
+    let reply = match composed {
+        // 답이 끝나는 순간에 온 중단도 중단이다(중단을 부른 쪽은 `cancelled` 를 기다린다).
+        Ok(Composed::Reply(reply)) if !live.is_cancelled() => reply,
+        Err(failure) if !live.is_cancelled() => {
             // 답이 실패해도 사용자 메시지는 남는다. 턴만 `failed` 로 닫는다.
             session
-                .fail_turn(&turn_id, failure.kind(), parts.clock.now())
+                .fail_turn(turn_id, failure.kind(), parts.clock.now())
                 .map_err(|error| conflict(&session, error))?;
             parts.sessions.save(&session.snapshot()).await?;
             return Err(failure.into_error());
+        }
+        _ => {
+            // 중단: 거기까지 온 답을 그 턴의 답으로 적고 숨긴다. 세션 상태는 그대로다.
+            session
+                .cancel_turn(turn_id, Some(&live.gathered()), parts.clock.now())
+                .map_err(|error| conflict(&session, error))?;
+            parts.sessions.save(&session.snapshot()).await?;
+            return Ok(Finished::Cancelled);
         }
     };
     // 6) 끝내기(전이 적용, 답, 턴 분석, 클로징이면 닫기)와 저장.
     session
         .complete_turn(
-            &turn_id,
+            turn_id,
             risk,
             &reply,
             knowledge_refs(&knowledge),
@@ -128,7 +217,7 @@ pub async fn handle(
         )
         .map_err(|error| conflict(&session, error))?;
     parts.sessions.save(&session.snapshot()).await?;
-    Ok(session.turn_response(reply))
+    Ok(Finished::Done(session.turn_response(reply)))
 }
 
 /// `safety` 가 받는 대화 언어 코드.

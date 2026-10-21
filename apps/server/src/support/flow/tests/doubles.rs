@@ -93,6 +93,8 @@ pub struct ScriptedModel {
     calls: Mutex<Vec<Call>>,
     /// 받은 요청의 호출 맥락(부른 순서).
     contexts: Mutex<Vec<CallContext>>,
+    /// 있으면 발화 스트림이 첫 조각 뒤의 조각마다 이 문의 허가를 하나씩 기다린다.
+    pace: Option<Arc<Semaphore>>,
 }
 
 impl ScriptedModel {
@@ -111,7 +113,21 @@ impl ScriptedModel {
             statement: None,
             calls: Mutex::new(Vec::new()),
             contexts: Mutex::new(Vec::new()),
+            pace: None,
         }
+    }
+
+    /// 발화 스트림이 첫 조각을 곧바로 내고, 나머지 조각은 `pace()` 의 허가마다 하나씩 낸다.
+    pub fn paced() -> ScriptedModel {
+        ScriptedModel {
+            pace: Some(Arc::new(Semaphore::new(0))),
+            ..ScriptedModel::new()
+        }
+    }
+
+    /// `paced` 의 문. 허가 하나에 조각 하나가 나간다.
+    pub fn pace(&self) -> Arc<Semaphore> {
+        self.pace.clone().expect("a paced model")
     }
 
     /// 위기 판정에 YES 라고 답한다.
@@ -267,6 +283,19 @@ impl TextModel for ScriptedModel {
                 Err(ApiError::Internal),
             ]));
         }
+        if let Some(pace) = self.pace.clone() {
+            return Box::pin(stream::iter(REPLY_CHUNKS.into_iter().enumerate()).then(
+                move |(index, chunk)| {
+                    let pace = pace.clone();
+                    async move {
+                        if index > 0 {
+                            pace.acquire().await.expect("the pace stays open").forget();
+                        }
+                        Ok(chunk.to_owned())
+                    }
+                },
+            ));
+        }
         if self.hang == Hang::StreamAfterFirst {
             return Box::pin(
                 stream::once(async { Ok(REPLY_CHUNKS[0].to_owned()) }).chain(stream::pending()),
@@ -415,6 +444,12 @@ pub const TEST_LIMITS: CallLimits = CallLimits {
     stream_idle: Duration::from_millis(200),
 };
 
+/// 테스트가 도중에 끼어들 틈이 있는 제한. 테스트 자체는 2초로 묶는다.
+pub const SLOW_LIMITS: CallLimits = CallLimits {
+    generate: Duration::from_secs(5),
+    stream_idle: Duration::from_secs(5),
+};
+
 pub const KNOWLEDGE_JSON: &str = r#"{"chunks":[
  {"source":"Fixture task one","task_id":1,"tags":["acceptance"],"content":"Grief comes in waves."},
  {"source":"Fixture task two","task_id":2,"tags":["pain"],"content":"Pain is allowed to be felt."}
@@ -437,6 +472,15 @@ impl Harness {
     }
 
     pub fn with(model: ScriptedModel, languages: FixedLanguages) -> Harness {
+        Harness::assemble(model, languages, TEST_LIMITS)
+    }
+
+    /// 제한을 넉넉히(`SLOW_LIMITS`) 둔다. 테스트가 도중에 끼어드는(중단, 다시 붙기) 턴에 쓴다.
+    pub fn slow(model: ScriptedModel) -> Harness {
+        Harness::assemble(model, FixedLanguages::default(), SLOW_LIMITS)
+    }
+
+    fn assemble(model: ScriptedModel, languages: FixedLanguages, limits: CallLimits) -> Harness {
         let model = Arc::new(model);
         let sessions = Arc::new(MemorySessions::default());
         let flow = SupportFlow::new(FlowParts {
@@ -447,7 +491,7 @@ impl Harness {
             clock: Arc::new(StepClock {
                 ticks: AtomicI64::new(0),
             }),
-            limits: TEST_LIMITS,
+            limits,
         });
         Harness {
             flow,
@@ -553,4 +597,11 @@ pub fn joined_tokens(events: &[Result<StreamEvent, ApiError>]) -> String {
             _ => None,
         })
         .collect()
+}
+
+/// 스트림의 다음 항목. 걸리면 테스트가 실패하도록 2초로 묶는다.
+pub async fn next_event(events: &mut TurnStream) -> Option<Result<StreamEvent, ApiError>> {
+    tokio::time::timeout(Duration::from_secs(2), events.next())
+        .await
+        .expect("the next event comes")
 }

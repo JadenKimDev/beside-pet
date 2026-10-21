@@ -90,8 +90,8 @@ async fn 스트림이_도중에_실패하면_done_없이_끊고_사용자_메시
     );
     assert_eq!(
         h.sessions.saves().len(),
-        saves_before + 2,
-        "saved on receipt and on failure"
+        saves_before + 3,
+        "saved on receipt, when the reply starts, and on failure"
     );
     let saved = h.sessions.last_save();
     let last = saved.history.last().unwrap();

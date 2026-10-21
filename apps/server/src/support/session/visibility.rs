@@ -14,7 +14,6 @@ impl Session {
     }
 
     /// 답을 기다리거나 받는 중인 마지막 턴(`pending` 또는 `streaming`)의 id 와 상태.
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub fn active_turn(&self) -> Option<(&str, TurnStatus)> {
         self.turns
             .iter()
@@ -25,7 +24,6 @@ impl Session {
 
     /// 답이 없는 마지막 실패 턴: 중단한 턴을 건너뛴 마지막 턴이 `failed` 일 때 그 id. 다시 받아 답이 붙거나 뒤에 다른 턴이
     /// 오면 없다.
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub fn failed_turn(&self) -> Option<&str> {
         self.turns
             .iter()
@@ -36,7 +34,6 @@ impl Session {
     }
 
     /// 그 턴의 답(동반자 메시지). 다시 붙는 스트림이 끝난 턴의 답 전체를 보낼 때 쓴다.
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub fn turn_reply(&self, turn_id: &str) -> Option<&str> {
         self.transcript
             .iter()

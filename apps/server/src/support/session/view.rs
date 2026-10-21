@@ -1,11 +1,11 @@
 //! 세션의 상태를 응답 모양(턴 결과, 스트림의 `meta`, 상태, 목록 항목, 기록, 분석)으로 옮긴다.
 
 use super::super::response::{
-    MessageResponse, SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse,
+    ActiveTurnResponse, ActiveTurnStatus, FailedTurnResponse, MessageResponse, SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse,
     StreamEvent, TurnResponse,
 };
 use super::super::rules::TurnAnalysis;
-use super::{Message, MessageActivity, Session};
+use super::{Message, MessageActivity, Session, TurnStatus};
 
 impl Session {
     /// 한 턴의 결과(지금 상태 + 답).
@@ -37,6 +37,16 @@ impl Session {
             support_level: self.support_level.number(),
             closed: self.closed,
             report_available: self.report_available(),
+            active_turn: self.active_turn().map(|(turn_id, status)| ActiveTurnResponse {
+                turn_id: turn_id.to_owned(),
+                status: match status {
+                    TurnStatus::Streaming => ActiveTurnStatus::Streaming,
+                    _ => ActiveTurnStatus::Pending,
+                },
+            }),
+            failed_turn: self.failed_turn().map(|turn_id| FailedTurnResponse {
+                turn_id: turn_id.to_owned(),
+            }),
         }
     }
 

@@ -3,10 +3,6 @@
 //! 발화가 시작할 때 `register` 하고 끝나면 `finish` 로 뺀다. 같은 턴 id 의 두 번째 등록은 `AlreadyActive` 라
 //! 같은 프로세스 안에서 같은 `turnId` 가 동시에 도착하는 경합을 막는다. DB 와 모델은 모르고 I/O 가 없다.
 //! 서버가 다시 뜨면 비어 있다.
-#![cfg_attr(
-    not(test),
-    expect(dead_code, reason = "S3 이 흐름에 끼우기 전까지 쓰는 곳이 없다")
-)]
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};

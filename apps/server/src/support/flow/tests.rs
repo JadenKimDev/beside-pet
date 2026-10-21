@@ -2,13 +2,17 @@
 
 mod accept;
 mod access;
+mod cancel;
 mod context;
 mod crisis;
 mod deadline;
 mod detector;
 mod doubles;
 mod lifecycle;
+mod reattach;
+mod registry;
 mod report;
+mod retry;
 mod start;
 mod stream;
 mod turn;

@@ -38,8 +38,8 @@ async fn 발화가_실패하면_사용자_메시지와_실패한_턴이_남고_�
     assert_eq!(refused, Err(ApiError::Internal));
     assert_eq!(
         h.sessions.saves().len(),
-        saves_before + 2,
-        "on receipt and on failure"
+        saves_before + 3,
+        "on receipt, when the reply starts, and on failure"
     );
     let saved = h.sessions.last_save();
     let last = saved.history.last().unwrap();

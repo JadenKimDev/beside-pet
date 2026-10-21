@@ -4,6 +4,7 @@ use chrono::{TimeZone, Utc};
 use serde_json::json;
 
 use super::{
+    ActiveTurnResponse, ActiveTurnStatus, CancelledTurnResponse, FailedTurnResponse,
     KnowledgeRefResponse, MessageResponse, MessageRole, MindReportResponse,
     MindReportSectionResponse, ReplyPhase, ReportSectionKey, RiskAssessmentResponse, RiskDetector,
     SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse, SessionSummaryResponse,
@@ -69,6 +70,8 @@ fn 상태와_목록() {
         support_level: 2,
         closed: true,
         report_available: true,
+        active_turn: None,
+        failed_turn: None,
     };
     assert_eq!(
         serde_json::to_value(state).unwrap(),
@@ -322,4 +325,50 @@ fn 감지_주체는_keyword_model_none_으로_나간다() {
     ] {
         assert_eq!(serde_json::to_value(detector).unwrap(), json!(text));
     }
+}
+
+#[test]
+fn 중단_이벤트는_kind_하나뿐이다() {
+    assert_eq!(
+        serde_json::to_value(StreamEvent::Cancelled).unwrap(),
+        json!({ "kind": "cancelled" })
+    );
+}
+
+#[test]
+fn 상태의_진행_중_턴과_실패한_턴() {
+    let state = SessionStateResponse {
+        session_id: "s1".to_owned(),
+        task: 1,
+        progress: 0.0,
+        support_level: 1,
+        closed: false,
+        report_available: false,
+        active_turn: Some(ActiveTurnResponse {
+            turn_id: "t-2".to_owned(),
+            status: ActiveTurnStatus::Streaming,
+        }),
+        failed_turn: Some(FailedTurnResponse {
+            turn_id: "t-1".to_owned(),
+        }),
+    };
+    let value = serde_json::to_value(state).unwrap();
+    assert_eq!(value["activeTurn"], json!({ "turnId": "t-2", "status": "streaming" }));
+    assert_eq!(value["failedTurn"], json!({ "turnId": "t-1" }));
+    let pending = ActiveTurnResponse {
+        turn_id: "t-3".to_owned(),
+        status: ActiveTurnStatus::Pending,
+    };
+    assert_eq!(
+        serde_json::to_value(pending).unwrap(),
+        json!({ "turnId": "t-3", "status": "pending" })
+    );
+}
+
+#[test]
+fn 중단_응답() {
+    assert_eq!(
+        serde_json::to_value(CancelledTurnResponse::of("t-1")).unwrap(),
+        json!({ "turnId": "t-1", "status": "cancelled" })
+    );
 }

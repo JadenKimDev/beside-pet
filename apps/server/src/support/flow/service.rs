@@ -1,15 +1,19 @@
-//! `SupportService` 의 구현: 요청마다 관문(소유자 확인)을 거쳐 흐름(시작, 턴, 닫기, 삭제, 질의, 리포트)을 부르고, 스트림 턴은 따로 돌려 이벤트로 낸다.
+//! `SupportService` 의 구현: 요청마다 관문(소유자 확인)을 거쳐 흐름(시작, 턴, 닫기, 삭제, 질의, 리포트, 턴의 다시 붙기·중단·답 다시 받기)을
+//! 부르고, 스트림 턴은 따로 돌려 이벤트로 낸다. 진행 중 턴 등록부는 이 구현 하나가 들고 복제본이 함께 본다.
 
 use std::sync::Arc;
 
 use futures_util::future::BoxFuture;
 use sqlx::PgPool;
 
-use super::access::{require, session_conflict};
+use super::access::{TURN_CANCELLED, TURN_NOT_FAILED, require, require_turn, session_conflict};
+use super::active::ActiveTurns;
 use super::adapters::{AccountLanguages, SystemClock};
+use super::cancel::cancel;
 use super::deadline::{CallLimits, Deadlined};
-use super::orchestrator::{greet, handle, new_turn_id};
+use super::orchestrator::{Finished, greet, handle, new_turn_id, retry};
 use super::parts::FlowParts;
+use super::reattach::reattach;
 use super::report::report;
 use super::start::create;
 use super::stream::turn_stream;
@@ -18,7 +22,8 @@ use crate::identity::SharedAccountService;
 use crate::llm::SharedTextModel;
 use crate::shared::ApiError;
 use crate::support::knowledge::KnowledgeBase;
-use crate::support::session::{Session, SessionError};
+use crate::support::response::CancelledTurnResponse;
+use crate::support::session::{Session, SessionError, TurnStatus};
 use crate::support::store::SessionStore;
 use crate::support::{
     MessageResponse, MindReportResponse, Requester, SendMessageRequest, SessionAnalysisResponse,
@@ -35,6 +40,8 @@ pub struct SupportFlow {
     parts: Arc<FlowParts>,
     /// `parts.model` 과 같은 제한 두른 모델. 발화는 이것으로 불러 제한을 넘긴 것과 모델 오류를 가른다.
     replies: Arc<Deadlined>,
+    /// 진행 중 턴 등록부(프로세스 메모리, ADR-0030).
+    turns: ActiveTurns,
 }
 
 impl SupportFlow {
@@ -45,6 +52,7 @@ impl SupportFlow {
         SupportFlow {
             parts: Arc::new(FlowParts { model, ..parts }),
             replies,
+            turns: ActiveTurns::default(),
         }
     }
 
@@ -89,11 +97,60 @@ impl SupportFlow {
         session_id: &str,
         request: SendMessageRequest,
         voice: &Voice<'_>,
-    ) -> Result<TurnResponse, ApiError> {
+    ) -> Result<Finished, ApiError> {
         let turn_id = request.turn_id.unwrap_or_else(new_turn_id);
         let session = self.writable(requester, session_id, &turn_id).await?;
         let parts = self.parts.as_ref();
-        handle(parts, &self.replies, session, turn_id, &request.text, voice).await
+        handle(
+            parts,
+            &self.replies,
+            &self.turns,
+            session,
+            turn_id,
+            &request.text,
+            voice,
+        )
+        .await
+    }
+
+    async fn retry_failed(
+        &self,
+        requester: &Requester,
+        session_id: &str,
+        turn_id: &str,
+        voice: &Voice<'_>,
+    ) -> Result<Finished, ApiError> {
+        let session = self.retriable(requester, session_id, turn_id).await?;
+        retry(
+            self.parts.as_ref(),
+            &self.replies,
+            &self.turns,
+            session,
+            turn_id,
+            voice,
+        )
+        .await
+    }
+
+    /// 답을 다시 받을 수 있는 세션: 있고, 요청자의 것이고, 그 턴이 실패했고, 열려 있다. 소유자의 대화 언어를 따른다.
+    async fn retriable(
+        &self,
+        requester: &Requester,
+        session_id: &str,
+        turn_id: &str,
+    ) -> Result<Session, ApiError> {
+        let parts = self.parts.as_ref();
+        let mut session = require(parts.sessions.as_ref(), session_id, requester).await?;
+        if require_turn(&session, turn_id)?.status != TurnStatus::Failed {
+            return Err(ApiError::Conflict(TURN_NOT_FAILED.to_owned()));
+        }
+        if session.closed() {
+            return Err(session_conflict(session_id, SessionError::Closed));
+        }
+        if let Some(language) = parts.languages.chat_language(session.owner_id()).await? {
+            session.adopt_language(language);
+        }
+        Ok(session)
     }
 
     /// 턴을 받을 수 있는 세션: 있고, 요청자의 것이고, 이 턴 id 를 아직 받지 않았고, 열려 있다. 소유자의 대화 언어를 이번 턴부터 따른다.
@@ -186,6 +243,7 @@ impl SupportService for SupportFlow {
         turn_stream(move |out| async move {
             flow.start_turn(&requester, request, &Voice::Streamed(&out))
                 .await
+                .map(Finished::Done)
         })
     }
 
@@ -196,8 +254,13 @@ impl SupportService for SupportFlow {
         request: SendMessageRequest,
     ) -> BoxFuture<'a, Result<TurnResponse, ApiError>> {
         Box::pin(async move {
-            self.send_turn(requester, session_id, request, &Voice::Whole)
-                .await
+            match self
+                .send_turn(requester, session_id, request, &Voice::Whole)
+                .await?
+            {
+                Finished::Done(result) => Ok(result),
+                Finished::Cancelled => Err(ApiError::Conflict(TURN_CANCELLED.to_owned())),
+            }
         })
     }
 
@@ -269,6 +332,44 @@ impl SupportService for SupportFlow {
         Box::pin(async move {
             let session = self.find(requester, session_id).await?;
             report(self.parts.as_ref(), session).await
+        })
+    }
+
+    fn turn_stream(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {
+        let flow = self.clone();
+        turn_stream(move |out| async move {
+            reattach(
+                flow.parts.sessions.as_ref(),
+                &flow.turns,
+                &requester,
+                &session_id,
+                &turn_id,
+                &out,
+            )
+            .await
+        })
+    }
+
+    fn cancel_turn<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+        turn_id: &'a str,
+    ) -> BoxFuture<'a, Result<CancelledTurnResponse, ApiError>> {
+        Box::pin(cancel(
+            self.parts.as_ref(),
+            &self.turns,
+            requester,
+            session_id,
+            turn_id,
+        ))
+    }
+
+    fn retry_turn(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {
+        let flow = self.clone();
+        turn_stream(move |out| async move {
+            flow.retry_failed(&requester, &session_id, &turn_id, &Voice::Streamed(&out))
+                .await
         })
     }
 }

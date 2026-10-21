@@ -64,8 +64,8 @@ async fn 스트림이_멈추면_유휴_제한_뒤_done_없이_끊고_시간_제�
     assert_eq!(events.last(), Some(&Err(ApiError::Internal)));
     assert_eq!(
         h.sessions.saves().len(),
-        saves_before + 2,
-        "saved on receipt and on timeout"
+        saves_before + 3,
+        "saved on receipt, when the reply starts, and on timeout"
     );
     let turn = h.sessions.last_save().turns.last().cloned().unwrap();
     assert_eq!(turn.status, TurnStatus::Failed);

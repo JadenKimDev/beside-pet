@@ -100,7 +100,6 @@ impl Turn {
     }
 
     /// pending → streaming.
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub(super) fn stream(&mut self) {
         self.status = TurnStatus::Streaming;
     }
@@ -119,14 +118,12 @@ impl Turn {
     }
 
     /// pending | streaming → cancelled.
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub(super) fn cancel(&mut self, at: DateTime<Utc>) {
         self.status = TurnStatus::Cancelled;
         self.finished_at = Some(at);
     }
 
     /// failed → pending(답 다시 받기). 시작 시각은 처음 값이 남는다.
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub(super) fn reopen(&mut self) {
         self.status = TurnStatus::Pending;
         self.finished_at = None;

@@ -473,7 +473,6 @@ impl Session {
     }
 
     /// 답이 시작했다: `pending` → `streaming`. 세션 상태는 바꾸지 않는다.
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub fn start_streaming(
         &mut self,
         turn_id: &str,
@@ -489,7 +488,6 @@ impl Session {
 
     /// 도는 턴을 중단한다: 거기까지 온 답(비지 않았으면)을 그 턴의 답으로 적고 턴을 `cancelled` 로 닫는다. 턴 분석은 쓰지 않고
     /// 세션 상태(과제, 재시도, 지원 수준, 닫힘)도 바꾸지 않는다. 이미 중단한 턴이면 아무것도 하지 않는다(멱등).
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub fn cancel_turn(
         &mut self,
         turn_id: &str,
@@ -511,7 +509,6 @@ impl Session {
 
     /// 실패한 턴의 답을 다시 받는다: `failed` → `pending`. 사용자 메시지는 그대로이고 다시 대화 창과 깊이에 든다.
     /// 그 뒤는 처음 턴과 같다(`transition`, `start_streaming`, `complete_turn`). `failed` 가 아니면 `TurnNotPending`.
-    #[allow(dead_code)] // #20 S3 의 흐름(중단, 답 다시 받기, 다시 붙기)이 쓴다. S3 에서 뗀다.
     pub fn retry_turn(&mut self, turn_id: &str) -> Result<(), SessionError> {
         if self.find_turn(turn_id)?.status != TurnStatus::Failed {
             return Err(SessionError::TurnNotPending);

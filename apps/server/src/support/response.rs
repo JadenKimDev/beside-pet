@@ -20,7 +20,7 @@ pub struct TurnResponse {
     pub done: bool,
 }
 
-/// 스트림 턴의 이벤트 하나: `meta` → `token`* → `done`.
+/// 스트림 턴의 이벤트 하나: `meta` → `token`* → `done`(또는 중단되면 `cancelled`).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(
     tag = "kind",
@@ -39,6 +39,8 @@ pub enum StreamEvent {
     Token { text: String },
     /// 마지막 이벤트: 모은 턴의 결과.
     Done { result: TurnResponse },
+    /// 마지막 이벤트: 턴이 중단됐다(ADR-0030). 칸이 없다.
+    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -50,6 +52,55 @@ pub struct SessionStateResponse {
     pub support_level: u8,
     pub closed: bool,
     pub report_available: bool,
+    /// 답을 기다리거나 받는 중인 턴. 없으면 칸을 뺀다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_turn: Option<ActiveTurnResponse>,
+    /// 답이 없는 마지막 실패 턴. 없으면 칸을 뺀다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failed_turn: Option<FailedTurnResponse>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ActiveTurnStatus {
+    Pending,
+    Streaming,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveTurnResponse {
+    pub turn_id: String,
+    pub status: ActiveTurnStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FailedTurnResponse {
+    pub turn_id: String,
+}
+
+/// 중단 요청의 응답. `status` 는 늘 `"cancelled"` 다(이미 중단된 턴도 같다).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelledTurnResponse {
+    pub turn_id: String,
+    pub status: CancelledStatus,
+}
+
+impl CancelledTurnResponse {
+    pub fn of(turn_id: &str) -> CancelledTurnResponse {
+        CancelledTurnResponse {
+            turn_id: turn_id.to_owned(),
+            status: CancelledStatus::Cancelled,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CancelledStatus {
+    Cancelled,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

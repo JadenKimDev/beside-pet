@@ -5,11 +5,14 @@
 mod access;
 mod active;
 mod adapters;
+mod cancel;
 mod deadline;
 mod judge;
+mod live;
 mod orchestrator;
 mod outside;
 mod parts;
+mod reattach;
 mod report;
 mod service;
 mod start;

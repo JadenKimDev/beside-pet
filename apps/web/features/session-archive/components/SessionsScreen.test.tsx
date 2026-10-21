@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 // 대화 목록의 상태 전환: 불러오는 중 → 실패(다시 불러오기, 온보딩으로 보내지 않음) → 빈 목록(온보딩으로) → 목록.
+// 401(로그인 없음, 정지된 계정)은 실패 화면이 아니라 첫 화면(로그인)으로 보낸다.
 // 서버는 가짜 fetch 로 대신한다. 값은 모두 지어낸 것이다.
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -121,6 +122,21 @@ describe('SessionsScreen 상태', () => {
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     await answer(200, []);
     expect(router.replace).toHaveBeenCalledWith('/onboarding');
+  });
+
+  it('401 이면(정지된 계정 등) 로그인 정보를 비우고 첫 화면으로 보낸다. 실패 화면을 보이지 않는다', async () => {
+    const container = render();
+    await answer(401, { message: 'Account is unavailable' });
+    expect(router.replace).toHaveBeenCalledWith('/');
+    expect(useAuthStore.getState().principal).toBeUndefined();
+    expect(container.textContent).not.toContain(ko.sessionList.failedTitle);
+    expect(router.replace).not.toHaveBeenCalledWith('/onboarding');
+  });
+
+  it('로그인 확인이 끝났는데 로그인 정보가 없으면 첫 화면으로 보낸다', async () => {
+    useAuthStore.setState({ ready: true, principal: undefined });
+    render();
+    expect(router.replace).toHaveBeenCalledWith('/');
   });
 
   it('목록이 오면 인사, 이어지는 대화 카드, 지난 대화가 보인다', async () => {

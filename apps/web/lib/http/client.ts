@@ -23,6 +23,24 @@ export interface HttpClient {
   streamFrames(path: string, body?: object): AsyncIterable<string>;
 }
 
+/**
+ * A non-2xx response. Keeps the backend's message as the Error text and the
+ * status beside it, so callers can tell "signed out" (401) from a passing failure.
+ */
+export class HttpError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+  }
+}
+
+/** True when the backend refused the session (no cookie, expired, revoked account). */
+export const isUnauthorized = (error: unknown): boolean =>
+  error instanceof HttpError && error.status === 401;
+
 /** Shape of the backend's error responses (NestJS puts the reason in `message`). */
 interface ErrorBody {
   message?: string | string[];
@@ -52,7 +70,7 @@ export function createHttpClient({ baseUrl }: HttpClientOptions): HttpClient {
       ...init,
     });
     if (!res.ok) {
-      throw new Error(await extractError(res));
+      throw new HttpError(res.status, await extractError(res));
     }
     if (res.status === 204) {
       return undefined as Result;

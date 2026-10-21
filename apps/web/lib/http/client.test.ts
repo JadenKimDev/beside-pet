@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createHttpClient } from './client';
+import { createHttpClient, HttpError, isUnauthorized } from './client';
 
 const BASE = 'http://api.test';
 
@@ -89,7 +89,9 @@ describe('createHttpClient', () => {
     stubFetch(jsonResponse(404, { message: 'Session not found' }));
     const client = createHttpClient({ baseUrl: BASE });
 
-    await expect(client.get('/v1/sessions/x')).rejects.toThrow(new Error('Session not found'));
+    await expect(client.get('/v1/sessions/x')).rejects.toThrow(
+      new HttpError(404, 'Session not found'),
+    );
   });
 
   it('joins an array error message with commas', async () => {
@@ -99,7 +101,7 @@ describe('createHttpClient', () => {
     const client = createHttpClient({ baseUrl: BASE });
 
     await expect(client.post('/v1/sessions', {})).rejects.toThrow(
-      new Error('text should not be empty, text must be a string'),
+      new HttpError(400, 'text should not be empty, text must be a string'),
     );
   });
 
@@ -107,14 +109,37 @@ describe('createHttpClient', () => {
     stubFetch(jsonResponse(500, { error: 'Internal' }));
     const client = createHttpClient({ baseUrl: BASE });
 
-    await expect(client.get('/v1/x')).rejects.toThrow(new Error('Request failed (500)'));
+    await expect(client.get('/v1/x')).rejects.toThrow(new HttpError(500, 'Request failed (500)'));
   });
 
   it('falls back to the status when the body is not JSON', async () => {
     stubFetch(new Response('<html>bad gateway</html>', { status: 502 }));
     const client = createHttpClient({ baseUrl: BASE });
 
-    await expect(client.get('/v1/x')).rejects.toThrow(new Error('Request failed (502)'));
+    await expect(client.get('/v1/x')).rejects.toThrow(new HttpError(502, 'Request failed (502)'));
+  });
+
+  it('carries the status on the thrown HttpError so callers can tell 401 apart', async () => {
+    stubFetch(jsonResponse(401, { message: 'Account is unavailable' }));
+    const client = createHttpClient({ baseUrl: BASE });
+
+    const error = await client.get('/v1/sessions').catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error).toMatchObject({ status: 401, message: 'Account is unavailable' });
+    expect(isUnauthorized(error)).toBe(true);
+  });
+
+  it('isUnauthorized is false for other statuses and for non-HTTP errors', async () => {
+    stubFetch(jsonResponse(503, { message: 'down' }));
+    const client = createHttpClient({ baseUrl: BASE });
+
+    const error = await client.get('/v1/sessions').catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ status: 503 });
+    expect(isUnauthorized(error)).toBe(false);
+    expect(isUnauthorized(new Error('Failed to fetch'))).toBe(false);
+    expect(isUnauthorized(undefined)).toBe(false);
   });
 });
 

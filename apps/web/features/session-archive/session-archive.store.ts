@@ -19,6 +19,7 @@
 import { create } from 'zustand';
 import type { HistoryMessage, MindReport, SessionListItem, SessionStateView } from '@/lib/api';
 import * as data from '@/lib/data';
+import { isUnauthorized } from '@/lib/http';
 import type { LoadStatus, ReportStatus } from './session-archive.types';
 
 interface SessionArchiveState {
@@ -72,9 +73,9 @@ export const useSessionArchiveStore = create<SessionArchiveState>((set) => ({
       const items = await data.listSessions();
       if (token !== listToken) return;
       set({ items, listStatus: 'ready' });
-    } catch {
+    } catch (error) {
       if (token !== listToken) return;
-      set({ items: undefined, listStatus: 'failed' });
+      set({ items: undefined, listStatus: isUnauthorized(error) ? 'unauthorized' : 'failed' });
     }
   },
 

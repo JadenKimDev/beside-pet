@@ -26,6 +26,8 @@ interface AuthState {
   setup: (token: string, username: string, password: string) => Promise<void>;
   setChatLanguage: (language: Locale) => Promise<void>;
   logout: () => Promise<void>;
+  /** The backend refused the session mid-use (e.g. the account was revoked): forget the principal. */
+  expire: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -103,6 +105,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       set({ error: error instanceof Error ? error.message : 'Request failed.' });
     }
+  },
+
+  expire() {
+    set({ principal: undefined });
   },
 
   async logout() {

@@ -9,4 +9,7 @@ mod risk;
 pub use api::router;
 pub use crisis::matches_crisis;
 pub use resources::{SafetyResource, crisis_reply, safety_resources};
-pub use risk::{PROMPT_VERSION as RISK_PROMPT_VERSION, RISK_SYSTEM_PROMPT, RiskLevel, assess_risk};
+pub use risk::{
+    PROMPT_VERSION as RISK_PROMPT_VERSION, RISK_SYSTEM_PROMPT, RiskDetector, RiskLevel,
+    RiskVerdict, assess_risk, assess_risk_verdict,
+};

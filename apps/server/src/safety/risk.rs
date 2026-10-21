@@ -29,16 +29,43 @@ pub enum RiskLevel {
     Crisis,
 }
 
-/// 메시지 하나가 위기인가. 키워드와 모델 중 하나라도 위기면 위기다(안전은 오탐 쪽으로 기운다).
-/// `session_id` 는 모델 호출의 기록에만 쓴다.
+/// 위기를 누가 잡았는가. 키워드가 먼저이고, 키워드가 안 걸렸을 때만 모델이 잡을 수 있다.
+/// 모델이 실패해 키워드 결과로 대신한 판정은 아무도 잡지 않은 것(`None`)이다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RiskDetector {
+    Keyword,
+    Model,
+    None,
+}
+
+/// 판정의 수준과 감지 주체.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RiskVerdict {
+    pub level: RiskLevel,
+    pub detector: RiskDetector,
+}
+
+/// 메시지 하나가 위기인가. 수준만 본다(`assess_risk_verdict` 의 `level`).
 pub async fn assess_risk(
     text: &str,
     session_id: Option<&str>,
     model: &(dyn TextModel + Send + Sync),
 ) -> RiskLevel {
-    let keyword = matches_crisis(text);
-    if keyword {
-        return RiskLevel::Crisis;
+    assess_risk_verdict(text, session_id, model).await.level
+}
+
+/// 메시지 하나가 위기인가와 누가 잡았는가. 키워드와 모델 중 하나라도 위기면 위기다(안전은 오탐 쪽으로 기운다).
+/// `session_id` 는 모델 호출의 기록에만 쓴다.
+pub async fn assess_risk_verdict(
+    text: &str,
+    session_id: Option<&str>,
+    model: &(dyn TextModel + Send + Sync),
+) -> RiskVerdict {
+    if matches_crisis(text) {
+        return RiskVerdict {
+            level: RiskLevel::Crisis,
+            detector: RiskDetector::Keyword,
+        };
     }
     let request = GenerationRequest {
         system: Some(RISK_SYSTEM_PROMPT.to_owned()),
@@ -57,17 +84,24 @@ pub async fn assess_risk(
         // TS 와 같이 다듬어 대문자로 본 답이 YES 로 시작하면 위기다.
         Ok(answer) => answer.trim().to_uppercase().starts_with("YES"),
         Err(error) => {
+            // 키워드가 안 걸린 뒤라 키워드 결과는 안전이다.
             tracing::warn!(
                 ?error,
                 "model risk check failed — falling back to the keyword screen"
             );
-            keyword
+            false
         }
     };
     if flagged {
-        RiskLevel::Crisis
+        RiskVerdict {
+            level: RiskLevel::Crisis,
+            detector: RiskDetector::Model,
+        }
     } else {
-        RiskLevel::Safe
+        RiskVerdict {
+            level: RiskLevel::Safe,
+            detector: RiskDetector::None,
+        }
     }
 }
 

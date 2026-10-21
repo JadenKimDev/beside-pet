@@ -5,7 +5,10 @@ use std::sync::Mutex;
 use futures_util::future::BoxFuture;
 use futures_util::stream;
 
-use super::{PROMPT_VERSION, RISK_SYSTEM_PROMPT, RiskLevel, assess_risk};
+use super::{
+    PROMPT_VERSION, RISK_SYSTEM_PROMPT, RiskDetector, RiskLevel, RiskVerdict, assess_risk,
+    assess_risk_verdict,
+};
 use crate::llm::{
     CallContext, CallPurpose, GenerationRequest, PromptMessage, PromptRole, TextModel, TextStream,
 };
@@ -147,4 +150,71 @@ async fn 세션이_없는_판정은_세션_없이_묻는다() {
     let model = FixedModel::answering("NO");
     assess_risk(PLAIN_TEXT, None, &model).await;
     assert_eq!(model.requests()[0].context.session_id, None);
+}
+
+// 판정의 감지 주체: 누가 위기를 잡았는가(키워드, 모델), 아무도 안 잡았는가.
+
+fn verdict(level: RiskLevel, detector: RiskDetector) -> RiskVerdict {
+    RiskVerdict { level, detector }
+}
+
+#[tokio::test]
+async fn 키워드가_걸리면_주체는_키워드이고_모델에_묻지_않는다() {
+    let model = FixedModel::answering("YES");
+    assert_eq!(
+        assess_risk_verdict(KEYWORD_TEXT, SESSION, &model).await,
+        verdict(RiskLevel::Crisis, RiskDetector::Keyword)
+    );
+    assert!(model.requests().is_empty());
+}
+
+#[tokio::test]
+async fn 키워드가_없고_모델이_yes_면_주체는_모델이다() {
+    let model = FixedModel::answering(" yes\n");
+    assert_eq!(
+        assess_risk_verdict("사라지고 싶다는 생각만 든다", SESSION, &model).await,
+        verdict(RiskLevel::Crisis, RiskDetector::Model)
+    );
+    assert_eq!(model.requests().len(), 1);
+}
+
+#[tokio::test]
+async fn 키워드도_모델도_아니면_안전하고_주체는_없다() {
+    let model = FixedModel::answering("NO");
+    assert_eq!(
+        assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await,
+        verdict(RiskLevel::Safe, RiskDetector::None)
+    );
+}
+
+#[tokio::test]
+async fn 모델이_실패하면_키워드_결과로_대신하고_주체는_없다() {
+    let model = FixedModel::failing();
+    assert_eq!(
+        assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await,
+        verdict(RiskLevel::Safe, RiskDetector::None)
+    );
+    assert_eq!(model.requests().len(), 1);
+}
+
+#[tokio::test]
+async fn 키워드가_걸리면_모델이_실패해도_주체는_키워드다() {
+    let model = FixedModel::failing();
+    assert_eq!(
+        assess_risk_verdict(KEYWORD_TEXT, SESSION, &model).await,
+        verdict(RiskLevel::Crisis, RiskDetector::Keyword)
+    );
+}
+
+#[tokio::test]
+async fn 수준만_돌려주는_판정은_판정의_수준과_같다() {
+    for (text, answer) in [
+        (KEYWORD_TEXT, "NO"),
+        ("사라지고 싶다는 생각만 든다", "YES"),
+        (PLAIN_TEXT, "NO"),
+    ] {
+        let model = FixedModel::answering(answer);
+        let full = assess_risk_verdict(text, SESSION, &model).await;
+        assert_eq!(assess_risk(text, SESSION, &model).await, full.level);
+    }
 }

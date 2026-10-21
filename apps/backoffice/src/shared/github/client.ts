@@ -43,15 +43,18 @@ export async function githubJson<Result>(path: string, request: GitHubRequest): 
     cache: 'no-store',
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  const text = await response.text();
-  let parsed: unknown;
-  try {
-    parsed = text ? JSON.parse(text) : undefined;
-  } catch {
-    parsed = undefined;
-  }
+  const parsed = parseJson(await response.text());
   if (!response.ok) throw new GitHubError(response.status, messageOf(response.status, parsed));
   return parsed as Result;
+}
+
+/** 응답 본문을 JSON 으로. 비었거나 JSON 이 아니면 undefined. */
+function parseJson(body: string): unknown {
+  try {
+    return body ? JSON.parse(body) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 const PER_PAGE = 100;
@@ -78,7 +81,7 @@ export async function githubPages<Item>(
 /** GraphQL. 200 에 `errors` 가 오면 502 로 던진다. */
 export async function githubGraphql<Data>(
   query: string,
-  variables: Record<string, unknown>,
+  variables: Record<string, string | number | null>,
   token: string,
 ): Promise<Data> {
   const result = await githubJson<{ data?: Data | null; errors?: { message?: string }[] }>(

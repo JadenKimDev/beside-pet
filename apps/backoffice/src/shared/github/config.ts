@@ -36,15 +36,18 @@ function findConfigFile(startDir: string): string | null {
   }
 }
 
-export function loadProjectConfig(startDir: string = process.cwd()): ProjectConfig {
-  const path = findConfigFile(startDir);
-  if (path === null) throw new ProjectConfigError(`${FILE} was not found`);
-  let raw: { repo?: unknown; ghUser?: unknown; boardNumber?: unknown };
+function parseConfig(text: string) {
   try {
-    raw = JSON.parse(readFileSync(path, 'utf8'));
+    return JSON.parse(text) as { repo?: unknown; ghUser?: unknown; boardNumber?: unknown };
   } catch {
     throw new ProjectConfigError(`${FILE} is not valid JSON`);
   }
+}
+
+export function loadProjectConfig(startDir: string = process.cwd()): ProjectConfig {
+  const path = findConfigFile(startDir);
+  if (path === null) throw new ProjectConfigError(`${FILE} was not found`);
+  const raw = parseConfig(readFileSync(path, 'utf8'));
   const [owner, repo, extra] = typeof raw.repo === 'string' ? raw.repo.split('/') : [];
   if (!owner || !repo || extra !== undefined) {
     throw new ProjectConfigError(`${FILE} needs "repo" as "owner/name"`);

@@ -39,8 +39,8 @@ export function groupByColumn(board: BoardResponse): BoardGroup[] {
     name,
     cards: cardsOf(name),
   }));
-  const unknown = [...byColumn.keys()].filter((name) => !known.has(name)).sort();
-  for (const name of unknown) groups.push({ kind: 'unknown', name, cards: cardsOf(name) });
+  const extraNames = [...byColumn.keys()].filter((name) => !known.has(name)).sort();
+  for (const name of extraNames) groups.push({ kind: 'unknown', name, cards: cardsOf(name) });
   if (offBoard.length > 0) groups.push({ kind: 'offBoard', cards: sortCards(offBoard) });
   return groups;
 }

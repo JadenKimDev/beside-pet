@@ -30,8 +30,8 @@ export async function isAdminRequest(request: Request): Promise<boolean> {
       cache: 'no-store',
     });
     if (!response.ok) return false;
-    const me: unknown = await response.json();
-    return !!me && typeof me === 'object' && (me as { role?: unknown }).role === 'admin';
+    const me = (await response.json()) as { role?: string } | null;
+    return me?.role === 'admin';
   } catch {
     return false;
   }

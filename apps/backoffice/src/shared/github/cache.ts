@@ -2,9 +2,12 @@
 
 export const CACHE_TTL_MS = 60_000;
 
-const entries = new Map<string, { expiresAt: number; value: unknown }>();
+const entries = new Map<string, { expiresAt: number; value: object }>();
 
-export async function cached<Value>(key: string, load: () => Promise<Value>): Promise<Value> {
+export async function cached<Value extends object>(
+  key: string,
+  load: () => Promise<Value>,
+): Promise<Value> {
   const hit = entries.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.value as Value;
   const value = await load();

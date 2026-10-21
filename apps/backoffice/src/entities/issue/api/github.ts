@@ -28,9 +28,9 @@ async function request<Result>(
   return parsed as Result;
 }
 
-function parseJson(text: string): unknown {
+function parseJson(body: string): unknown {
   try {
-    return text ? JSON.parse(text) : undefined;
+    return body ? JSON.parse(body) : undefined;
   } catch {
     return undefined;
   }

@@ -49,7 +49,7 @@ describe('groupByColumn', () => {
     const groups = groupByColumn({
       columns: ['Done', 'Backlog'],
       cards: [],
-    } as unknown as BoardResponse);
+    } as BoardResponse);
     expect(groups.map((g) => (g.kind === 'offBoard' ? null : g.name))).toEqual(['Done', 'Backlog']);
   });
 

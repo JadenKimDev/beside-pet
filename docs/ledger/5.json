@@ -299,13 +299,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T03:02:29.702Z",
+      "finished_at": "2026-10-21T03:02:46.506Z",
+      "active_ms": 16804,
+      "verify_ms": 1438
     },
     {
       "id": "S13",

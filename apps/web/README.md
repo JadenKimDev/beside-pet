@@ -20,8 +20,7 @@
 
 ```
 [로그인/최초 설정/계정 신청] → 역할 분기
-   ├ admin  → [계정 관리 (발급·신청 승인·만료)]
-   └ viewer → [세션 허브(/sessions)] ─ 이어하기 / 새 대화(여정 재개) → [세션(채팅+진행도)] → [클로저]
+   └ 모든 역할 → [세션 허브(/sessions)]  (계정 관리는 apps/backoffice) ─ 이어하기 / 새 대화(여정 재개) → [세션(채팅+진행도)] → [클로저]
                  ├ 전사 다시보기 (/sessions/[id])          └ 위기 시: 안전 자원 안내
                  ├ 마음 리포트 (/sessions/[id]/report)
                  └ 설정 (/settings — 대화·앱 언어)
@@ -43,8 +42,8 @@
 | **로그인** — 첫 방문 언어는 브라우저를 따르고, 우상단에서 즉시 전환 | **온보딩** — LLM 없는 결정론적 인테이크: 칩과 자유 입력으로 프로필 수집 |
 | ![세션 — 스트리밍 상담](docs/screenshots/03-chat.png) | ![세션 허브 — 대화 목록](docs/screenshots/04-sessions.png) |
 | **상담** — 단계·진행도 헤더, 직전 세션 맥락을 이어받는 대화, 대화 마치기 | **세션 허브** — 시작 시각·진행률·상태, 전사 다시보기·리포트·삭제 |
-| ![마음 리포트](docs/screenshots/05-report.png) | ![admin 콘솔 — 계정 관리](docs/screenshots/07-admin.png) |
-| **마음 리포트** — 종료된 대화의 회고(write-once), 진행 게이트 충족 시 열림 | **admin 콘솔** — 계정 발급·승인·만료, 대화 내용은 열람 불가 |
+| ![마음 리포트](docs/screenshots/05-report.png) | |
+| **마음 리포트** — 종료된 대화의 회고(write-once), 진행 게이트 충족 시 열림 | (계정 관리는 `apps/backoffice` 로 옮겼다) |
 
 <p align="center"><img src="docs/screenshots/06-settings.png" width="49%" alt="설정 — 대화 언어와 앱 언어 분리" /></p>
 <p align="center"><b>설정</b> — 동반자의 대화 언어(계정)와 앱 UI 언어(쿠키)를 분리해 관리</p>
@@ -55,8 +54,8 @@
 
 ```
 frontend/
-├─ app/                  # 라우트는 조립만 (/, /onboarding, /session, /sessions, /admin)
-├─ features/             # auth · onboarding · session · session-archive · safety · admin
+├─ app/                  # 라우트는 조립만 (/, /onboarding, /session, /sessions)
+├─ features/             # auth · onboarding · session · session-archive · safety
 │  └─ <feature>/{components, *.store.ts, *.types.ts}
 ├─ components/chat/      # 온보딩·세션 공용 채팅 UI (말풍선·리스트·컴포저)
 ├─ lib/

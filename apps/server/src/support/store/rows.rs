@@ -4,12 +4,13 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 
-use super::super::rules::{RiskAssessment, TaskTransition, TurnAnalysis};
+use super::super::rules::{ReplyJudgement, RiskAssessment, TaskTransition, TurnAnalysis};
 use super::super::session::{Message, MessageActivity, SessionSnapshot, Turn};
 use super::codec::{
     KnowledgeDocument, SupervisionDocument, count_number, detector_text, from_document,
-    level_number, parse_count, parse_detector, parse_level, parse_phase, parse_role, parse_task,
-    parse_turn_error_kind, parse_turn_status, phase_text, role_text, task_number, to_document,
+    level_number, parse_count, parse_detector, parse_level, parse_phase, parse_reply_label,
+    parse_role, parse_task, parse_turn_error_kind, parse_turn_status, phase_text, role_text,
+    task_number, to_document,
 };
 use crate::identity::AccountActivity;
 
@@ -68,7 +69,9 @@ impl<'a> TurnColumns<'a> {
             columns.status.push(turn.status.as_str());
             columns.started_at.push(turn.started_at);
             columns.finished_at.push(turn.finished_at);
-            columns.error_kind.push(turn.error_kind.map(|kind| kind.as_str()));
+            columns
+                .error_kind
+                .push(turn.error_kind.map(|kind| kind.as_str()));
         }
         columns
     }
@@ -89,6 +92,9 @@ pub(super) struct AnalysisColumns {
     pub retry_count: Vec<i32>,
     pub knowledge: Vec<String>,
     pub supervision: Vec<Option<String>>,
+    pub reply_label: Vec<Option<&'static str>>,
+    pub reply_label_probability: Vec<Option<f32>>,
+    pub reply_judge: Vec<Option<String>>,
 }
 
 impl AnalysisColumns {
@@ -128,6 +134,16 @@ impl AnalysisColumns {
                 .knowledge
                 .push(to_document("turn_analyses.knowledge", &knowledge)?);
             columns.supervision.push(supervision);
+            let reply = analysis.reply.as_ref();
+            columns
+                .reply_label
+                .push(reply.map(|reply| reply.label.as_str()));
+            columns
+                .reply_label_probability
+                .push(reply.and_then(|reply| reply.label_probability));
+            columns
+                .reply_judge
+                .push(reply.map(|reply| reply.judge.clone()));
         }
         Ok(columns)
     }
@@ -201,6 +217,9 @@ pub(super) struct AnalysisRow {
     retry_count: i32,
     knowledge: String,
     supervision: Option<String>,
+    reply_label: Option<String>,
+    reply_label_probability: Option<f32>,
+    reply_judge: Option<String>,
 }
 
 /// 세션 하나의 메시지 집계 행(`GROUP BY session_id`). 메시지가 있는 세션만 행이 있다.
@@ -271,6 +290,17 @@ impl AnalysisRow {
             }
             None => None,
         };
+        // 라벨이 NULL 이면 판정 없음이다. 라벨이 있으면 판정기도 있어야 한다.
+        let reply = match self.reply_label.as_deref() {
+            Some(text) => Some(ReplyJudgement {
+                label: parse_reply_label(text)?,
+                label_probability: self.reply_label_probability,
+                judge: self.reply_judge.ok_or_else(|| {
+                    sqlx::Error::Decode("turn_analyses.reply_judge is missing for a label".into())
+                })?,
+            }),
+            None => None,
+        };
         Ok(TurnAnalysis {
             at: self.at,
             task: parse_task("turn_analyses.task", self.task)?,
@@ -290,6 +320,7 @@ impl AnalysisRow {
                 .map(KnowledgeDocument::into_ref)
                 .collect(),
             supervision,
+            reply,
         })
     }
 }

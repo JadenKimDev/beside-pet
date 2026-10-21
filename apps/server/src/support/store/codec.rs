@@ -1,4 +1,4 @@
-//! 저장 칸의 값과 대화 값 사이의 변환: 역할·단계·감지자·감독 품질의 글, 과제·수준·횟수의 수, JSONB 문서.
+//! 저장 칸의 값과 대화 값 사이의 변환: 역할·단계·감지자·감독 품질·답 라벨의 글, 과제·수준·횟수의 수, JSONB 문서.
 //!
 //! 모르는 글과 범위 밖의 수는 읽기 오류다(기본값으로 넘기지 않는다). 오류 문구에는 칸 이름과 그 태그만 싣고,
 //! JSONB 의 오류는 줄과 칸 자리만 싣는다(serde 의 문구는 본문 조각을 품을 수 있다).
@@ -12,6 +12,7 @@ use super::super::response::{
 };
 use super::super::rules::{SupportLevel, Task};
 use super::super::session::{TurnErrorKind, TurnStatus};
+use crate::support::ReplyLabel;
 
 fn decode_error(message: String) -> sqlx::Error {
     sqlx::Error::Decode(message.into())
@@ -78,6 +79,10 @@ pub(super) fn parse_detector(text: &str) -> Result<RiskDetector, sqlx::Error> {
         "none" => Ok(RiskDetector::None),
         _ => Err(unknown("turn_analyses.risk_detected_by", text)),
     }
+}
+
+pub(super) fn parse_reply_label(text: &str) -> Result<ReplyLabel, sqlx::Error> {
+    ReplyLabel::parse(text).ok_or_else(|| unknown("turn_analyses.reply_label", text))
 }
 
 pub(super) fn parse_turn_status(text: &str) -> Result<TurnStatus, sqlx::Error> {

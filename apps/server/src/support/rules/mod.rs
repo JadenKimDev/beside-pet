@@ -20,7 +20,7 @@ pub use summarizer::summarize;
 pub use supervisor::{review, should_review};
 pub use support_level::SupportLevel;
 pub use task::Task;
-pub use turn_analysis::{RiskAssessment, TaskTransition, TurnAnalysis};
+pub use turn_analysis::{ReplyJudgement, RiskAssessment, TaskTransition, TurnAnalysis};
 #[cfg(test)]
 pub use turn_style::QuestionPolicy;
 pub use turn_style::TurnStyle;

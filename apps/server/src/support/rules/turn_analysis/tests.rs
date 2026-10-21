@@ -78,6 +78,7 @@ fn 응답_모양() {
         },
         knowledge: knowledge.clone(),
         supervision: Some(supervision.clone()),
+        reply: None,
     };
     let response = analysis.to_response();
     assert_eq!(response.at, at);

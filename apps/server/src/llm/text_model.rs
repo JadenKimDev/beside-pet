@@ -32,6 +32,8 @@ pub enum CallPurpose {
     Crisis,
     /// 마음 리포트.
     Report,
+    /// 답의 상투성 판정(ADR-0031).
+    Judge,
 }
 
 impl CallPurpose {
@@ -40,6 +42,7 @@ impl CallPurpose {
             CallPurpose::Reply => "reply",
             CallPurpose::Crisis => "crisis",
             CallPurpose::Report => "report",
+            CallPurpose::Judge => "judge",
         }
     }
 }

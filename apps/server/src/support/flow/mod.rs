@@ -18,8 +18,8 @@ mod voice;
 
 pub use adapters::{fail_pending_turns, session_presence};
 pub use judge::{
-    JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge,
-    Unimplemented as UnimplementedJudge,
+    HaikuReplyJudge, JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge,
+    SystemOneReplyJudge, Unimplemented as UnimplementedJudge,
 };
 pub use service::SupportFlow;
 

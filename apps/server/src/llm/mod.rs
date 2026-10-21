@@ -2,12 +2,17 @@
 //! 단가와 비용은 맡지 않는다(DB 의 단가 테이블과 뷰가 맡는다).
 //! 프롬프트의 내용은 맡지 않는다. 환경 변수는 읽지 않고 `Config` 가 읽은 값을 받는다.
 
+mod judge;
 mod provider;
 mod router;
 mod settings;
 mod text_model;
 mod usage;
 
+pub use judge::{
+    HaikuJudge, JUDGE_LABELS, JUDGE_PROMPT_VERSION, JudgeFailure, JudgeOutcome, JudgeRequest,
+    SystemOneJudge,
+};
 pub use provider::{
     AnthropicProvider, Generation, LlmProvider, OllamaProvider, ProviderStream, StreamEvent,
     TextModelProvider, TokenUsage,

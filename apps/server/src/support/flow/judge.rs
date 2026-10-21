@@ -7,6 +7,10 @@ use std::sync::Arc;
 
 use futures_util::future::BoxFuture;
 
+mod adapters;
+
+pub use adapters::{HaikuReplyJudge, SystemOneReplyJudge};
+
 /// 답의 라벨. 앞 PRD(#26)의 ADR-0025 와 같은 집합이다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ReplyLabel {

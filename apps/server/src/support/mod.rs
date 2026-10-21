@@ -15,7 +15,8 @@ mod store;
 
 pub use api::router;
 pub use flow::{
-    JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge, UnimplementedJudge,
+    HaikuReplyJudge, JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge,
+    SystemOneReplyJudge, UnimplementedJudge,
 };
 pub use flow::{SupportFlow, fail_pending_turns, session_presence};
 pub use request::{

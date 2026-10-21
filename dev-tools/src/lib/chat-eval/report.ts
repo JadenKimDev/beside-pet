@@ -10,7 +10,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
-import type { CheckId, Flag } from "./checks.ts";
+import { type CheckId, type Flag, reassureRate } from "./checks.ts";
 import type { RunResult, TurnRecord } from "./runner.ts";
 
 /** 저장하는 실행 결과. 머리에 쓸 서버 주소를 더한다. */
@@ -25,6 +25,8 @@ export const CHECK_IDS: readonly CheckId[] = [
   "multiQuestion",
   "formulaicTail",
   "crisisExpectation",
+  "stockRepeat",
+  "echoOpening",
 ];
 
 const RUN_SUFFIX = ".run.json";
@@ -128,6 +130,12 @@ export function averageLatency(run: RunResult): number | null {
 
 export function averageFirstToken(run: RunResult): number | null {
   return average(run.turns.flatMap((turn) => (turn.firstTokenMs === null ? [] : [turn.firstTokenMs])));
+}
+
+/** 정상화 위로가 들어간 답의 비율을 퍼센트 글로. 답이 없으면 `-`. */
+export function reassureText(run: RunResult): string {
+  const rate = reassureRate(run.turns.map((turn) => turn.answer));
+  return rate === null ? "-" : `${Math.round(rate * 100)}%`;
 }
 
 /** `expect.minTask` 에 못 미치면 그 문구, 아니면 null. */
@@ -297,6 +305,7 @@ function stats(run: RunResult): Stats {
     reached: String(reachedTask(run)),
     latency: seconds(averageLatency(run)),
     firstToken: seconds(averageFirstToken(run)),
+    reassure: reassureText(run),
   };
 }
 
@@ -314,7 +323,7 @@ export function summaryMarkdown(date: string, runs: SavedRun[], baseline: Baseli
     name,
     ...CHECK_IDS.map((id) => pair(countOf(now.get(name), id), countOf(before.get(name), id), withBaseline)),
   ]);
-  const statKeys = ["turns", "closedBy", "reached", "latency", "firstToken"];
+  const statKeys = ["turns", "closedBy", "reached", "latency", "firstToken", "reassure"];
   const statRows = names.map((name) => [
     name,
     ...statKeys.map((key) => pair(statOf(now.get(name), key), statOf(before.get(name), key), withBaseline)),
@@ -336,7 +345,10 @@ export function summaryMarkdown(date: string, runs: SavedRun[], baseline: Baseli
     "",
     "## 인물별 결과",
     "",
-    ...table(["인물", "턴", "closedBy", "도달 과제", "평균 지연", "평균 첫 토큰"], statRows),
+    ...table(
+      ["인물", "턴", "closedBy", "도달 과제", "평균 지연", "평균 첫 토큰", "정상화 위로(reassureRate)"],
+      statRows,
+    ),
     ...(shortfalls.length === 0 ? [] : ["", "## minTask 미달", "", ...shortfalls]),
   ].join("\n")}\n`;
 }

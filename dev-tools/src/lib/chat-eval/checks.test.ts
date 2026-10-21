@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { checkSession, checkTurn, endsWithExampleTail, type Flag, type SessionTurn } from "./checks.ts";
+import {
+  checkSession,
+  checkTurn,
+  echoedOpening,
+  endsWithExampleTail,
+  type Flag,
+  reassureRate,
+  type SessionTurn,
+} from "./checks.ts";
 
 const ko = (answer: string, petNames: string[] = []) => checkTurn({ answer, language: "ko", petNames });
 const en = (answer: string, petNames: string[] = []) => checkTurn({ answer, language: "en", petNames });
@@ -77,15 +85,17 @@ function turns(answers: string[], levels: number[] = []): SessionTurn[] {
 }
 
 const TAIL = "무엇이 떠오르나요? (예를 들어, 간식이요.)";
-const PLAIN = "그 마음이 느껴져요.";
+// 상투구 사전에 없는 문장이라 같은 답이 되풀이돼도 stockRepeat 이 나지 않는다.
+const PLAIN = "단추가 좋아하던 자리가 떠오르네요.";
 
 test("formulaicTail: 70% 를 넘어야 표시한다", () => {
   const over = checkSession({ language: "ko", turns: turns([TAIL, TAIL, TAIL, PLAIN]) });
-  assert.deepEqual(ids(over), ["formulaicTail:warn"]);
+  // 같은 예시 괄호가 되풀이되므로 턴 2, 3 은 이미 쓴 상투구 "(예를" 의 반복이기도 하다.
+  assert.deepEqual(ids(over), ["formulaicTail:warn", "stockRepeat:warn", "stockRepeat:warn"]);
   assert.match(over[0]?.detail ?? "", /3\/4/);
   // 7/10 = 70% 는 넘지 않는다.
   const seven = [...Array(7).fill(TAIL), ...Array(3).fill(PLAIN)];
-  assert.deepEqual(checkSession({ language: "ko", turns: turns(seven) }), []);
+  assert.deepEqual(ids(checkSession({ language: "ko", turns: turns(seven) })), Array(6).fill("stockRepeat:warn"));
   assert.deepEqual(checkSession({ language: "ko", turns: [] }), []);
 });
 
@@ -109,4 +119,76 @@ test("crisisExpectation: crisisAtTurn 은 1 부터 세고 미탐과 이른 위�
 
 test("crisisExpectation: expect 가 없으면 보지 않는다", () => {
   assert.deepEqual(checkSession({ language: "ko", turns: turns([PLAIN], [3]) }), []);
+});
+
+/** 사용자 말과 답의 짝으로 만든 턴. 위기는 없다. */
+function talk(pairs: [string, string][]): SessionTurn[] {
+  return pairs.map(([user, answer]) => ({ user, answer, supportLevel: 1, done: false }));
+}
+
+test("stockRepeat: 앞 답에 나온 상투구가 다시 나오면 그 턴을 표시한다", () => {
+  const flags = checkSession({
+    language: "ko",
+    turns: talk([
+      ["단추가 보고 싶어요", "천천히 이야기해 주세요."],
+      ["산책하던 길이 생각나요", "그 길을 걷던 단추가 떠오르네요."],
+      ["매일 저녁이었어요", "천천히 떠올려 봐요. 여기 있어요."],
+    ]),
+  });
+  assert.deepEqual(ids(flags), ["stockRepeat:warn"]);
+  assert.match(flags[0]?.detail ?? "", /턴 3: 천천히$/);
+});
+
+test("stockRepeat: 처음 쓴 상투구, 사용자가 직접 쓴 낱말은 표시하지 않는다", () => {
+  const fresh = talk([
+    ["단추가 보고 싶어요", "천천히 이야기해 주세요."],
+    ["꼬리치던 모습이 생각나요", "꼬리를 흔들며 반기던 모습이 떠오르네요."],
+    ["문 앞에서 늘 그랬어요", "꼬리가 문에 부딪히던 소리도 기억나시겠어요."],
+  ]);
+  assert.deepEqual(checkSession({ language: "ko", turns: fresh }), []);
+});
+
+test("stockRepeat: 사용자 말이 없는 입력에서는 답만으로 본다", () => {
+  const flags = checkSession({ language: "ko", turns: turns(["코끝이 찡하네요.", "코끝에 닿던 숨결이요."]) });
+  assert.deepEqual(ids(flags), ["stockRepeat:warn"]);
+});
+
+test("echoedOpening: 첫 문장이 사용자 말의 어절 둘을 이어서 쓰면 되받기다", () => {
+  assert.equal(
+    echoedOpening("산책하던 길이 생각나시는군요. 어떤 길이었나요?", "요즘 산책하던 길이 자꾸 생각나요"),
+    "산책하던 길이",
+  );
+  // 공백 없이 그대로 되풀이한 시작(실측 하네스의 앞 여섯 글자 규칙).
+  assert.equal(echoedOpening("밥을안먹어요라고하셨죠.", "단추가 밥을안먹어요"), "밥을안먹어요");
+  // 두 번째 문장의 겹침은 시작이 아니다.
+  assert.equal(echoedOpening("그 시간이 소중했겠어요. 산책하던 길이 어땠나요?", "산책하던 길이 생각나요"), null);
+  // 어절 하나만 같으면 되받기가 아니다.
+  assert.equal(echoedOpening("단추와 함께한 날들이 떠오르네요.", "단추가 보고 싶어요"), null);
+});
+
+test("echoOpening: 사용자 말을 되받으며 시작한 턴을 표시하고, 사용자 말이 없으면 보지 않는다", () => {
+  const flags = checkSession({
+    language: "ko",
+    turns: talk([
+      ["요즘 산책하던 길이 자꾸 생각나요", "산책하던 길이 자꾸 생각나시는군요."],
+      ["저녁마다 같이 걸었어요", "그 시간이 하루의 쉼이었겠어요."],
+    ]),
+  });
+  assert.deepEqual(ids(flags), ["echoOpening:warn"]);
+  assert.match(flags[0]?.detail ?? "", /^턴 1: /);
+  assert.deepEqual(checkSession({ language: "ko", turns: turns(["산책하던 길이 생각나시는군요."]) }), []);
+});
+
+test("reassureRate: 정상화 위로가 들어간 답의 비율", () => {
+  assert.equal(
+    reassureRate(["그렇게 느끼는 건 자연스러운 일이에요.", "단추와 걷던 길이요.", "It's normal to miss her.", ""]),
+    2 / 3,
+  );
+  assert.equal(reassureRate(["단추와 걷던 길이요.", "어떤 날이었나요?"]), 0);
+  assert.equal(reassureRate([]), null);
+  // 표시는 내지 않는다.
+  assert.deepEqual(
+    checkSession({ language: "ko", turns: turns(["당연히 그리우시죠.", "그만큼 아끼셨으니까요."]) }),
+    [],
+  );
 });

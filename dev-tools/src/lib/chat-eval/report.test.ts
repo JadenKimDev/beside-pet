@@ -16,6 +16,7 @@ import {
   parseChatEvalArgs,
   personaMarkdown,
   readBaseline,
+  reassureText,
   type SavedRun,
   saveRun,
   summaryMarkdown,
@@ -140,6 +141,8 @@ test("checkCounts: 턴과 세션의 표시를 검사마다 센다", () => {
     multiQuestion: 2,
     formulaicTail: 1,
     crisisExpectation: 0,
+    stockRepeat: 0,
+    echoOpening: 0,
   });
 });
 
@@ -222,12 +225,41 @@ test("summaryMarkdown: 인물 × 검사와 인물별 결과", () => {
   assert.match(md, /^# 대화 실측 요약 \(2026-10-18\)/);
   assert.match(
     md,
-    /\| 인물 \| byteToken \| forbiddenWord \| languageMismatch \| multiQuestion \| formulaicTail \| crisisExpectation \|/,
+    /\| 인물 \| byteToken \| forbiddenWord \| languageMismatch \| multiQuestion \| formulaicTail \| crisisExpectation \| stockRepeat \| echoOpening \|\n/,
   );
   // 이름순이다.
-  assert.match(md, /\| a \| 0 \| 0 \| 0 \| 0 \| 1 \| 0 \|\n\| b \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \|/);
-  assert.match(md, /\| b \| 2 \| script \| 1 \| 2.0s \| 0.3s \|/);
-  assert.match(md, /\| a \| 2 \| script \| 1 \| 2.0s \| - \|/);
+  assert.match(md, /\| a \| 0 \| 0 \| 0 \| 0 \| 1 \| 0 \| 0 \| 0 \|\n\| b \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \|/);
+  assert.match(
+    md,
+    /\| 인물 \| 턴 \| closedBy \| 도달 과제 \| 평균 지연 \| 평균 첫 토큰 \| 정상화 위로\(reassureRate\) \|\n/,
+  );
+  assert.match(md, /\| b \| 2 \| script \| 1 \| 2.0s \| 0.3s \| 0% \|/);
+  assert.match(md, /\| a \| 2 \| script \| 1 \| 2.0s \| - \| 0% \|/);
+});
+
+test("summaryMarkdown: 새 세션 검사(stockRepeat, echoOpening)의 표시 수와 정상화 위로 비율", () => {
+  const md = summaryMarkdown("2026-10-21", [
+    run("a", {
+      turns: [
+        turn(1, { answer: "그렇게 느끼는 건 자연스러운 일이에요." }),
+        turn(2, { answer: "단추와 걷던 길이 떠올라요." }),
+        turn(3, { answer: "당연히 그리우시겠죠." }),
+        turn(4, { answer: "그 길은 어땠나요?" }),
+      ],
+      sessionFlags: [
+        { check: "stockRepeat", level: "warn", detail: "턴 3: 천천히" },
+        { check: "echoOpening", level: "warn", detail: "턴 2" },
+        { check: "echoOpening", level: "warn", detail: "턴 4" },
+      ],
+    }),
+  ]);
+  assert.match(md, /\| a \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 1 \| 2 \|\n/);
+  assert.match(md, /\| a \| 4 \| script \| 1 \| 2.0s \| - \| 50% \|/);
+});
+
+test("reassureText: 답이 없으면 -", () => {
+  assert.equal(reassureText(run("a", { turns: [] })), "-");
+  assert.equal(reassureText(run("a", { turns: [turn(1, { answer: "It's normal to miss her." })] })), "100%");
 });
 
 test("summaryMarkdown: 기준이 있으면 칸이 `기준 → 지금`, 한쪽만 있는 인물은 -", () => {

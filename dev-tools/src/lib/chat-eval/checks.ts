@@ -11,14 +11,19 @@ export type CheckId =
   | "languageMismatch"
   | "multiQuestion"
   | "formulaicTail"
-  | "crisisExpectation";
+  | "crisisExpectation"
+  | "stockRepeat"
+  | "echoOpening";
 
 export type Flag = { check: CheckId; level: "error" | "warn"; detail: string };
 
 export type TurnInput = { answer: string; language: Language; petNames: string[] };
 
-/** 사용자 턴 하나의 결과. `turns[k]` 는 사용자 턴 k+1 의 답이고 첫 인사는 넣지 않는다. */
-export type SessionTurn = { answer: string; supportLevel: number; done: boolean };
+/**
+ * 사용자 턴 하나의 결과. `turns[k]` 는 사용자 턴 k+1 의 답이고 첫 인사는 넣지 않는다.
+ * `user` 는 그 턴의 사용자 발화다. 없으면 사용자 말에 기대는 검사(상투구의 사용자 낱말 제외, 되받기)는 그만큼 덜 본다.
+ */
+export type SessionTurn = { answer: string; supportLevel: number; done: boolean; user?: string };
 
 export type SessionInput = { language: Language; turns: SessionTurn[]; expect?: PersonaExpect };
 
@@ -49,6 +54,33 @@ const MIN_HANGUL_RATIO = 0.5;
 
 /** 인물 하나의 답 가운데 예시 괄호로 끝나는 것이 이 비율을 넘으면 틀에 박혔다고 본다. */
 const FORMULAIC_RATIO = 0.7;
+
+/** 상투구 사전. 서버의 `support/rules/turn_style.rs` 와 같은 목록이다(#18). */
+export const STOCK_PHRASES = [
+  "천천히",
+  "여기 있을게",
+  "함께 있을게",
+  "곁에 있을게",
+  "여기 있어요",
+  "함께 있어요",
+  "코끝",
+  "살랑",
+  "꼬리",
+  "(예:",
+  "(예를",
+  "마음이 느껴",
+  "충분히 그럴",
+  "자연스러운 마음",
+  "자연스러운 일",
+] as const;
+
+/** 정상화 위로 패턴. 서버의 `support/rules/turn_style.rs` 와 같은 목록이다(#18). */
+const REASSURE = /그만큼|자연스러|당연|이상한 게 아니|이상하지 않|natural|normal/i;
+
+/** 답의 첫 문장과 직전 사용자 말이 이만큼 이어진 어절을 함께 가지면 되받기로 본다. */
+const ECHO_NGRAM = 2;
+/** 공백을 뺀 답의 첫 이만큼의 글자가 사용자 말 안에 그대로 있으면 되받기로 본다(실측 하네스의 `echoesUser`). */
+const ECHO_PREFIX = 6;
 
 /** 이 수준부터 위기로 본다(서버의 지원 수준 3 은 위기 안내와 세션 종료). */
 const CRISIS_LEVEL = 3;
@@ -156,6 +188,67 @@ function formulaicTail(turns: SessionTurn[]): Flag[] {
   ];
 }
 
+/** 턴마다, 앞 답들에 이미 나온 상투구가 다시 나왔는가. 사용자가 그 턴까지 직접 쓴 낱말은 빼고 본다. */
+function stockRepeat(turns: SessionTurn[]): Flag[] {
+  const flags: Flag[] = [];
+  const said = new Set<string>();
+  let userText = "";
+  turns.forEach((turn, index) => {
+    userText += `\n${turn.user ?? ""}`;
+    const found = STOCK_PHRASES.filter((phrase) => turn.answer.includes(phrase));
+    const repeated = found.filter((phrase) => said.has(phrase) && !userText.includes(phrase));
+    if (repeated.length > 0) {
+      flags.push({ check: "stockRepeat", level: "warn", detail: `턴 ${index + 1}: ${repeated.join(", ")}` });
+    }
+    for (const phrase of found) said.add(phrase);
+  });
+  return flags;
+}
+
+/** 어절. 문장부호와 괄호를 떼고 공백으로 나눈다. */
+function eojeol(text: string): string[] {
+  return text
+    .replace(/[()?!.,"'…~？！。]/g, " ")
+    .split(/\s+/)
+    .filter((word) => word !== "");
+}
+
+function ngrams(words: string[], n: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i + n <= words.length; i++) out.push(words.slice(i, i + n).join(" "));
+  return out;
+}
+
+const squash = (text: string): string => text.replace(/\s/g, "");
+
+/** 답이 사용자 말을 되받으며 시작하는가. 겹친 말을 돌려주고, 아니면 null. */
+export function echoedOpening(answer: string, user: string): string | null {
+  const first = sentences(answer)[0] ?? "";
+  const userGrams = new Set(ngrams(eojeol(user), ECHO_NGRAM));
+  const shared = ngrams(eojeol(first), ECHO_NGRAM).find((gram) => userGrams.has(gram));
+  if (shared !== undefined) return shared;
+  const prefix = squash(answer).slice(0, ECHO_PREFIX);
+  if (prefix.length === ECHO_PREFIX && squash(user).includes(prefix)) return prefix;
+  return null;
+}
+
+/** 턴마다, 답이 그 턴의 사용자 말을 되받으며 시작했는가. 사용자 말이 없는 턴은 보지 않는다. */
+function echoOpening(turns: SessionTurn[]): Flag[] {
+  return turns.flatMap((turn, index) => {
+    if (turn.user === undefined || turn.user.trim() === "") return [];
+    const shared = echoedOpening(turn.answer, turn.user);
+    if (shared === null) return [];
+    return [{ check: "echoOpening" as const, level: "warn" as const, detail: `턴 ${index + 1}: "${shared}"` }];
+  });
+}
+
+/** 정상화 위로 패턴이 들어간 답의 비율(0~1). 빈 답은 세지 않고, 답이 없으면 null. 표시가 아니라 수치로 둔다. */
+export function reassureRate(answers: string[]): number | null {
+  const nonEmpty = answers.filter((answer) => answer.trim() !== "");
+  if (nonEmpty.length === 0) return null;
+  return nonEmpty.filter((answer) => REASSURE.test(answer)).length / nonEmpty.length;
+}
+
 function crisisTurns(turns: SessionTurn[]): number[] {
   return turns.flatMap((turn, index) => (turn.supportLevel >= CRISIS_LEVEL ? [index + 1] : []));
 }
@@ -206,7 +299,15 @@ function crisisExpectation(turns: SessionTurn[], expect: PersonaExpect | undefin
   return flags;
 }
 
-/** 인물 하나의 답 전부를 검사한다: 틀에 박힌 꼬리의 비율, 위기 기대와 실제의 어긋남. */
+/**
+ * 인물 하나의 답 전부를 검사한다: 틀에 박힌 꼬리의 비율, 위기 기대와 실제의 어긋남,
+ * 이미 쓴 상투구의 반복, 사용자 말을 되받는 시작. 정상화 위로의 비율은 표시가 아니라 `reassureRate` 의 수치다.
+ */
 export function checkSession(input: SessionInput): Flag[] {
-  return [...formulaicTail(input.turns), ...crisisExpectation(input.turns, input.expect)];
+  return [
+    ...formulaicTail(input.turns),
+    ...crisisExpectation(input.turns, input.expect),
+    ...stockRepeat(input.turns),
+    ...echoOpening(input.turns),
+  ];
 }

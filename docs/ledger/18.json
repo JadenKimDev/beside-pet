@@ -18,10 +18,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-21T09:02:40.045Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -39,11 +39,11 @@
         "dev-tools/scripts/cargo.sh test -p beside-pet-server -- support::rules::turn_style"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
+      "red_at": "2026-10-21T09:05:38.977Z",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-21T09:02:46.310Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -88,13 +88,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T09:02:46.625Z",
+      "finished_at": "2026-10-21T09:06:16.955Z",
+      "active_ms": 210330,
+      "verify_ms": 1309
     },
     {
       "id": "S5",
@@ -109,13 +109,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
-      "retries": 0,
-      "started_at": null,
+      "retries": 1,
+      "started_at": "2026-10-21T09:02:46.942Z",
       "finished_at": null,
       "active_ms": null,
-      "verify_ms": null
+      "verify_ms": 1411
     }
   ]
 }

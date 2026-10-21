@@ -43,10 +43,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-21T14:33:40.367Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -106,6 +106,7 @@
       "title": "웹: 중단 버튼과 입력창 되돌리기, 다시 붙기, 답 다시 받기, 상태 테스트, 문구",
       "scope": [
         "apps/web/lib/api/",
+        "apps/web/lib/data/",
         "apps/web/features/session/",
         "apps/web/components/chat/",
         "apps/web/app/session/",
@@ -117,10 +118,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-21T14:31:13.700Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -137,13 +138,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T14:31:20.772Z",
+      "finished_at": "2026-10-21T14:32:47.360Z",
+      "active_ms": 86588,
+      "verify_ms": 1427
     },
     {
       "id": "S7",

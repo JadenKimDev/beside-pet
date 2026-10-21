@@ -67,17 +67,17 @@ terminal-browser action --browser <키> -- eval "document.title"
 
 ## 좁은 폭으로 보기 (터미널 브라우저)
 
-제품은 웹으로만 운영하므로 휴대폰 브라우저가 곧 모바일 앱이다. 화면을 고친 PRD 는 데스크톱 폭과 함께 390px(iPhone 기준)도 한 번 본다. Chrome 확장의 창 크기 바꾸기는 이 머신에서 먹지 않으므로(요청 390 → 실제 948, 2026-10-20 확인) 좁은 폭은 터미널 브라우저로만 잰다. `set viewport` 는 값을 기기 픽셀로 받고 DPR 2 로 나누므로 `set viewport 390 760` 은 CSS 195×380 이 된다(2026-10-21 실측). CSS 390×760 을 만들려면 `set viewport 780 1520 1` 을 주고, `eval` 로 `innerWidth` 를 읽어 390 인지 확인한다. `open` 으로 주소를 바꾸면 뷰포트가 풀리므로 이동은 `eval "location.href='...'"` 로 한다.
+제품은 웹으로만 운영하므로 휴대폰 브라우저가 곧 모바일 앱이다. 화면을 고친 PRD 는 데스크톱 폭과 함께 390px(iPhone 기준)도 한 번 본다. Chrome 확장의 창 크기 바꾸기는 이 머신에서 먹지 않으므로(요청 390 → 실제 948, 2026-10-20 확인) 좁은 폭은 터미널 브라우저로만 잰다. `set viewport <폭> <높이> <배율>` 의 결과는 그 호스트의 확대 배율에 따라 달라진다(2026-10-21 실측: 같은 인자가 한 탭에서는 CSS 390, 다른 탭에서는 1649 가 됐다). 먼저 브라우저 pane 에 Cmd+0 을 보내 배율을 1 로 맞추고(`herdr pane send-keys <브라우저 pane> super+0`), `set viewport 390 760 2` 로 CSS 390×760(DPR 2)을 만든 뒤 `eval` 로 `innerWidth` 가 390 인지 반드시 확인한다. `open` 으로 주소를 바꾸면 뷰포트가 풀리므로 이동은 `eval "location.href='...'"` 로 한다.
 
 ```bash
-terminal-browser action --browser <키> -- set viewport 780 1520 1
+terminal-browser action --browser <키> -- set viewport 390 760 2
 terminal-browser action --browser <키> -- eval "window.innerWidth + 'x' + window.innerHeight + ' dpr ' + devicePixelRatio"   # 390x760 dpr 2
 terminal-browser action --browser <키> -- eval "location.href='http://localhost:3001/sessions'"                               # open 대신
 terminal-browser action --browser <키> -- eval "document.documentElement.scrollWidth > window.innerWidth"   # true 면 가로 넘침
 terminal-browser action --browser <키> -- snapshot                                                           # 잘린 글, 겹친 요소는 스냅샷으로
 ```
 
-화면마다 보는 것: 가로 넘침(`scrollWidth <= innerWidth`), 버튼·선택지의 높이 44px 이상(`getBoundingClientRect().height`), 입력 글자 16px 이상(`getComputedStyle(el).fontSize`, iOS 자동 확대 방지), 머리의 도움 알약과 바닥의 위기 띠·면책이 보이는가, 대화 화면에서 입력창이 뷰포트 안에 있는가. 확인이 끝나면 `set viewport 2560 1600 1`(CSS 1280×800)으로 되돌려 데스크톱 배치가 그대로인지 한 번 본다.
+화면마다 보는 것: 가로 넘침(`scrollWidth <= innerWidth`), 버튼·선택지의 높이 44px 이상(`getBoundingClientRect().height`), 입력 글자 16px 이상(`getComputedStyle(el).fontSize`, iOS 자동 확대 방지), 머리의 도움 알약과 바닥의 위기 띠·면책이 보이는가, 대화 화면에서 입력창이 뷰포트 안에 있는가. 확인이 끝나면 `set viewport 1280 800 2`(CSS 1280×800)으로 되돌려 데스크톱 배치가 그대로인지 한 번 본다.
 
 ## 화면을 볼 때의 선
 

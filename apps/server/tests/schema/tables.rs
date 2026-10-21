@@ -137,3 +137,21 @@ async fn purpose_and_outcome_are_closed_sets() {
     }
     schema.close().await;
 }
+
+#[tokio::test]
+async fn accounts_has_a_nullable_tokens_valid_from() {
+    let schema = TestSchema::open().await;
+    let got = columns(&schema, "accounts").await;
+    assert_eq!(got.last().map(String::as_str), Some("tokens_valid_from"));
+    let row = sqlx::query(
+        "SELECT data_type::text, is_nullable::text FROM information_schema.columns \
+         WHERE table_schema = $1 AND table_name = 'accounts' AND column_name = 'tokens_valid_from'",
+    )
+    .bind(schema.name())
+    .fetch_one(&schema.pool)
+    .await
+    .unwrap();
+    assert_eq!(row.get::<String, _>(0), "timestamp with time zone");
+    assert_eq!(row.get::<String, _>(1), "YES");
+    schema.close().await;
+}

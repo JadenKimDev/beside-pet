@@ -265,6 +265,55 @@ async fn logout_은_204_와_쿠키_삭제다_인증이_없어도() {
 }
 
 #[tokio::test]
+async fn logout_은_쿠키가_없으면_계정_서비스를_부르지_않는다() {
+    let h = Harness::new(false);
+    h.send(Method::POST, "/v1/auth/logout", None, None).await;
+    h.send(
+        Method::POST,
+        "/v1/auth/logout",
+        Some("beside-pet.token="),
+        None,
+    )
+    .await;
+    assert!(h.calls().is_empty(), "{:?}", h.calls());
+}
+
+#[tokio::test]
+async fn logout_은_쿠키의_토큰으로_로그아웃을_적고_204_와_쿠키_삭제다() {
+    let h = Harness::new(true);
+    let reply = h
+        .send(
+            Method::POST,
+            "/v1/auth/logout",
+            Some(&token("viewer")),
+            None,
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::NO_CONTENT);
+    assert_eq!(set_cookie(&reply), [CLEARED]);
+    assert_eq!(h.calls(), ["log_out viewer"]);
+}
+
+#[tokio::test]
+async fn logout_을_적지_못하면_그_오류지만_쿠키는_지운다() {
+    let h = Harness::new(false);
+    let state = IdentityState {
+        accounts: Arc::new(Unimplemented),
+        ..h.state.clone()
+    };
+    let reply = send_to(
+        state,
+        Method::POST,
+        "/v1/auth/logout",
+        Some(&token("viewer")),
+        None,
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::NOT_IMPLEMENTED);
+    assert_eq!(set_cookie(&reply), [CLEARED]);
+}
+
+#[tokio::test]
 async fn me_는_쿠키가_없으면_401_not_authenticated() {
     let h = Harness::new(false);
     let reply = h.send(Method::GET, "/v1/auth/me", None, None).await;

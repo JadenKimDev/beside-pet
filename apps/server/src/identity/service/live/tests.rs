@@ -2,6 +2,7 @@
 //! DATABASE_URL 이 없으면 이유를 적고 실패한다(건너뛰지 않는다). 아이디와 비밀번호는 지어낸 값이다.
 
 mod admin;
+mod log_out;
 mod setup;
 mod sign_in;
 

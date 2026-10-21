@@ -1,6 +1,7 @@
 //! 인증 추출기와 역할 가드: 쿠키의 토큰을 `Authenticator` 로 확인해 핸들러에 계정을 넘긴다.
 
 use axum::extract::{FromRef, FromRequestParts};
+use axum::http::HeaderMap;
 use axum::http::header::COOKIE;
 use axum::http::request::Parts;
 
@@ -24,7 +25,7 @@ where
     type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<CurrentAccount, ApiError> {
-        let token = cookie_value(parts, AUTH_COOKIE)
+        let token = cookie_value(&parts.headers, AUTH_COOKIE)
             .filter(|token| !token.is_empty())
             .ok_or_else(|| ApiError::Unauthorized("Not authenticated".to_owned()))?;
         let authenticator = SharedAuthenticator::from_ref(state);
@@ -54,9 +55,8 @@ where
 }
 
 /// `Cookie` 헤더에서 이름이 맞는 첫 값. cookie-parser 와 같이 앞뒤 공백과 감싼 따옴표를 뗀다.
-fn cookie_value(parts: &Parts, name: &str) -> Option<String> {
-    parts
-        .headers
+pub(super) fn cookie_value(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
         .get_all(COOKIE)
         .iter()
         .filter_map(|header| header.to_str().ok())

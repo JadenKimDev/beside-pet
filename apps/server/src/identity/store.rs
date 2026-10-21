@@ -10,7 +10,7 @@ use super::rules::AccountRecord;
 use super::{AccountStatus, ChatLanguage, Role};
 
 const COLUMNS: &str = "id, username, password_hash, company, role, status, created_at, \
-                       last_login_at, expires_at, chat_language";
+                       last_login_at, expires_at, chat_language, tokens_valid_from";
 
 /// `accounts` 를 읽고 쓰는 곳. 풀을 복제해 들고 다닌다.
 #[derive(Debug, Clone)]
@@ -30,6 +30,7 @@ struct AccountRow {
     last_login_at: Option<DateTime<Utc>>,
     expires_at: Option<DateTime<Utc>>,
     chat_language: Option<String>,
+    tokens_valid_from: Option<DateTime<Utc>>,
 }
 
 impl AccountStore {
@@ -38,11 +39,13 @@ impl AccountStore {
     }
 
     /// 없으면 넣고 있으면(같은 id) 모든 칸을 덮어쓴다. 다른 계정과 아이디가 겹치면 오류다.
+    /// 로그아웃 시각(`tokens_valid_from`)만은 넣을 때만 쓰고 덮어쓰지 않는다. 로그아웃 전에 읽은 줄을
+    /// 뒤에 저장해도 로그아웃이 풀리지 않게, 그 칸은 `set_tokens_valid_from` 만 바꾼다.
     pub async fn save(&self, record: &AccountRecord) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT INTO accounts (id, username, password_hash, company, role, status, created_at, \
-                                   last_login_at, expires_at, chat_language) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
+                                   last_login_at, expires_at, chat_language, tokens_valid_from) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
              ON CONFLICT (id) DO UPDATE SET \
                username = EXCLUDED.username, password_hash = EXCLUDED.password_hash, \
                company = EXCLUDED.company, role = EXCLUDED.role, status = EXCLUDED.status, \
@@ -59,8 +62,23 @@ impl AccountStore {
         .bind(record.last_login_at)
         .bind(record.expires_at)
         .bind(record.chat_language.map(language_text))
+        .bind(record.tokens_valid_from)
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    /// 로그아웃: 그 계정의 로그아웃 시각을 `at` 으로 적는다. 없는 id 는 아무것도 하지 않는다.
+    pub async fn set_tokens_valid_from(
+        &self,
+        id: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE accounts SET tokens_valid_from = $2 WHERE id = $1")
+            .bind(id)
+            .bind(at)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -128,6 +146,7 @@ impl AccountRow {
             created_at: self.created_at,
             last_login_at: self.last_login_at,
             expires_at: self.expires_at,
+            tokens_valid_from: self.tokens_valid_from,
         })
     }
 }

@@ -137,3 +137,33 @@ fn 바깥_계정은_해시가_없고_expired_를_지금_시각으로_계산한�
     );
     assert!(record.to_account(at(5)).expired);
 }
+
+fn second(hour: u32, sec: u32, millis: u32) -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 10, 16, hour, 0, sec).unwrap()
+        + Duration::milliseconds(millis.into())
+}
+
+#[test]
+fn 로그아웃한_적이_없으면_어느_토큰이든_받는다() {
+    let record = issued(Role::Viewer, None);
+    assert_eq!(record.tokens_valid_from, None);
+    assert!(record.accepts_token_issued_at(second(1, 0, 0).timestamp()));
+    assert!(record.accepts_token_issued_at(0));
+}
+
+#[test]
+fn 로그아웃보다_앞선_초에_발급한_토큰은_받지_않는다() {
+    let mut record = issued(Role::Viewer, None);
+    record.tokens_valid_from = Some(second(9, 10, 0));
+    assert!(!record.accepts_token_issued_at(second(9, 9, 999).timestamp()));
+    assert!(!record.accepts_token_issued_at(second(8, 0, 0).timestamp()));
+}
+
+#[test]
+fn 로그아웃과_같은_초나_뒤에_발급한_토큰은_받는다() {
+    let mut record = issued(Role::Viewer, None);
+    // 로그아웃이 10.750 초에 적혀도 10 초에 발급한 토큰(iat 는 초 단위)은 산다.
+    record.tokens_valid_from = Some(second(9, 10, 750));
+    assert!(record.accepts_token_issued_at(second(9, 10, 0).timestamp()));
+    assert!(record.accepts_token_issued_at(second(9, 11, 0).timestamp()));
+}

@@ -200,3 +200,51 @@ async fn 모르는_역할이나_상태는_읽기_오류다() {
     assert!(store.list().await.is_err());
     db.close().await;
 }
+
+#[tokio::test]
+async fn 로그아웃_시각을_적고_읽는다() {
+    let db = AccountsSchema::open().await;
+    let store = db.store();
+    let record = admin_record("acc-1", "maple", 1);
+    store.save(&record).await.unwrap();
+    assert_eq!(
+        store
+            .find_by_id("acc-1")
+            .await
+            .unwrap()
+            .unwrap()
+            .tokens_valid_from,
+        None
+    );
+
+    store.set_tokens_valid_from("acc-1", at(7)).await.unwrap();
+    assert_eq!(
+        store
+            .find_by_id("acc-1")
+            .await
+            .unwrap()
+            .unwrap()
+            .tokens_valid_from,
+        Some(at(7))
+    );
+    // 없는 id 는 아무것도 하지 않는다.
+    store.set_tokens_valid_from("nobody", at(7)).await.unwrap();
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 다른_칸을_저장해도_로그아웃_시각은_그대로다() {
+    let db = AccountsSchema::open().await;
+    let store = db.store();
+    // 로그아웃 전에 읽어 둔 줄(로그아웃 시각 없음)을 로그아웃 뒤에 저장해도 로그아웃이 풀리지 않는다.
+    let mut stale = admin_record("acc-1", "maple", 1);
+    store.save(&stale).await.unwrap();
+    store.set_tokens_valid_from("acc-1", at(7)).await.unwrap();
+    stale.set_chat_language(ChatLanguage::En);
+    store.save(&stale).await.unwrap();
+
+    let found = store.find_by_id("acc-1").await.unwrap().unwrap();
+    assert_eq!(found.chat_language, Some(ChatLanguage::En));
+    assert_eq!(found.tokens_valid_from, Some(at(7)));
+    db.close().await;
+}

@@ -233,19 +233,23 @@ impl Harness {
     }
 
     fn build(support: SharedSupportService, metrics: SharedMetricsSource) -> Harness {
+        let authenticator: SharedAuthenticator = Arc::new(TokenAuthenticator);
+        Harness::with_services(Services {
+            authenticator,
+            support,
+            metrics,
+            ..Services::unimplemented()
+        })
+    }
+
+    /// 고른 구현을 그대로 끼운다(실제 DB 를 쓰는 구현도 된다). 설정은 sandbox 이고 앱 상태의 풀은 붙지 않는다.
+    pub fn with_services(services: Services) -> Harness {
         let config = Config::from_lookup(|name| match name {
             "DATABASE_URL" => Some("postgres://u:p@127.0.0.1:1/none".to_owned()),
             "APP_ENV" => Some("sandbox".to_owned()),
             _ => None,
         })
         .unwrap();
-        let authenticator: SharedAuthenticator = Arc::new(TokenAuthenticator);
-        let services = Services {
-            authenticator,
-            support,
-            metrics,
-            ..Services::unimplemented()
-        };
         let state = AppState::lazy(Arc::new(config), services).unwrap();
         Harness { app: router(state) }
     }

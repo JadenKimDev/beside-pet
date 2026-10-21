@@ -56,14 +56,17 @@ fn rejects_unreadable_ttl() {
 fn sign_then_verify_round_trips() {
     let signer = signer("7d");
     let token = signer.sign(&claims(), now()).expect("sign");
-    assert_eq!(signer.verify(&token, now()), Some(claims()));
+    assert_eq!(
+        signer.verify(&token, now()).map(|v| v.claims),
+        Some(claims())
+    );
 
     let admin = TokenClaims {
         sub: "admin-id".to_owned(),
         role: Role::Admin,
     };
     let token = signer.sign(&admin, now()).expect("sign");
-    assert_eq!(signer.verify(&token, now()), Some(admin));
+    assert_eq!(signer.verify(&token, now()).map(|v| v.claims), Some(admin));
 }
 
 #[test]
@@ -98,7 +101,10 @@ fn expires_at_exp() {
     let signer = signer("1h");
     let token = signer.sign(&claims(), now()).expect("sign");
     let just_before = now() + Duration::hours(1) - Duration::seconds(1);
-    assert_eq!(signer.verify(&token, just_before), Some(claims()));
+    assert_eq!(
+        signer.verify(&token, just_before).map(|v| v.claims),
+        Some(claims())
+    );
     assert_eq!(signer.verify(&token, now() + Duration::hours(1)), None);
     assert_eq!(signer.verify(&token, now() + Duration::days(2)), None);
 }
@@ -155,6 +161,35 @@ fn other_algorithm_does_not_verify() {
             "sub": "x",
             "role": "viewer",
             "iat": now().timestamp(),
+            "exp": now().timestamp() + 60,
+        }),
+        &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),
+    )
+    .expect("encode");
+    assert_eq!(signer("7d").verify(&raw, now()), None);
+}
+
+#[test]
+fn verify_gives_the_issued_second() {
+    let signer = signer("7d");
+    let token = signer
+        .sign(&claims(), now() + Duration::milliseconds(750))
+        .expect("sign");
+    let verified = signer
+        .verify(&token, now() + Duration::seconds(5))
+        .expect("verify");
+    assert_eq!(verified.issued_at, now().timestamp());
+    assert_eq!(verified.claims, claims());
+}
+
+#[test]
+fn token_without_iat_does_not_verify() {
+    // 같은 비밀 값으로 서명했지만 발급 시각이 없는 토큰. 로그아웃 경계를 잴 수 없으므로 받지 않는다.
+    let raw = jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+        &serde_json::json!({
+            "sub": "x",
+            "role": "viewer",
             "exp": now().timestamp() + 60,
         }),
         &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()),

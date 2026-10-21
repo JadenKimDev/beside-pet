@@ -20,6 +20,13 @@ pub struct TokenClaims {
     pub role: Role,
 }
 
+/// 확인을 지난 토큰: 클레임과 발급 시각(`iat`, 초).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedToken {
+    pub claims: TokenClaims,
+    pub issued_at: i64,
+}
+
 /// `JWT_TTL` 을 읽지 못했다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvalidTtl;
@@ -50,6 +57,7 @@ struct SignedPayload<'a> {
 struct ReceivedPayload {
     sub: String,
     role: String,
+    iat: i64,
     exp: i64,
 }
 
@@ -88,8 +96,8 @@ impl TokenSigner {
             .map_err(|_| SignFailed)
     }
 
-    /// 서명이 맞고 `now < exp` 이고 역할을 읽을 수 있으면 클레임을, 아니면 `None`.
-    pub fn verify(&self, token: &str, now: DateTime<Utc>) -> Option<TokenClaims> {
+    /// 서명이 맞고 `now < exp` 이고 역할과 `iat` 를 읽을 수 있으면 클레임과 발급 시각을, 아니면 `None`.
+    pub fn verify(&self, token: &str, now: DateTime<Utc>) -> Option<VerifiedToken> {
         let payload =
             jsonwebtoken::decode::<ReceivedPayload>(token, &self.decoding, &self.validation)
                 .ok()?
@@ -97,9 +105,12 @@ impl TokenSigner {
         if now.timestamp() >= payload.exp {
             return None;
         }
-        Some(TokenClaims {
-            sub: payload.sub,
-            role: Role::parse(&payload.role)?,
+        Some(VerifiedToken {
+            claims: TokenClaims {
+                sub: payload.sub,
+                role: Role::parse(&payload.role)?,
+            },
+            issued_at: payload.iat,
         })
     }
 }

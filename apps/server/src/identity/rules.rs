@@ -20,6 +20,8 @@ pub struct AccountRecord {
     pub last_login_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
     pub chat_language: Option<ChatLanguage>,
+    /// 마지막 로그아웃 시각. 이보다 앞선 초에 발급한 토큰은 받지 않는다. 로그아웃한 적이 없으면 `None`.
+    pub tokens_valid_from: Option<DateTime<Utc>>,
 }
 
 /// 관리자(또는 첫 설치)가 계정을 발급할 때 넘기는 값.
@@ -58,6 +60,7 @@ impl AccountRecord {
             last_login_at: None,
             expires_at: input.expires_at,
             chat_language: None,
+            tokens_valid_from: None,
         }
     }
 
@@ -74,6 +77,7 @@ impl AccountRecord {
             last_login_at: None,
             expires_at: None,
             chat_language: None,
+            tokens_valid_from: None,
         }
     }
 
@@ -109,6 +113,13 @@ impl AccountRecord {
     /// 만료 시각에 닿았으면(같은 시각 포함) 참이다.
     pub fn is_expired(&self, now: DateTime<Utc>) -> bool {
         self.expires_at.is_some_and(|expires_at| expires_at <= now)
+    }
+
+    /// `issued_at`(토큰의 `iat`, 초)에 발급한 토큰을 아직 받는가. 비교는 초 단위다:
+    /// `iat 초 < 로그아웃 시각의 초(내림)` 이면 받지 않으므로, 로그아웃과 같은 초에 새로 로그인한 토큰은 산다.
+    pub fn accepts_token_issued_at(&self, issued_at: i64) -> bool {
+        self.tokens_valid_from
+            .is_none_or(|valid_from| issued_at >= valid_from.timestamp())
     }
 
     /// 바깥에 보이는 계정. 해시는 빠지고 `expired` 는 `now` 에 대해 계산한다.

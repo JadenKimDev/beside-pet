@@ -6,8 +6,8 @@ mod request;
 mod response;
 
 use axum::extract::{FromRef, Path, State};
-use axum::http::StatusCode;
 use axum::http::header::SET_COOKIE;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, patch, post};
 use axum::{Json, Router};
@@ -16,7 +16,7 @@ pub use extract::{AdminAccount, CurrentAccount};
 
 use super::{SharedAccountService, SharedAuthenticator, SharedSessionPresence, SignedIn};
 use crate::shared::{ApiError, JsonBody};
-use cookie::{clear_auth_cookie, set_auth_cookie};
+use cookie::{AUTH_COOKIE, clear_auth_cookie, set_auth_cookie};
 use response::{AccountResponse, AdminAccountResponse, MeResponse, SetupStatusResponse};
 
 /// identity 라우터의 상태. `app.rs` 가 `FromRef` 로 꺼내 준다.
@@ -108,8 +108,19 @@ async fn login(
     Ok(signed_in(&state, result))
 }
 
-async fn logout() -> impl IntoResponse {
-    (StatusCode::NO_CONTENT, [(SET_COOKIE, clear_auth_cookie())])
+/// 쿠키의 토큰으로 로그아웃을 적고(그 전 토큰은 무효가 된다) 쿠키를 지운다. 쿠키가 없거나 비었으면 지우기만 한다.
+/// 로그아웃을 적지 못하면 그 오류를 내되 쿠키는 그래도 지운다.
+async fn logout(State(state): State<IdentityState>, headers: HeaderMap) -> Response {
+    let cleared = [(SET_COOKIE, clear_auth_cookie())];
+    let token = extract::cookie_value(&headers, AUTH_COOKIE).filter(|token| !token.is_empty());
+    let recorded = match token {
+        Some(token) => state.accounts.log_out(token).await,
+        None => Ok(()),
+    };
+    match recorded {
+        Ok(()) => (StatusCode::NO_CONTENT, cleared).into_response(),
+        Err(error) => (cleared, error).into_response(),
+    }
 }
 
 /// 계정과 `hasProfile`. 계정을 먼저 읽으므로 계정의 오류(404 등)가 그대로 나간다.

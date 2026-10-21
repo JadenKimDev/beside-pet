@@ -1,5 +1,6 @@
-//! 조립한 라우터(`app::router`)의 통합 테스트: 30개 경로의 존재, 없는 경로의 404, 검증 문구, 401·403·501, SSE, 응답의 새 칸.
-//! 기능의 trait 는 테스트 더블을 끼우므로 기능 PRD 가 구현을 채워도 그대로 통과한다.
+//! 조립한 라우터(`app::router`)의 통합 테스트: 30개 경로의 존재, 없는 경로의 404, 검증 문구, 401·403·501, SSE, 응답의 새 칸,
+//! 실제 계정 구현과 DB 로 도는 로그아웃.
+//! 로그아웃 말고는 기능의 trait 에 테스트 더블을 끼우므로 기능 PRD 가 구현을 채워도 그대로 통과한다.
 
 #[path = "routes/harness.rs"]
 mod harness;
@@ -15,6 +16,13 @@ mod fields;
 
 #[path = "routes/metrics.rs"]
 mod metrics;
+
+#[path = "schema/db.rs"]
+#[allow(dead_code)] // 스키마 테스트의 도우미를 같이 쓰고 그중 일부만 부른다
+mod db;
+
+#[path = "routes/logout.rs"]
+mod logout;
 
 use axum::http::{Method, StatusCode};
 use serde_json::{Value, json};
@@ -45,12 +53,8 @@ fn routes() -> Vec<(Method, &'static str, Option<Value>, StatusCode)> {
             Some(json!({ "username": "maple", "password": "pw" })),
             ni,
         ),
-        (
-            Method::POST,
-            "/v1/auth/logout",
-            None,
-            StatusCode::NO_CONTENT,
-        ),
+        // 쿠키가 있으면 계정 서비스에 로그아웃을 적는다(구현이 없으면 501). 쿠키가 없을 때의 204 는 identity 의 테스트가 본다.
+        (Method::POST, "/v1/auth/logout", None, ni),
         (Method::GET, "/v1/auth/me", None, ni),
         (
             Method::PATCH,

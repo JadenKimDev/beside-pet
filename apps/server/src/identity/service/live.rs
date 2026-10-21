@@ -320,6 +320,18 @@ impl IdentityService {
             .await
     }
 
+    /// 맞는 토큰이면 그 계정(상태와 상관없이)에 지금 시각을 로그아웃으로 적는다.
+    async fn do_log_out(&self, token: &str) -> Result<(), ApiError> {
+        let now = self.now();
+        let Some(verified) = self.signer.verify(token, now) else {
+            return Ok(());
+        };
+        self.store
+            .set_tokens_valid_from(&verified.claims.sub, now)
+            .await
+            .map_err(internal)
+    }
+
     async fn do_delete(&self, id: String) -> Result<(), ApiError> {
         let record = self.target(&id).await?;
         self.store.delete(&record.id).await.map_err(internal)
@@ -327,12 +339,23 @@ impl IdentityService {
 
     /// 토큰을 읽지 못하면 `None`. 읽었지만 계정이 없거나 active 가 아니거나 만료면 `401`.
     /// 정지가 곧바로 듣도록 토큰만 믿지 않고 매번 계정을 다시 읽는다(ADR-0007).
+    /// 계정의 마지막 로그아웃보다 앞선 초에 발급한 토큰도 읽지 못한 토큰과 같이 `None` 이다.
     async fn do_authenticate(&self, token: &str) -> Result<Option<AuthenticatedAccount>, ApiError> {
         let now = self.now();
-        let Some(claims) = self.signer.verify(token, now) else {
+        let Some(verified) = self.signer.verify(token, now) else {
             return Ok(None);
         };
-        let record = self.store.find_by_id(&claims.sub).await.map_err(internal)?;
+        let record = self
+            .store
+            .find_by_id(&verified.claims.sub)
+            .await
+            .map_err(internal)?;
+        if record
+            .as_ref()
+            .is_some_and(|record| !record.accepts_token_issued_at(verified.issued_at))
+        {
+            return Ok(None);
+        }
         match record {
             Some(record) if record.status == AccountStatus::Active && !record.is_expired(now) => {
                 Ok(Some(AuthenticatedAccount {
@@ -367,6 +390,10 @@ impl AccountService for IdentityService {
 
     fn me(&self, account_id: String) -> BoxFuture<'_, Result<Account, ApiError>> {
         Box::pin(async move { Ok(self.own(&account_id).await?.to_account(self.now())) })
+    }
+
+    fn log_out(&self, token: String) -> BoxFuture<'_, Result<(), ApiError>> {
+        Box::pin(async move { self.do_log_out(&token).await })
     }
 
     fn set_chat_language(

@@ -66,6 +66,9 @@ pub trait AccountService {
     fn setup(&self, input: SetupInput) -> BoxFuture<'_, Result<SignedIn, ApiError>>;
     fn login(&self, input: LoginInput) -> BoxFuture<'_, Result<SignedIn, ApiError>>;
     fn me(&self, account_id: String) -> BoxFuture<'_, Result<Account, ApiError>>;
+    /// 로그아웃: 쿠키의 토큰이 맞으면 그 계정에 지금 시각을 적어, 그 전에 발급한 토큰을 모두 무효로 한다.
+    /// 토큰을 읽지 못하면 아무것도 하지 않는다(`Ok`).
+    fn log_out(&self, token: String) -> BoxFuture<'_, Result<(), ApiError>>;
     fn set_chat_language(
         &self,
         account_id: String,
@@ -145,6 +148,9 @@ impl AccountService for Unimplemented {
         not_implemented()
     }
     fn me(&self, _: String) -> BoxFuture<'_, Result<Account, ApiError>> {
+        not_implemented()
+    }
+    fn log_out(&self, _: String) -> BoxFuture<'_, Result<(), ApiError>> {
         not_implemented()
     }
     fn set_chat_language(

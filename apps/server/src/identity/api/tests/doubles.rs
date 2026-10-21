@@ -143,6 +143,10 @@ impl AccountService for FakeAccounts {
         self.record(format!("set_expiry {id} {expires_at:?}"));
         ready(bare_account(&id))
     }
+    fn log_out(&self, token: String) -> BoxFuture<'_, Result<(), ApiError>> {
+        self.record(format!("log_out {token}"));
+        ready(())
+    }
     fn delete_account(&self, id: String) -> BoxFuture<'_, Result<(), ApiError>> {
         self.record(format!("delete_account {id}"));
         ready(())

@@ -11,7 +11,7 @@
       "scope": [
         "apps/web/lib/http/",
         "apps/web/features/auth/",
-        "apps/web/features/session-archive/session-archive.store.ts",
+        "apps/web/features/session-archive/",
         "apps/web/features/session/session.store.ts",
         "apps/web/features/report/report.store.ts"
       ],
@@ -20,14 +20,14 @@
         "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-21T04:18:41.772Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T04:16:49.226Z",
+      "finished_at": "2026-10-21T04:19:11.250Z",
+      "active_ms": 142024,
+      "verify_ms": 3156
     },
     {
       "id": "S2",
@@ -41,14 +41,14 @@
         "pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
-      "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "red_at": "2026-10-21T04:18:10.606Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
+      "started_at": "2026-10-21T04:16:55.580Z",
+      "finished_at": "2026-10-21T04:19:21.728Z",
+      "active_ms": 146148,
+      "verify_ms": 2467
     }
   ]
 }

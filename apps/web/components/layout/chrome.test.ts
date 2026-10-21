@@ -73,3 +73,32 @@ describe('chromeFor', () => {
     expect(chromeFor(null).crisisDock).toBe(false);
   });
 });
+
+describe('chromeFor protected', () => {
+  it('첫 화면과 /help 는 로그인 없이 열린다', () => {
+    expect(chromeFor('/').protected).toBe(false);
+    expect(chromeFor('/help').protected).toBe(false);
+    expect(chromeFor('/help/').protected).toBe(false);
+  });
+
+  it('대화, 온보딩, 목록, 리포트, 설정은 로그인이 필요하다', () => {
+    for (const path of [
+      '/session',
+      '/session/',
+      '/onboarding',
+      '/sessions',
+      '/sessions/abc',
+      '/sessions/abc/report',
+      '/settings',
+      '/settings/theme',
+    ]) {
+      expect(chromeFor(path).protected).toBe(true);
+    }
+  });
+
+  it('모르는 경로와 null 은 공개다', () => {
+    expect(chromeFor('/nowhere').protected).toBe(false);
+    expect(chromeFor('/helpdesk').protected).toBe(false);
+    expect(chromeFor(null).protected).toBe(false);
+  });
+});

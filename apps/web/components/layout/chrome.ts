@@ -19,6 +19,11 @@ export type Chrome = {
    * 문서 끝으로 밀리는 대화 화면만 켠다. 바닥의 위기 띠는 그대로 둔다.
    */
   crisisDock: boolean;
+  /**
+   * 로그인이 필요한 경로인지. 켜진 경로는 로그인 확인이 끝났는데 로그인 정보가 없으면 첫 화면으로 보낸다(AuthGuard).
+   * 첫 화면과 `/help`, 모르는 경로는 끈다. `/help` 는 서버가 내려가 있어도 열려야 해서 로그인 확인조차 하지 않는다.
+   */
+  protected: boolean;
 };
 
 type Rule = { path: string; prefix?: boolean; chrome: Chrome };
@@ -29,6 +34,7 @@ const PUBLIC: Chrome = {
   crisis: true,
   stickyHeader: true,
   crisisDock: false,
+  protected: false,
 };
 const APP: Chrome = {
   variant: 'app',
@@ -36,6 +42,7 @@ const APP: Chrome = {
   crisis: true,
   stickyHeader: true,
   crisisDock: false,
+  protected: true,
 };
 
 const RULES: Rule[] = [
@@ -49,6 +56,7 @@ const RULES: Rule[] = [
       crisis: true,
       stickyHeader: true,
       crisisDock: true,
+      protected: true,
     },
   },
   {
@@ -59,6 +67,7 @@ const RULES: Rule[] = [
       crisis: true,
       stickyHeader: true,
       crisisDock: false,
+      protected: true,
     },
   },
   { path: '/sessions', prefix: true, chrome: APP },

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// 이 서버가 읽는 환경 변수의 이름. TS API(`apps/api`)와 같은 이름이고, 환경을 고르는 `APP_ENV` 만 예외다
 /// (TS API 의 `NODE_ENV` 는 더 읽지 않는다). 모델 쪽 이름의 해석은 `llm` 이, `JWT_*` 는 identity 가 맡는다.
-pub const ENV_NAMES: [&str; 15] = [
+pub const ENV_NAMES: [&str; 19] = [
     "PORT",
     "DATABASE_URL",
     "DATABASE_SSL",
@@ -22,6 +22,10 @@ pub const ENV_NAMES: [&str; 15] = [
     "APP_ENV",
     "COOKIE_SECURE",
     "ALLOWED_ORIGINS",
+    "REPLY_JUDGE",
+    "SYSTEMONE_URL",
+    "REPLY_CANDIDATES",
+    "REPLY_JUDGE_THRESHOLD",
 ];
 
 const DEFAULT_PORT: u16 = 3000;
@@ -84,6 +88,75 @@ pub struct Config {
     /// 자격증명(쿠키)을 실은 브라우저 요청을 허용하는 출처들(`ALLOWED_ORIGINS`). production 에서는 필수이고 비지 않는다.
     /// sandbox 에서 없으면 `None` 이고, CORS 는 요청의 출처를 그대로 돌려준다(개발 편의).
     pub allowed_origins: Option<Vec<String>>,
+    /// 답 판정기 설정(ADR-0031). 비밀이 아니라 `Debug` 에 값을 보인다.
+    pub judge: JudgeEnv,
+}
+
+/// `REPLY_JUDGE` 가 고르는 판정기. 없으면 끔이다.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReplyJudgeKind {
+    Off,
+    Haiku,
+    SystemOne,
+}
+
+/// 답 판정기 쪽 환경 변수의 값(ADR-0031). 구현을 끼우는 것은 `app.rs`, 주소의 경고는 `llm` 이 맡는다.
+#[derive(Clone, Debug, PartialEq)]
+pub struct JudgeEnv {
+    pub kind: ReplyJudgeKind,
+    /// `SYSTEMONE_URL`(앞뒤 공백을 걷고, 빈 값은 없는 것). 루프백인지는 여기서 보지 않는다.
+    pub systemone_url: Option<String>,
+    /// 동기 턴의 후보 수(`REPLY_CANDIDATES`), 1..=3.
+    pub candidates: u8,
+    /// 직전 답을 일반 위로로 보는 확률의 하한(`REPLY_JUDGE_THRESHOLD`), 0..=1.
+    pub threshold: f32,
+}
+
+/// 후보 수의 기본과 상한, 임계값의 기본(ADR-0025).
+const DEFAULT_CANDIDATES: u8 = 1;
+const MAX_CANDIDATES: u8 = 3;
+const DEFAULT_JUDGE_THRESHOLD: f32 = 0.5;
+
+impl JudgeEnv {
+    /// 판정기 쪽 값을 읽는다. 문구에는 이름만 싣는다.
+    fn from_lookup(lookup: &impl Fn(&str) -> Option<String>) -> Result<JudgeEnv, ConfigError> {
+        let kind = match trimmed(lookup("REPLY_JUDGE")).as_deref() {
+            None | Some("off") => ReplyJudgeKind::Off,
+            Some("haiku") => ReplyJudgeKind::Haiku,
+            Some("systemone") => ReplyJudgeKind::SystemOne,
+            Some(_) => {
+                return Err(ConfigError(
+                    "REPLY_JUDGE must be off, haiku or systemone".to_owned(),
+                ));
+            }
+        };
+        let candidates = match trimmed(lookup("REPLY_CANDIDATES")) {
+            None => DEFAULT_CANDIDATES,
+            Some(raw) => raw
+                .parse::<u8>()
+                .ok()
+                .filter(|n| (1..=MAX_CANDIDATES).contains(n))
+                .ok_or_else(|| {
+                    ConfigError("REPLY_CANDIDATES must be a whole number from 1 to 3".to_owned())
+                })?,
+        };
+        let threshold = match trimmed(lookup("REPLY_JUDGE_THRESHOLD")) {
+            None => DEFAULT_JUDGE_THRESHOLD,
+            Some(raw) => raw
+                .parse::<f32>()
+                .ok()
+                .filter(|v| (0.0..=1.0).contains(v))
+                .ok_or_else(|| {
+                    ConfigError("REPLY_JUDGE_THRESHOLD must be a number from 0 to 1".to_owned())
+                })?,
+        };
+        Ok(JudgeEnv {
+            kind,
+            systemone_url: trimmed(lookup("SYSTEMONE_URL")),
+            candidates,
+            threshold,
+        })
+    }
 }
 
 /// 모델 쪽 환경 변수의 값(앞뒤 공백을 걷고, 빈 값은 없는 것으로 본다). 기본값과 해석은 `llm` 의 설정이 맡는다.
@@ -123,6 +196,7 @@ impl fmt::Debug for Config {
             .field("jwt_ttl", &self.jwt_ttl)
             .field("cookie_secure", &self.cookie_secure)
             .field("allowed_origins", &self.allowed_origins)
+            .field("judge", &self.judge)
             .finish()
     }
 }
@@ -188,6 +262,7 @@ impl Config {
                 "LLM_PROVIDER must be anthropic or ollama".to_owned(),
             ));
         }
+        let judge = JudgeEnv::from_lookup(&lookup)?;
         let production = app_env == AppEnv::Production;
         let jwt_secret = match lookup("JWT_SECRET").filter(|v| !v.trim().is_empty()) {
             Some(secret) => secret,
@@ -231,6 +306,7 @@ impl Config {
             jwt_ttl,
             cookie_secure,
             allowed_origins,
+            judge,
         })
     }
 

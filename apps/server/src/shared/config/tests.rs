@@ -529,3 +529,5 @@ fn 헤더에_담을_수_없는_출처는_이름만_적고_기동하지_않는다
     assert!(err.to_string().contains("ALLOWED_ORIGINS"), "{err}");
     assert!(!err.to_string().contains("secret"), "{err}");
 }
+
+mod judge;

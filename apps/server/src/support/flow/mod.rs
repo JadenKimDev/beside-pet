@@ -6,6 +6,7 @@ mod access;
 mod active;
 mod adapters;
 mod deadline;
+mod judge;
 mod orchestrator;
 mod outside;
 mod parts;
@@ -16,6 +17,10 @@ mod stream;
 mod voice;
 
 pub use adapters::{fail_pending_turns, session_presence};
+pub use judge::{
+    JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge,
+    Unimplemented as UnimplementedJudge,
+};
 pub use service::SupportFlow;
 
 #[cfg(test)]

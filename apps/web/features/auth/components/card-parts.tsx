@@ -19,7 +19,8 @@ export function CardHead({
   );
 }
 
-/** 카드 아래의 바꾸기 줄("아직 계정이 없나요? 계정 신청하기"). */
+/** 카드 아래의 바꾸기 줄("아직 계정이 없나요? 계정 신청하기").
+ * 좁은 폭에서는 글 버튼의 누르는 자리를 위아래 패딩으로 44px 로 키우고, 같은 크기의 음수 여백으로 줄 높이는 그대로 둔다. */
 export function SwitchLine({
   lead,
   action,
@@ -35,7 +36,7 @@ export function SwitchLine({
       <button
         type="button"
         onClick={onClick}
-        className="cursor-pointer rounded-sm font-semibold text-accent-ink underline-offset-4 hover:underline focus-visible:shadow-focus focus-visible:outline-none"
+        className="cursor-pointer rounded-sm font-semibold max-sm:-my-3 max-sm:inline-block max-sm:px-1 max-sm:py-3 text-accent-ink underline-offset-4 hover:underline focus-visible:shadow-focus focus-visible:outline-none"
       >
         {action}
       </button>

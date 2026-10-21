@@ -20,6 +20,8 @@ description: "웹 화면을 띄워 보거나 확인한다. 사용자가 보고 �
 | 상담 웹 (`apps/web`) | `http://localhost:3001/` (웹이 API 를 `localhost:3000` 으로 부르므로 `127.0.0.1` 로 열면 쿠키가 실리지 않는다) |
 | API 상태 확인 (`apps/server`) | `http://localhost:3000/v1/health` |
 
+**워크트리에서 띄울 때는 포트를 이슈 번호로 정한다.** 구현 세션 여럿이 같은 3000·3001 을 쓰면 서로의 서버에 붙는다(2026-10-21, #28 과 #32 가 동시에 QA 하다 섞임). 워크트리의 서버는 `PORT=<이슈>10`, 웹은 `NEXT_PUBLIC_API_BASE_URL=http://localhost:<이슈>10 pnpm -F @beside-pet/web dev --port <이슈>11` 로 띄우고 `http://localhost:<이슈>11` 을 연다(예: #28 → 2810, 2811). 본 체크아웃의 `pnpm dev` 만 3000·3001 을 쓴다.
+
 **herdr 가 있으면** 따로 된 탭의 터미널 브라우저로 연다.
 
 ```bash

@@ -6,6 +6,7 @@
 import {
   colorLiteralViolations,
   duplicateBodies,
+  fsdLayerViolations,
   genericTypeViolations,
   hangulLiteralViolations,
   internalUseViolations,
@@ -20,6 +21,9 @@ import { DEFAULT_CODE_ROOTS } from "./config.ts";
 
 /** Rust 서버 크레이트의 소스 뿌리(레포 루트 기준). 기능 내부 경로와 `mod.rs` 자리 규칙은 이 아래만 본다. */
 export const SERVER_SRC = "apps/server/src/";
+
+/** 운영 화면 앱의 뿌리(레포 루트 기준). FSD 레이어 규칙은 이 아래의 `src/` 와 라우트 자리 `app/` 만 본다. */
+export const BACKOFFICE_ROOT = "apps/backoffice/";
 
 /** 발견 하나. `line` 이 없으면 파일 전체에 대한 것이다. */
 export type Finding = { file: string; line?: number; note: string };
@@ -64,6 +68,21 @@ export function internalUseFindings(files: SourceFile[]): Finding[] {
 export function modPlacementFindings(paths: readonly string[]): Finding[] {
   const server = paths.filter(inServer).map(serverRelative);
   return modPlacementViolations(server).map((v) => ({ file: SERVER_SRC + v.path, note: v.rule }));
+}
+
+/**
+ * 운영 화면의 FSD 규칙(레이어 방향, 같은 레이어 교차, 슬라이스 공개 API)을 어긴 가져오기.
+ * `apps/backoffice` 기준 경로로 바꿔 돌린 뒤 되돌린다. 그 밖의 파일과 테스트 파일은 규칙이 뺀다.
+ */
+export function fsdLayerFindings(files: SourceFile[]): Finding[] {
+  const backoffice = files
+    .filter((file) => file.path.startsWith(BACKOFFICE_ROOT))
+    .map((file) => ({ path: file.path.slice(BACKOFFICE_ROOT.length), source: file.source }));
+  return fsdLayerViolations(backoffice).map((v) => ({
+    file: BACKOFFICE_ROOT + v.file,
+    line: v.line,
+    note: `${v.specifier}: ${v.rule}`,
+  }));
 }
 
 function lineCount(source: string): number {

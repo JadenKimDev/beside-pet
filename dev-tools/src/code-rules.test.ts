@@ -1,16 +1,19 @@
 // 레포 전체 검사: `@beside-pet/dev-checks/code-rules` 의 규칙을 git 이 추적하는 소스에 돌린다.
 // 같은 몸체 함수는 경고(목록과 건수를 찍고 통과)다. 대화 웹의 색 리터럴, 한글 리터럴, Rust 서버의 기능 내부 경로와
-// `mod.rs` 자리, 큰 파일, 범용 타입은 실패다.
+// `mod.rs` 자리, 운영 화면의 FSD 레이어, 큰 파일, 범용 타입은 실패다.
 // Rust 서버 규칙은 `apps/server/src` 가 아직 없으면(추적되는 `.rs` 가 없으면) 볼 것이 없으므로 통과한다.
+// FSD 레이어 규칙도 `apps/backoffice` 에 추적되는 소스가 없으면 통과한다.
 // 읽는 자리는 `project.config.json` 의 `codeRoots` 다. `data/`, `outputs/` 는 소스 자리가 아니므로 읽지 않는다.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  BACKOFFICE_ROOT,
   colorLiteralFindings,
   duplicateBodyReport,
   findingLine,
+  fsdLayerFindings,
   genericTypeFindings,
   hangulLiteralFindings,
   internalUseFindings,
@@ -42,6 +45,16 @@ test("mod.rs 자리 (실패)", () => {
     found.map(findingLine),
     [],
     "mod.rs 는 기능과 하위 기능의 뿌리에만 둡니다(모듈 파일은 x.rs, 하위 모듈은 x/)",
+  );
+});
+
+test("backoffice FSD 레이어 (실패)", () => {
+  const backoffice = sources.filter((file) => file.path.startsWith(BACKOFFICE_ROOT));
+  const found = fsdLayerFindings(backoffice);
+  assert.deepEqual(
+    found.map(findingLine),
+    [],
+    "apps/backoffice 의 가져오기가 FSD 규칙을 어겼습니다. 위가 아래만 가져오고, 같은 레이어의 슬라이스끼리 가져오지 않고, 슬라이스 밖에서는 index 만 가져옵니다",
   );
 });
 

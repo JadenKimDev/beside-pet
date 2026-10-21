@@ -1,7 +1,8 @@
 // 위기 흐름(ADR-0004): 위기 발화는 발화 모델을 부르지 않고 고정 문구로 닫는다. 지원 수준은 3 이고 내려가지 않는다.
 
 use super::doubles::{
-    Harness, KEYWORD_CRISIS, QUIET_CRISIS, SESSION_ID, ScriptedModel, collect, joined_tokens, owner,
+    Harness, KEYWORD_CRISIS, QUIET_CRISIS, SESSION_ID, ScriptedModel, collect, joined_tokens, message,
+    owner,
 };
 use crate::safety::crisis_reply;
 use crate::shared::ApiError;
@@ -55,7 +56,7 @@ async fn 스트림의_위기는_meta_뒤_고정_문구_토큰_하나와_done_이
     let events = collect(h.flow.send_stream(
         owner(),
         SESSION_ID.to_owned(),
-        KEYWORD_CRISIS.to_owned(),
+        message(KEYWORD_CRISIS),
     ))
     .await;
 
@@ -93,7 +94,7 @@ async fn 위기로_닫힌_세션은_다음_턴을_409_로_거절하고_판정도
 
     let refused = h
         .flow
-        .send(&owner(), SESSION_ID, "Are you still there?".to_owned())
+        .send(&owner(), SESSION_ID, message("Are you still there?"))
         .await;
 
     assert_eq!(

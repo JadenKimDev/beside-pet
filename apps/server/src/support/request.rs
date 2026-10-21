@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::identity::ChatLanguage;
-use crate::shared::{ApiError, Rule, Validator};
+use crate::shared::{ApiError, Message, Rule, Validator};
 
 const GRIEF_PATHS: &[&str] = &["afterLoss", "beforeLoss"];
 const TOGETHER_RANGES: &[&str] = &["0-3", "4-7", "8-11", "12+"];
@@ -102,10 +102,12 @@ pub struct StartSessionRequest {
     pub grief_profile: Option<GriefProfileRequest>,
 }
 
-/// `POST /v1/sessions/:id/messages` 와 그 스트림의 본문.
+/// `POST /v1/sessions/:id/messages` 와 그 스트림의 본문. `turn_id` 는 클라이언트가 만든 멱등 키(UUID)이고, 없으면 흐름이 만든다(ADR-0028).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SendMessageRequest {
     pub text: String,
+    pub turn_id: Option<String>,
 }
 
 fn daily_state(v: Validator<'_>) -> Validator<'_> {
@@ -134,6 +136,27 @@ fn send_message(v: Validator<'_>) -> Validator<'_> {
         "text",
         &[Rule::IsString, Rule::IsNotEmpty, Rule::MaxLength(4000)],
     )
+    // `@IsOptional @IsUUID()` 의 검사는 `turn_id_message` 가 한다(공용 규칙에 UUID 가 없다).
+    .optional("turnId", &[])
+}
+
+const TURN_ID_NOT_UUID: &str = "turnId must be a UUID";
+
+/// `@IsOptional @IsUUID()`: 없거나 `null` 이면 지나고, 아니면 하이픈이 든 36자 16진 UUID 문자열이어야 한다(대소문자 무관, validator.js 의 `all`).
+fn turn_id_message(body: &Value) -> Option<&'static str> {
+    match body.get("turnId") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(value)) if is_uuid(value) => None,
+        Some(_) => Some(TURN_ID_NOT_UUID),
+    }
+}
+
+fn is_uuid(value: &str) -> bool {
+    value.len() == 36
+        && value.char_indices().all(|(index, c)| match index {
+            8 | 13 | 18 | 23 => c == '-',
+            _ => c.is_ascii_hexdigit(),
+        })
 }
 
 pub fn parse_start_session(body: &Value) -> Result<StartSessionRequest, ApiError> {
@@ -142,7 +165,11 @@ pub fn parse_start_session(body: &Value) -> Result<StartSessionRequest, ApiError
 }
 
 pub fn parse_send_message(body: &Value) -> Result<SendMessageRequest, ApiError> {
-    send_message(Validator::new(body)).finish()?;
+    let mut messages = send_message(Validator::new(body)).messages();
+    messages.extend(turn_id_message(body).map(str::to_owned));
+    if !messages.is_empty() {
+        return Err(ApiError::BadRequest(Message::Many(messages)));
+    }
     read(body)
 }
 

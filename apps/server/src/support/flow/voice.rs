@@ -2,11 +2,11 @@
 
 use futures_util::StreamExt;
 
+use super::deadline::{CallFailure, Deadlined};
 use super::stream::Emitter;
-use crate::llm::{GenerationRequest, TextModel};
+use crate::llm::GenerationRequest;
 use crate::shared::ApiError;
 use crate::support::StreamEvent;
-use crate::support::session::Session;
 
 pub enum Voice<'a> {
     Whole,
@@ -14,10 +14,10 @@ pub enum Voice<'a> {
 }
 
 impl Voice<'_> {
-    /// 글보다 먼저 구조를 알린다(스트림만).
-    pub async fn announce(&self, session: &Session) {
+    /// 글보다 먼저 구조(`meta`)를 알린다(스트림만).
+    pub async fn announce(&self, meta: StreamEvent) {
         if let Voice::Streamed(out) = self {
-            out.send(session.meta_event()).await;
+            out.send(meta).await;
         }
     }
 
@@ -32,23 +32,24 @@ impl Voice<'_> {
     }
 
     /// 모델이 답을 쓴다. 동기는 앞뒤 공백을 걷고 빈 답을 실패로 본다(TS 와 같다). 스트림은 조각을 그대로 잇는다.
+    /// 실패는 제한을 넘긴 것과 모델의 오류를 가른다(실패한 턴의 종류).
     pub async fn compose(
         &self,
-        model: &(dyn TextModel + Send + Sync),
+        model: &Deadlined,
         request: GenerationRequest,
-    ) -> Result<String, ApiError> {
+    ) -> Result<String, CallFailure> {
         match self {
             Voice::Whole => {
-                let text = model.generate(request).await?;
+                let text = model.generate_within(request).await?;
                 let reply = text.trim();
                 if reply.is_empty() {
                     tracing::warn!("model returned an empty reply");
-                    return Err(ApiError::Internal);
+                    return Err(CallFailure::Failed(ApiError::Internal));
                 }
                 Ok(reply.to_owned())
             }
             Voice::Streamed(out) => {
-                let mut chunks = model.stream(request);
+                let mut chunks = model.stream_within(request);
                 let mut reply = String::new();
                 while let Some(chunk) = chunks.next().await {
                     let chunk = chunk?;

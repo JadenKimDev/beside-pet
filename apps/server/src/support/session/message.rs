@@ -23,6 +23,7 @@ impl Message {
             text: self.text.clone(),
             task: self.task.number(),
             at: self.at,
+            turn_id: self.turn_id.clone(),
         }
     }
 }

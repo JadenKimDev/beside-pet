@@ -8,8 +8,8 @@ use futures_util::future::BoxFuture;
 use futures_util::stream::{self, BoxStream};
 
 use super::{
-    MessageResponse, MindReportResponse, SessionAnalysisResponse, SessionListItemResponse,
-    SessionStateResponse, StartSessionRequest, StreamEvent, TurnResponse,
+    MessageResponse, MindReportResponse, SendMessageRequest, SessionAnalysisResponse,
+    SessionListItemResponse, SessionStateResponse, StartSessionRequest, StreamEvent, TurnResponse,
 };
 use crate::identity::{AuthenticatedAccount, Role};
 use crate::shared::ApiError;
@@ -41,14 +41,19 @@ pub trait SupportService {
         request: StartSessionRequest,
     ) -> BoxFuture<'a, Result<TurnResponse, ApiError>>;
     fn start_stream(&self, requester: Requester, request: StartSessionRequest) -> TurnStream;
-    /// 사용자 턴 하나.
+    /// 사용자 턴 하나. 같은 세션에 같은 턴 id 가 다시 오면 409 다.
     fn send<'a>(
         &'a self,
         requester: &'a Requester,
         session_id: &'a str,
-        text: String,
+        request: SendMessageRequest,
     ) -> BoxFuture<'a, Result<TurnResponse, ApiError>>;
-    fn send_stream(&self, requester: Requester, session_id: String, text: String) -> TurnStream;
+    fn send_stream(
+        &self,
+        requester: Requester,
+        session_id: String,
+        request: SendMessageRequest,
+    ) -> TurnStream;
     /// 세션을 마치고 마친 뒤의 상태를 낸다.
     fn close<'a>(
         &'a self,
@@ -118,12 +123,12 @@ impl SupportService for Unimplemented {
         &'a self,
         _: &'a Requester,
         _: &'a str,
-        _: String,
+        _: SendMessageRequest,
     ) -> BoxFuture<'a, Result<TurnResponse, ApiError>> {
         not_implemented()
     }
 
-    fn send_stream(&self, _: Requester, _: String, _: String) -> TurnStream {
+    fn send_stream(&self, _: Requester, _: String, _: SendMessageRequest) -> TurnStream {
         not_implemented_stream()
     }
 

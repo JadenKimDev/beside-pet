@@ -102,6 +102,14 @@ impl SessionPresence for SessionStore {
     }
 }
 
+/// 기동 때 정리: 앞 프로세스가 끝내지 못한 `pending` 턴을 `failed`(`restart`)로 닫고 바꾼 행 수를 돌려준다.
+pub async fn fail_pending_turns(db: sqlx::PgPool, at: DateTime<Utc>) -> Result<u64, ApiError> {
+    SessionStore::new(db)
+        .fail_pending_turns(at)
+        .await
+        .map_err(store_error)
+}
+
 /// `identity` 에 끼울 세션 유무의 구현(Postgres 저장).
 pub fn session_presence(db: sqlx::PgPool) -> SharedSessionPresence {
     Arc::new(SessionStore::new(db))

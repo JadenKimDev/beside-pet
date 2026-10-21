@@ -1,6 +1,6 @@
 // 호출 맥락: 흐름이 부르는 모델 호출마다 역할, 그 역할의 프롬프트 버전, 세션 id 를 싣는다. 계측이 이 맥락으로 호출을 가른다.
 
-use super::doubles::{DUNNO, ENGAGED, Harness, SESSION_ID, collect, onboarding, owner};
+use super::doubles::{DUNNO, ENGAGED, Harness, SESSION_ID, collect, message, onboarding, owner};
 use crate::llm::{CallContext, CallPurpose};
 use crate::safety;
 use crate::support::SupportService;
@@ -42,7 +42,7 @@ async fn 스트림의_첫_인사와_발화도_같은_맥락을_싣는다() {
     collect(h.flow.start_stream(owner(), onboarding(SESSION_ID))).await;
     collect(
         h.flow
-            .send_stream(owner(), SESSION_ID.to_owned(), ENGAGED.to_owned()),
+            .send_stream(owner(), SESSION_ID.to_owned(), message(ENGAGED)),
     )
     .await;
     assert_eq!(

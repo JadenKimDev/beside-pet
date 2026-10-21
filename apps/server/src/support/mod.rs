@@ -14,7 +14,7 @@ mod sse;
 mod store;
 
 pub use api::router;
-pub use flow::{SupportFlow, session_presence};
+pub use flow::{SupportFlow, fail_pending_turns, session_presence};
 pub use request::{
     DailyStateRequest, EatingState, GriefPath, GriefProfileRequest, LossType, SendMessageRequest,
     Situation, SleepState, StartSessionRequest, TogetherRange,

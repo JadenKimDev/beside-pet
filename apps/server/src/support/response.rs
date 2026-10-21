@@ -93,6 +93,9 @@ pub struct MessageResponse {
     pub task: u8,
     #[serde(with = "crate::shared::iso_millis")]
     pub at: DateTime<Utc>,
+    /// 이 메시지가 속한 턴. 턴을 두기 전의 메시지는 칸을 뺀다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

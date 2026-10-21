@@ -115,10 +115,32 @@ fn 메시지() {
         text: "hello".to_owned(),
         task: 0,
         at: at(),
+        turn_id: None,
     };
     assert_eq!(
         serde_json::to_value(message).unwrap(),
         json!({ "role": "assistant", "text": "hello", "task": 0, "at": "2026-10-16T09:05:07.123Z" })
+    );
+}
+
+#[test]
+fn 턴에_속한_메시지는_turn_id_를_싣는다() {
+    let message = MessageResponse {
+        role: MessageRole::User,
+        text: "made-up words".to_owned(),
+        task: 1,
+        at: at(),
+        turn_id: Some("6f1c2a4e-3b7d-4c55-9a10-2e8f0d6b7c31".to_owned()),
+    };
+    assert_eq!(
+        serde_json::to_value(message).unwrap(),
+        json!({
+            "role": "user",
+            "text": "made-up words",
+            "task": 1,
+            "at": "2026-10-16T09:05:07.123Z",
+            "turnId": "6f1c2a4e-3b7d-4c55-9a10-2e8f0d6b7c31"
+        })
     );
 }
 

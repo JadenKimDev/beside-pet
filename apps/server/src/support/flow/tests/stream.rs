@@ -1,10 +1,11 @@
-// 스트림 턴: 첫 이벤트는 meta, 마지막은 done, 토큰을 이어 붙이면 답이다. 도중 실패는 done 없이 끊고 저장하지 않는다.
+// 스트림 턴: 첫 이벤트는 meta, 마지막은 done, 토큰을 이어 붙이면 답이다. 도중 실패는 done 없이 끊고, 받은 사용자 메시지는 실패한 턴으로 남긴다(ADR-0028).
 
 use super::doubles::{
-    ENGAGED, Harness, SESSION_ID, ScriptedModel, collect, joined_tokens, onboarding, owner,
+    ENGAGED, Harness, SESSION_ID, ScriptedModel, collect, joined_tokens, message, onboarding, owner,
     reply_text,
 };
 use crate::shared::ApiError;
+use crate::support::session::{TurnErrorKind, TurnStatus};
 use crate::support::{MessageRole, StreamEvent, SupportService};
 
 fn assert_meta_tokens_done(
@@ -52,7 +53,7 @@ async fn 보내기_스트림은_meta_토큰_done_순서이고_턴을_저장한�
 
     let events = collect(
         h.flow
-            .send_stream(owner(), SESSION_ID.to_owned(), ENGAGED.to_owned()),
+            .send_stream(owner(), SESSION_ID.to_owned(), message(ENGAGED)),
     )
     .await;
 
@@ -69,14 +70,14 @@ async fn 보내기_스트림은_meta_토큰_done_순서이고_턴을_저장한�
 }
 
 #[tokio::test]
-async fn 스트림이_도중에_실패하면_done_없이_끊고_턴을_저장하지_않는다() {
+async fn 스트림이_도중에_실패하면_done_없이_끊고_사용자_메시지와_실패한_턴을_저장한다() {
     let h = Harness::with_model(ScriptedModel::failing_stream());
     h.onboard().await;
     let saves_before = h.sessions.saves().len();
 
     let events = collect(
         h.flow
-            .send_stream(owner(), SESSION_ID.to_owned(), ENGAGED.to_owned()),
+            .send_stream(owner(), SESSION_ID.to_owned(), message(ENGAGED)),
     )
     .await;
 
@@ -87,7 +88,18 @@ async fn 스트림이_도중에_실패하면_done_없이_끊고_턴을_저장하
             .iter()
             .any(|e| matches!(e, Ok(StreamEvent::Done { .. })))
     );
-    assert_eq!(h.sessions.saves().len(), saves_before);
+    assert_eq!(
+        h.sessions.saves().len(),
+        saves_before + 2,
+        "saved on receipt and on failure"
+    );
+    let saved = h.sessions.last_save();
+    let last = saved.history.last().unwrap();
+    assert_eq!((last.role, last.text.as_str()), (MessageRole::User, ENGAGED));
+    let turn = saved.turns.last().unwrap();
+    assert_eq!(turn.status, TurnStatus::Failed);
+    assert_eq!(turn.error_kind, Some(TurnErrorKind::Provider));
+    assert!(saved.analyses.is_empty(), "a failed turn leaves no analysis");
 }
 
 #[tokio::test]
@@ -96,7 +108,7 @@ async fn 없는_세션의_스트림은_첫_항목이_404_다() {
 
     let events = collect(
         h.flow
-            .send_stream(owner(), "nope".to_owned(), ENGAGED.to_owned()),
+            .send_stream(owner(), "nope".to_owned(), message(ENGAGED)),
     )
     .await;
 

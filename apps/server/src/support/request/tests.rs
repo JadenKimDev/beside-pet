@@ -197,7 +197,57 @@ fn 메시지_검증() {
     assert_eq!(
         parse_send_message(&json!({ "text": "x".repeat(4000) })).unwrap(),
         SendMessageRequest {
-            text: "x".repeat(4000)
+            text: "x".repeat(4000),
+            turn_id: None,
         }
+    );
+}
+
+const TURN_ID: &str = "6f1c2a4e-3b7d-4c55-9a10-2e8f0d6b7c31";
+
+#[test]
+fn 메시지의_턴_id_는_선택이고_uuid_를_받는다() {
+    assert_eq!(
+        parse_send_message(&json!({ "text": "hi", "turnId": TURN_ID })).unwrap(),
+        SendMessageRequest {
+            text: "hi".to_owned(),
+            turn_id: Some(TURN_ID.to_owned()),
+        }
+    );
+    assert_eq!(
+        parse_send_message(&json!({ "text": "hi", "turnId": null })).unwrap(),
+        SendMessageRequest {
+            text: "hi".to_owned(),
+            turn_id: None,
+        }
+    );
+    assert_eq!(
+        parse_send_message(&json!({ "text": "hi", "turnId": TURN_ID.to_uppercase() }))
+            .unwrap()
+            .turn_id,
+        Some(TURN_ID.to_uppercase())
+    );
+}
+
+#[test]
+fn 메시지의_턴_id_가_uuid_가_아니면_400_이다() {
+    for bad in [
+        json!("not-a-uuid"),
+        json!(""),
+        json!(5),
+        json!(true),
+        json!(["6f1c2a4e-3b7d-4c55-9a10-2e8f0d6b7c31"]),
+        json!("6f1c2a4e3b7d4c559a102e8f0d6b7c31"),
+        json!("{6f1c2a4e-3b7d-4c55-9a10-2e8f0d6b7c31}"),
+    ] {
+        assert_eq!(
+            messages(parse_send_message(&json!({ "text": "hi", "turnId": bad }))),
+            ["turnId must be a UUID"],
+            "{bad}"
+        );
+    }
+    assert_eq!(
+        messages(parse_send_message(&json!({ "text": "", "turnId": "x" }))),
+        ["text should not be empty", "turnId must be a UUID"]
     );
 }

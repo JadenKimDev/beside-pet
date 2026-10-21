@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use super::access::{require, session_conflict};
 use super::adapters::{AccountLanguages, SystemClock};
 use super::deadline::{CallLimits, Deadlined};
-use super::orchestrator::{greet, handle};
+use super::orchestrator::{greet, handle, new_turn_id};
 use super::parts::FlowParts;
 use super::report::report;
 use super::start::create;
@@ -21,7 +21,7 @@ use crate::support::knowledge::KnowledgeBase;
 use crate::support::session::{Session, SessionError};
 use crate::support::store::SessionStore;
 use crate::support::{
-    MessageResponse, MindReportResponse, Requester, SessionAnalysisResponse,
+    MessageResponse, MindReportResponse, Requester, SendMessageRequest, SessionAnalysisResponse,
     SessionListItemResponse, SessionStateResponse, SharedSupportService, StartSessionRequest,
     SupportService, TurnResponse, TurnStream,
 };
@@ -33,14 +33,18 @@ const SESSION_LIST_LIMIT: u32 = 20;
 #[derive(Clone)]
 pub struct SupportFlow {
     parts: Arc<FlowParts>,
+    /// `parts.model` 과 같은 제한 두른 모델. 발화는 이것으로 불러 제한을 넘긴 것과 모델 오류를 가른다.
+    replies: Arc<Deadlined>,
 }
 
 impl SupportFlow {
     /// 모델에 `parts.limits` 의 시간 제한을 두른다.
     pub fn new(parts: FlowParts) -> SupportFlow {
-        let model: SharedTextModel = Arc::new(Deadlined::new(parts.model, parts.limits));
+        let replies = Arc::new(Deadlined::new(parts.model, parts.limits));
+        let model: SharedTextModel = replies.clone();
         SupportFlow {
             parts: Arc::new(FlowParts { model, ..parts }),
+            replies,
         }
     }
 
@@ -69,24 +73,45 @@ impl SupportFlow {
         let parts = self.parts.as_ref();
         let started = create(parts, requester, request).await?;
         parts.sessions.save(&started.session.snapshot()).await?;
-        greet(parts, started.session, started.previous.as_ref(), voice).await
+        greet(
+            parts,
+            &self.replies,
+            started.session,
+            started.previous.as_ref(),
+            voice,
+        )
+        .await
     }
 
     async fn send_turn(
         &self,
         requester: &Requester,
         session_id: &str,
-        text: &str,
+        request: SendMessageRequest,
         voice: &Voice<'_>,
     ) -> Result<TurnResponse, ApiError> {
-        let session = self.writable(requester, session_id).await?;
-        handle(self.parts.as_ref(), session, text, voice).await
+        let turn_id = request.turn_id.unwrap_or_else(new_turn_id);
+        let session = self.writable(requester, session_id, &turn_id).await?;
+        let parts = self.parts.as_ref();
+        handle(parts, &self.replies, session, turn_id, &request.text, voice).await
     }
 
-    /// 턴을 받을 수 있는 세션: 있고, 요청자의 것이고, 열려 있다. 소유자의 대화 언어를 이번 턴부터 따른다.
-    async fn writable(&self, requester: &Requester, session_id: &str) -> Result<Session, ApiError> {
+    /// 턴을 받을 수 있는 세션: 있고, 요청자의 것이고, 이 턴 id 를 아직 받지 않았고, 열려 있다. 소유자의 대화 언어를 이번 턴부터 따른다.
+    /// 받은 턴 id 는 닫힌 세션에서도 "받았다"는 409 다(다시 보낸 클라이언트가 기록을 다시 읽는다). 위기 판정보다 앞서 거른다.
+    async fn writable(
+        &self,
+        requester: &Requester,
+        session_id: &str,
+        turn_id: &str,
+    ) -> Result<Session, ApiError> {
         let parts = self.parts.as_ref();
         let mut session = require(parts.sessions.as_ref(), session_id, requester).await?;
+        if session.turns().iter().any(|turn| turn.id == turn_id) {
+            return Err(session_conflict(
+                session_id,
+                SessionError::TurnAlreadyReceived,
+            ));
+        }
         if session.closed() {
             return Err(session_conflict(session_id, SessionError::Closed));
         }
@@ -168,18 +193,23 @@ impl SupportService for SupportFlow {
         &'a self,
         requester: &'a Requester,
         session_id: &'a str,
-        text: String,
+        request: SendMessageRequest,
     ) -> BoxFuture<'a, Result<TurnResponse, ApiError>> {
         Box::pin(async move {
-            self.send_turn(requester, session_id, &text, &Voice::Whole)
+            self.send_turn(requester, session_id, request, &Voice::Whole)
                 .await
         })
     }
 
-    fn send_stream(&self, requester: Requester, session_id: String, text: String) -> TurnStream {
+    fn send_stream(
+        &self,
+        requester: Requester,
+        session_id: String,
+        request: SendMessageRequest,
+    ) -> TurnStream {
         let flow = self.clone();
         turn_stream(move |out| async move {
-            flow.send_turn(&requester, &session_id, &text, &Voice::Streamed(&out))
+            flow.send_turn(&requester, &session_id, request, &Voice::Streamed(&out))
                 .await
         })
     }

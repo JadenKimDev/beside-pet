@@ -1,4 +1,4 @@
-// 한 턴의 순서(ADR-0005): 안전 확인 → 과제 전이 → 지식 검색 → 발화 → 턴 분석 → 저장. 깊이 게이트가 응답의 진행률에 닿는다.
+// 한 턴의 순서(ADR-0005, ADR-0028): 안전 확인 → 받기와 저장 → 과제 전이 → 지식 검색 → 발화 → 턴 분석 → 저장. 깊이 게이트가 응답의 진행률에 닿는다.
 
 use super::doubles::{Call, DUNNO, ENGAGED, Harness, SESSION_ID, reply_text};
 use crate::llm::PromptRole;
@@ -34,8 +34,8 @@ async fn 턴은_판정_뒤_발화하고_전사와_분석을_순서대로_저장�
 
     assert_eq!(
         h.sessions.saves().len(),
-        saves_before + 1,
-        "one save per turn"
+        saves_before + 2,
+        "two saves per turn: on receipt and on completion"
     );
     let saved = h.sessions.last_save();
     let transcript: Vec<(MessageRole, &str)> = saved

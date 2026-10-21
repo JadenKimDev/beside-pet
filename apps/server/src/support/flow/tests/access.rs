@@ -1,6 +1,8 @@
 // 소유자 확인: 모든 세션 경로가 거친다. 남의 세션은 403, 관리자는 통과, 없는 세션은 404.
 
-use super::doubles::{ENGAGED, Harness, SESSION_ID, admin, collect, onboarding, other, owner};
+use super::doubles::{
+    ENGAGED, Harness, SESSION_ID, admin, collect, message, onboarding, other, owner,
+};
 use crate::shared::ApiError;
 use crate::support::SupportService;
 
@@ -16,7 +18,7 @@ async fn 남의_세션은_모든_경로가_403_이다() {
     let r = other();
 
     assert_eq!(
-        f.send(&r, SESSION_ID, ENGAGED.to_owned()).await.err(),
+        f.send(&r, SESSION_ID, message(ENGAGED)).await.err(),
         Some(forbidden())
     );
     assert_eq!(f.close(&r, SESSION_ID).await.err(), Some(forbidden()));
@@ -25,7 +27,7 @@ async fn 남의_세션은_모든_경로가_403_이다() {
     assert_eq!(f.history(&r, SESSION_ID).await.err(), Some(forbidden()));
     assert_eq!(f.analysis(&r, SESSION_ID).await.err(), Some(forbidden()));
     assert_eq!(f.report(&r, SESSION_ID).await.err(), Some(forbidden()));
-    let events = collect(f.send_stream(r.clone(), SESSION_ID.to_owned(), ENGAGED.to_owned())).await;
+    let events = collect(f.send_stream(r.clone(), SESSION_ID.to_owned(), message(ENGAGED))).await;
     assert_eq!(events, vec![Err(forbidden())]);
     assert!(h.sessions.get(SESSION_ID).is_some(), "nothing was deleted");
     assert!(!h.sessions.last_save().closed, "nothing was closed");
@@ -53,7 +55,7 @@ async fn 없는_세션은_404_다() {
     assert_eq!(h.flow.delete(&owner(), "nope").await.err(), Some(missing()));
     assert_eq!(
         h.flow
-            .send(&owner(), "nope", ENGAGED.to_owned())
+            .send(&owner(), "nope", message(ENGAGED))
             .await
             .err(),
         Some(missing())

@@ -64,7 +64,7 @@ async fn send(
 ) -> Result<Json<TurnResponse>, ApiError> {
     let request = parse_send_message(&body)?;
     let turn = service
-        .send(&Requester::of(&account), &id, request.text)
+        .send(&Requester::of(&account), &id, request)
         .await?;
     Ok(Json(turn))
 }
@@ -76,7 +76,7 @@ async fn send_stream(
     JsonBody(body): JsonBody,
 ) -> Result<Response, ApiError> {
     let request = parse_send_message(&body)?;
-    let events = service.send_stream(Requester::of(&account), id, request.text);
+    let events = service.send_stream(Requester::of(&account), id, request);
     Ok(sse_response(events).await)
 }
 

@@ -71,10 +71,6 @@ pub struct Turn {
     pub error_kind: Option<TurnErrorKind>,
 }
 
-#[allow(
-    dead_code,
-    reason = "#19 S4 가 흐름에서 턴을 쓰기 전까지는 세션의 턴 메서드(테스트만 부른다)가 쓴다"
-)]
 impl Turn {
     pub(super) fn pending(id: String, at: DateTime<Utc>) -> Turn {
         Turn {

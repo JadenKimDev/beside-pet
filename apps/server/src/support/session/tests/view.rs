@@ -126,6 +126,7 @@ fn 기록() {
             text: ENGAGED.to_owned(),
             task: 1,
             at: t0() + chrono::Duration::minutes(1),
+            turn_id: None,
         }
     );
 }

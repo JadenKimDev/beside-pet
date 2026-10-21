@@ -18,6 +18,7 @@ use beside_pet_server::metrics::SharedMetricsSource;
 use beside_pet_server::shared::{ApiError, Config};
 use beside_pet_server::support::{
     MessageResponse, MindReportResponse, MindReportSectionResponse, ReportSectionKey, Requester,
+    SendMessageRequest,
     SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse, SharedSupportService,
     StartSessionRequest, StreamEvent, SupportService, TurnResponse, TurnStream,
 };
@@ -148,11 +149,11 @@ impl SupportService for Scripted {
         &'a self,
         requester: &'a Requester,
         session_id: &'a str,
-        text: String,
+        request: SendMessageRequest,
     ) -> futures_util::future::BoxFuture<'a, Result<TurnResponse, ApiError>> {
-        Unimplemented.send(requester, session_id, text)
+        Unimplemented.send(requester, session_id, request)
     }
-    fn send_stream(&self, _: Requester, _: String, _: String) -> TurnStream {
+    fn send_stream(&self, _: Requester, _: String, _: SendMessageRequest) -> TurnStream {
         turn_stream()
     }
     fn close<'a>(

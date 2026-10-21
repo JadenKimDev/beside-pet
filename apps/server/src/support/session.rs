@@ -29,10 +29,6 @@ pub use snapshot::SessionSnapshot;
 pub use turn::{Turn, TurnErrorKind, TurnStatus};
 
 /// 세션의 불변식을 어긴 요청.
-#[allow(
-    dead_code,
-    reason = "턴 변형은 #19 S4 가 흐름에서 턴 메서드를 부르기 전까지 테스트만 만든다"
-)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionError {
     /// 닫힌 세션에 사용자 턴이 왔다(HTTP 409).
@@ -217,10 +213,12 @@ impl Session {
         self.grief_profile.preferred_language = Some(language);
     }
 
+    /// 턴 없는 옛 흐름. 테스트만 부른다. 후속 PRD 에서 지운다.
     /// 사용자 턴 하나를 한 번에 적용한다(턴 없이): 전사에 적고, 지원 수준을 올리고(내려가지 않는다), 위기면 닫고,
     /// 아니면 깊이 게이트로 과제를 넘기거나 머문다. 클로징에 닿아도 여기서는 닫지 않는다
     /// (스트림의 `meta` 가 답 전에 나가므로, 답을 적은 뒤 부르는 쪽이 `close` 한다. `TurnStep::closes`).
     /// 턴을 쓰는 흐름은 `accept_user_turn` 과 `complete_turn` 을 쓴다.
+    #[cfg(test)]
     pub fn apply_user_turn(
         &mut self,
         text: &str,
@@ -236,7 +234,9 @@ impl Session {
         Ok(step)
     }
 
+    /// 턴 없는 옛 흐름. 테스트만 부른다. 후속 PRD 에서 지운다.
     /// 상대(assistant)의 답을 지금 과제로 적는다. 위기 답은 닫힌 뒤에 적는다.
+    #[cfg(test)]
     pub fn record_reply(&mut self, text: &str, at: DateTime<Utc>) {
         self.push(MessageRole::Assistant, text, at, None);
     }
@@ -384,10 +384,6 @@ impl Session {
 }
 
 /// 턴 단위의 흐름: 받기, 전이 계산, 끝내기, 실패, 위기, 첫 인사.
-#[allow(
-    dead_code,
-    reason = "#19 S4 가 흐름을 이 메서드로 갈아타기 전까지는 테스트만 부른다"
-)]
 impl Session {
     /// 받은 순서대로의 턴.
     pub fn turns(&self) -> &[Turn] {

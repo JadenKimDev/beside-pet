@@ -5,10 +5,11 @@ use std::time::Duration;
 use super::super::deadline::{CallLimits, GENERATE_LIMIT, STREAM_IDLE_LIMIT};
 use super::doubles::{
     ENGAGED, Hang, Harness, KEYWORD_CRISIS, SESSION_ID, ScriptedModel, collect, joined_tokens,
-    owner, reply_text,
+    message, owner, reply_text,
 };
 use crate::safety::crisis_reply;
 use crate::shared::ApiError;
+use crate::support::session::{TurnErrorKind, TurnStatus};
 use crate::support::{StreamEvent, SupportService};
 
 async fn bounded<T>(future: impl std::future::Future<Output = T>) -> T {
@@ -47,21 +48,28 @@ async fn 발화가_답하지_않으면_제한_뒤_500_이고_턴을_저장하지
 }
 
 #[tokio::test]
-async fn 스트림이_멈추면_유휴_제한_뒤_done_없이_끊는다() {
+async fn 스트림이_멈추면_유휴_제한_뒤_done_없이_끊고_시간_제한으로_적는다() {
     let h = Harness::with_model(ScriptedModel::with(Hang::StreamAfterFirst));
     h.onboard().await;
     let saves_before = h.sessions.saves().len();
 
     let events = collect(
         h.flow
-            .send_stream(owner(), SESSION_ID.to_owned(), ENGAGED.to_owned()),
+            .send_stream(owner(), SESSION_ID.to_owned(), message(ENGAGED)),
     )
     .await;
 
     assert!(matches!(events.first(), Some(Ok(StreamEvent::Meta { .. }))));
     assert_eq!(joined_tokens(&events), super::doubles::REPLY_CHUNKS[0]);
     assert_eq!(events.last(), Some(&Err(ApiError::Internal)));
-    assert_eq!(h.sessions.saves().len(), saves_before);
+    assert_eq!(
+        h.sessions.saves().len(),
+        saves_before + 2,
+        "saved on receipt and on timeout"
+    );
+    let turn = h.sessions.last_save().turns.last().cloned().unwrap();
+    assert_eq!(turn.status, TurnStatus::Failed);
+    assert_eq!(turn.error_kind, Some(TurnErrorKind::Timeout));
 }
 
 #[tokio::test]
@@ -69,13 +77,13 @@ async fn 위기_판정이_답하지_않으면_제한_뒤_키워드로_판정하�
     let h = Harness::with_model(ScriptedModel::with(Hang::Risk));
     h.onboard().await;
 
-    let safe = bounded(h.flow.send(&owner(), SESSION_ID, ENGAGED.to_owned()))
+    let safe = bounded(h.flow.send(&owner(), SESSION_ID, message(ENGAGED)))
         .await
         .unwrap();
     assert_eq!(safe.support_level, 1);
     assert_eq!(safe.reply, reply_text());
 
-    let crisis = bounded(h.flow.send(&owner(), SESSION_ID, KEYWORD_CRISIS.to_owned()))
+    let crisis = bounded(h.flow.send(&owner(), SESSION_ID, message(KEYWORD_CRISIS)))
         .await
         .unwrap();
     assert_eq!(crisis.reply, crisis_reply());

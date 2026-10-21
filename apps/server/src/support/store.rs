@@ -129,7 +129,6 @@ impl SessionStore {
 
     /// 기동 때 정리: `pending` 으로 남은 모든 턴(앞 프로세스가 답을 끝내지 못한 턴)을 `failed`·`restart`·`at` 으로 닫는다.
     /// 바꾼 행 수를 돌려준다.
-    #[allow(dead_code, reason = "#19 S4 가 app.rs 의 기동에서 부른다")]
     pub async fn fail_pending_turns(&self, at: DateTime<Utc>) -> Result<u64, StoreError> {
         let closed = sqlx::query(
             "UPDATE turns SET status = $1, error_kind = $2, finished_at = $3 WHERE status = $4",

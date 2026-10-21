@@ -14,7 +14,8 @@ use crate::identity::{
 };
 use crate::shared::ApiError;
 use crate::support::{
-    MessageResponse, MessageRole, MindReportResponse, Requester, SessionAnalysisResponse,
+    MessageResponse, MessageRole, MindReportResponse, Requester, SendMessageRequest,
+    SessionAnalysisResponse,
     SessionListItemResponse, SessionStateResponse, SharedSupportService, StartSessionRequest,
     StreamEvent, SupportService, TurnResponse, TurnStream,
 };
@@ -47,6 +48,14 @@ pub struct Echo;
 
 fn who(requester: &Requester) -> String {
     format!("{}/{}", requester.account_id, requester.is_admin)
+}
+
+/// 본문의 글과, 턴 id 가 있으면 그 id.
+fn echoed(request: &SendMessageRequest) -> String {
+    match &request.turn_id {
+        Some(turn_id) => format!("{} {turn_id}", request.text),
+        None => request.text.clone(),
+    }
 }
 
 fn turn(reply: String) -> TurnResponse {
@@ -114,14 +123,23 @@ impl SupportService for Echo {
         &'a self,
         requester: &'a Requester,
         session_id: &'a str,
-        text: String,
+        request: SendMessageRequest,
     ) -> BoxFuture<'a, Result<TurnResponse, ApiError>> {
-        let reply = format!("send {} {session_id} {text}", who(requester));
+        let reply = format!("send {} {session_id} {}", who(requester), echoed(&request));
         Box::pin(async move { Ok(turn(reply)) })
     }
 
-    fn send_stream(&self, requester: Requester, session_id: String, text: String) -> TurnStream {
-        turn_events(format!("send {} {session_id} {text}", who(&requester)))
+    fn send_stream(
+        &self,
+        requester: Requester,
+        session_id: String,
+        request: SendMessageRequest,
+    ) -> TurnStream {
+        turn_events(format!(
+            "send {} {session_id} {}",
+            who(&requester),
+            echoed(&request)
+        ))
     }
 
     fn close<'a>(
@@ -191,6 +209,7 @@ impl SupportService for Echo {
                 text,
                 task: 1,
                 at: at(),
+                turn_id: None,
             }])
         })
     }

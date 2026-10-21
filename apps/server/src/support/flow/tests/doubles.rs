@@ -9,6 +9,7 @@ use std::time::Duration;
 use chrono::{DateTime, TimeZone, Utc};
 use futures_util::future::{self, BoxFuture};
 use futures_util::stream::{self, StreamExt};
+use tokio::sync::Semaphore;
 
 use super::super::deadline::CallLimits;
 use super::super::outside::{ChatLanguages, Clock, SessionRepository};
@@ -21,7 +22,8 @@ use crate::support::knowledge::KnowledgeBase;
 use crate::support::rules::GriefProfile;
 use crate::support::session::{MessageActivity, SessionSnapshot};
 use crate::support::{
-    GriefPath, Requester, StartSessionRequest, StreamEvent, SupportService, TurnStream,
+    GriefPath, Requester, SendMessageRequest, StartSessionRequest, StreamEvent, SupportService,
+    TurnStream,
 };
 
 pub const SESSION_ID: &str = "s-1";
@@ -68,10 +70,20 @@ pub enum Hang {
     StreamAfterFirst,
 }
 
+/// 테스트가 도중에 거는 발화의 고장(동기와 스트림 모두). 첫 인사를 마친 뒤 걸어 사용자 턴만 망가뜨린다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReplyFault {
+    /// 공급자가 오류를 낸다.
+    Provider,
+    /// 답하지 않는다(시간 제한에 걸린다).
+    Hang,
+}
+
 /// 요청의 모양으로 위기 판정·발화·리포트를 가려 대본의 답을 내고, 받은 요청을 적어 둔다.
 pub struct ScriptedModel {
     risk_answer: &'static str,
     hang: Hang,
+    fault: Mutex<Option<ReplyFault>>,
     stream_fails: bool,
     report_text: &'static str,
     calls: Mutex<Vec<Call>>,
@@ -88,6 +100,7 @@ impl ScriptedModel {
         ScriptedModel {
             risk_answer: "NO",
             hang,
+            fault: Mutex::new(None),
             stream_fails: false,
             report_text: REPORT_TEXT,
             calls: Mutex::new(Vec::new()),
@@ -117,6 +130,28 @@ impl ScriptedModel {
             stream_fails: true,
             ..ScriptedModel::new()
         }
+    }
+
+    /// 이제부터 발화가 `fault` 로 망가진다.
+    pub fn break_replies(&self, fault: ReplyFault) {
+        *self.fault.lock().unwrap() = Some(fault);
+    }
+
+    /// 발화를 다시 정상으로 돌린다.
+    pub fn mend_replies(&self) {
+        *self.fault.lock().unwrap() = None;
+    }
+
+    fn fault(&self) -> Option<ReplyFault> {
+        *self.fault.lock().unwrap()
+    }
+
+    /// 위기 판정을 부른 수.
+    pub fn risk_calls(&self) -> usize {
+        self.calls()
+            .iter()
+            .filter(|call| matches!(call, Call::Risk(_)))
+            .count()
     }
 
     pub fn calls(&self) -> Vec<Call> {
@@ -177,6 +212,11 @@ impl TextModel for ScriptedModel {
             return Box::pin(async move { Ok(text) });
         }
         self.push(Call::Reply(request));
+        match self.fault() {
+            Some(ReplyFault::Provider) => return Box::pin(async { Err(ApiError::Internal) }),
+            Some(ReplyFault::Hang) => return Box::pin(future::pending()),
+            None => {}
+        }
         if self.hang == Hang::Reply {
             return Box::pin(future::pending());
         }
@@ -187,6 +227,13 @@ impl TextModel for ScriptedModel {
     fn stream(&self, request: GenerationRequest) -> TextStream {
         self.contexts.lock().unwrap().push(request.context.clone());
         self.push(Call::StreamReply(request));
+        match self.fault() {
+            Some(ReplyFault::Provider) => {
+                return Box::pin(stream::once(async { Err(ApiError::Internal) }));
+            }
+            Some(ReplyFault::Hang) => return Box::pin(stream::pending()),
+            None => {}
+        }
         if self.stream_fails {
             return Box::pin(stream::iter([
                 Ok(REPLY_CHUNKS[0].to_owned()),
@@ -202,14 +249,22 @@ impl TextModel for ScriptedModel {
     }
 }
 
-/// 메모리 저장. 저장할 때마다 스냅샷을 적어 둔다.
+/// 메모리 저장. 저장할 때마다 스냅샷을 적어 둔다. 문을 걸면(`hold_saves`) 저장이 문이 열릴 때까지 기다린다.
 #[derive(Default)]
 pub struct MemorySessions {
     rows: Mutex<HashMap<String, SessionSnapshot>>,
     saves: Mutex<Vec<SessionSnapshot>>,
+    gate: Mutex<Option<Arc<Semaphore>>>,
 }
 
 impl MemorySessions {
+    /// 이제부터 저장이 기다린다. 돌려준 문에 `add_permits` 를 하면 그 수만큼 저장이 지나간다.
+    pub fn hold_saves(&self) -> Arc<Semaphore> {
+        let gate = Arc::new(Semaphore::new(0));
+        *self.gate.lock().unwrap() = Some(gate.clone());
+        gate
+    }
+
     pub fn saves(&self) -> Vec<SessionSnapshot> {
         self.saves.lock().unwrap().clone()
     }
@@ -232,9 +287,15 @@ impl MemorySessions {
 
 impl SessionRepository for MemorySessions {
     fn save<'a>(&'a self, snapshot: &'a SessionSnapshot) -> BoxFuture<'a, Result<(), ApiError>> {
-        self.saves.lock().unwrap().push(snapshot.clone());
-        self.put(snapshot.clone());
-        Box::pin(async { Ok(()) })
+        let gate = self.gate.lock().unwrap().clone();
+        Box::pin(async move {
+            if let Some(gate) = gate {
+                gate.acquire().await.expect("the gate stays open").forget();
+            }
+            self.saves.lock().unwrap().push(snapshot.clone());
+            self.put(snapshot.clone());
+            Ok(())
+        })
     }
 
     fn find<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<Option<SessionSnapshot>, ApiError>> {
@@ -376,12 +437,28 @@ impl Harness {
             .expect("the session starts");
     }
 
-    /// 주인으로 한 턴 보낸다.
+    /// 주인으로 한 턴 보낸다(턴 id 는 서버가 만든다).
     pub async fn say(&self, text: &str) -> crate::support::TurnResponse {
         self.flow
-            .send(&owner(), SESSION_ID, text.to_owned())
+            .send(&owner(), SESSION_ID, message(text))
             .await
             .expect("the turn succeeds")
+    }
+}
+
+/// 턴 id 없는 본문.
+pub fn message(text: &str) -> SendMessageRequest {
+    SendMessageRequest {
+        text: text.to_owned(),
+        turn_id: None,
+    }
+}
+
+/// 클라이언트가 만든 턴 id 를 실은 본문.
+pub fn message_with(text: &str, turn_id: &str) -> SendMessageRequest {
+    SendMessageRequest {
+        text: text.to_owned(),
+        turn_id: Some(turn_id.to_owned()),
     }
 }
 

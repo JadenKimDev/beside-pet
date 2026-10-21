@@ -6,6 +6,7 @@ use std::sync::Arc;
 use axum::extract::FromRef;
 use axum::routing::get;
 use axum::{Json, Router};
+use chrono::Utc;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 
@@ -106,6 +107,7 @@ impl AppState {
             .await
             .map_err(ConnectError::Identity)?,
         );
+        close_unfinished_turns(db.clone()).await;
         let usage: llm::SharedUsageSink = Arc::new(llm::PostgresUsageSink::spawn(db.clone()));
         let base = Services::with_usage(&config, usage);
         let support =
@@ -132,6 +134,15 @@ impl AppState {
             db,
             services,
         })
+    }
+}
+
+/// 앞 프로세스가 끝내지 못한 `pending` 턴을 `failed`(`restart`)로 닫는다(ADR-0028). 수만 로그에 남긴다.
+/// 실패해도 기동은 잇는다(남은 턴은 다음 기동이 닫는다). 원인은 저장이 종류만 로그에 남긴다.
+async fn close_unfinished_turns(db: PgPool) {
+    match support::fail_pending_turns(db, Utc::now()).await {
+        Ok(closed) => tracing::info!(closed, "closed turns left pending by a restart"),
+        Err(_) => tracing::warn!("could not close turns left pending by a restart"),
     }
 }
 

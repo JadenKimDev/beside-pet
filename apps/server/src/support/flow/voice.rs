@@ -5,12 +5,23 @@ use std::future::Future;
 use futures_util::StreamExt;
 use futures_util::future::join_all;
 
-use super::deadline::{CallFailure, Deadlined};
 use super::live::LiveTurn;
 use super::stream::Emitter;
-use crate::llm::GenerationRequest;
+use crate::llm::{GenerationRequest, TextModel};
 use crate::shared::ApiError;
 use crate::support::StreamEvent;
+use crate::support::session::TurnErrorKind;
+
+/// 발화를 쓰는 모델. 시간 제한은 모델(라우터)이 두르고, 넘기면 `ApiError::ModelTimeout` 이다.
+type Model = dyn TextModel + Send + Sync;
+
+/// 실패한 턴에 적는 종류: 모델의 시간 제한이면 `timeout`, 그 밖의 실패는 `provider`(ADR-0028).
+pub fn failed_turn_kind(error: &ApiError) -> TurnErrorKind {
+    match error {
+        ApiError::ModelTimeout => TurnErrorKind::Timeout,
+        _ => TurnErrorKind::Provider,
+    }
+}
 
 pub enum Voice<'a> {
     Whole,
@@ -36,24 +47,24 @@ impl Voice<'_> {
     }
 
     /// 모델이 답을 쓴다. 동기는 앞뒤 공백을 걷고 빈 답을 실패로 본다(TS 와 같다). 스트림은 조각을 그대로 잇는다.
-    /// 실패는 제한을 넘긴 것과 모델의 오류를 가른다(실패한 턴의 종류).
+    /// 실패의 종류는 `failed_turn_kind` 가 가른다.
     /// 등록부에 오른 턴(`live`)이면 스트림 조각을 등록부에도 더하고, 기다리는 사이에 중단되면 모델 호출을 버리고 `Cancelled` 다
     /// (공급자 연결이 닫히고 그 호출은 `llm_calls` 에 `cancelled` 로 남는다).
     pub async fn compose(
         &self,
-        model: &Deadlined,
+        model: &Model,
         request: GenerationRequest,
         mut live: Option<&mut LiveTurn>,
-    ) -> Result<Composed, CallFailure> {
+    ) -> Result<Composed, ApiError> {
         match self {
             Voice::Whole => {
-                let Some(text) = watch(live, model.generate_within(request)).await else {
+                let Some(text) = watch(live, model.generate(request)).await else {
                     return Ok(Composed::Cancelled);
                 };
                 Ok(Composed::Reply(whole_reply(text?)?))
             }
             Voice::Streamed(out) => {
-                let mut chunks = model.stream_within(request);
+                let mut chunks = model.stream(request);
                 let mut reply = String::new();
                 loop {
                     let Some(next) = watch(live.as_deref_mut(), chunks.next()).await else {
@@ -76,12 +87,12 @@ impl Voice<'_> {
 /// 동기 턴의 후보 `count` 개를 같은 요청으로 병렬로 받는다(ADR-0031). 하나라도 쓰면 쓴 것들(요청 순서), 모두 실패하면
 /// 첫 실패다. 기다리는 사이에 중단되면 모든 호출을 버리고 `None` 이다.
 pub async fn compose_candidates(
-    model: &Deadlined,
+    model: &Model,
     request: GenerationRequest,
     count: u8,
     live: &mut LiveTurn,
-) -> Result<Option<Vec<String>>, CallFailure> {
-    let calls = (0..count).map(|_| model.generate_within(request.clone()));
+) -> Result<Option<Vec<String>>, ApiError> {
+    let calls = (0..count).map(|_| model.generate(request.clone()));
     let Some(results) = live.unless_cancelled(join_all(calls)).await else {
         return Ok(None);
     };
@@ -102,11 +113,11 @@ pub async fn compose_candidates(
 }
 
 /// 동기 답: 앞뒤 공백을 걷고 빈 답은 실패로 본다(TS 와 같다).
-fn whole_reply(text: String) -> Result<String, CallFailure> {
+fn whole_reply(text: String) -> Result<String, ApiError> {
     let reply = text.trim();
     if reply.is_empty() {
         tracing::warn!("model returned an empty reply");
-        return Err(CallFailure::Failed(ApiError::Internal));
+        return Err(ApiError::Internal);
     }
     Ok(reply.to_owned())
 }

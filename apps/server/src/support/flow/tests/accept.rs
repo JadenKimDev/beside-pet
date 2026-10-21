@@ -9,6 +9,7 @@ use super::doubles::{
     DUNNO, ENGAGED, Harness, KEYWORD_CRISIS, ReplyFault, SESSION_ID, collect, message,
     message_with, owner, reply_text,
 };
+use crate::llm::{CallErrorKind, CallPurpose};
 use crate::safety::crisis_reply;
 use crate::shared::ApiError;
 use crate::support::rules::{SupportLevel, Task};
@@ -43,11 +44,18 @@ async fn 발화가_실패하면_사용자_메시지와_실패한_턴이_남고_�
     );
     let saved = h.sessions.last_save();
     let last = saved.history.last().unwrap();
-    assert_eq!((last.role, last.text.as_str()), (MessageRole::User, ENGAGED));
+    assert_eq!(
+        (last.role, last.text.as_str()),
+        (MessageRole::User, ENGAGED)
+    );
     assert_eq!(last.turn_id.as_deref(), Some(TURN_ID));
     let turn = saved.turns.iter().find(|t| t.id == TURN_ID).unwrap();
     assert_eq!(turn.status, TurnStatus::Failed);
     assert_eq!(turn.error_kind, Some(TurnErrorKind::Provider));
+    assert_eq!(
+        h.call_errors(CallPurpose::Reply),
+        vec![CallErrorKind::Provider]
+    );
     assert!(turn.finished_at.is_some());
     assert_eq!(saved.task, before.task);
     assert_eq!(saved.retry_count, before.retry_count);
@@ -78,7 +86,11 @@ async fn 발화가_시간_제한을_넘기면_시간_제한으로_적는다() {
     .await
     .expect("the call returns within its limit");
 
-    assert_eq!(refused, Err(ApiError::Internal));
+    assert_eq!(refused, Err(ApiError::ModelTimeout));
+    assert_eq!(
+        h.call_errors(CallPurpose::Reply),
+        vec![CallErrorKind::Timeout]
+    );
     let saved = h.sessions.last_save();
     let turn = saved.turns.iter().find(|t| t.id == TURN_ID).unwrap();
     assert_eq!(turn.status, TurnStatus::Failed);
@@ -336,7 +348,10 @@ async fn 첫_인사도_턴_하나다() {
     assert_eq!(greeting.status, TurnStatus::Done);
     assert_eq!(saved.history.len(), 1);
     assert_eq!(saved.history[0].role, MessageRole::Assistant);
-    assert_eq!(saved.history[0].turn_id.as_deref(), Some(greeting.id.as_str()));
+    assert_eq!(
+        saved.history[0].turn_id.as_deref(),
+        Some(greeting.id.as_str())
+    );
     uuid::Uuid::parse_str(&greeting.id).expect("a UUID");
 
     let history = h.flow.history(&owner(), SESSION_ID).await.unwrap();

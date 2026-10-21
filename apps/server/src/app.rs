@@ -64,7 +64,11 @@ impl Services {
             "default model"
         );
         Services {
-            text_model: Arc::new(llm::ModelRouter::from_settings(&settings, usage)),
+            // 모델 호출의 시간 제한(호출 120초, 스트림 조각 사이 60초)은 라우터가 두른다(ADR-0018).
+            text_model: Arc::new(
+                llm::ModelRouter::from_settings(&settings, usage)
+                    .with_limits(llm::CallLimits::default()),
+            ),
             ..Services::unimplemented()
         }
     }

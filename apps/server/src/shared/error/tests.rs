@@ -130,3 +130,11 @@ fn 상태_코드를_알려_준다() {
         StatusCode::INTERNAL_SERVER_ERROR
     );
 }
+
+#[tokio::test]
+async fn 모델의_시간_제한도_겉은_internal_과_같은_500_이다() {
+    let (status, body) = render(ApiError::ModelTimeout).await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(body, render(ApiError::Internal).await.1);
+    assert_ne!(ApiError::ModelTimeout, ApiError::Internal);
+}

@@ -6,7 +6,6 @@ mod access;
 mod active;
 mod adapters;
 mod cancel;
-mod deadline;
 mod judge;
 mod judging;
 mod live;

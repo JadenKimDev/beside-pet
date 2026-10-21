@@ -340,7 +340,7 @@ async fn generate_가_제한을_넘기면_500_이고_토큰_없이_시간_제한
     let result = tokio::time::timeout(Duration::from_secs(5), router.generate(request()))
         .await
         .expect("라우터의 제한이 먼저 끊는다");
-    assert_eq!(result, Err(ApiError::Internal));
+    assert_eq!(result, Err(ApiError::ModelTimeout));
     let record = only_record(&sink);
     assert_eq!(record.outcome, CallOutcome::Error(CallErrorKind::Timeout));
     assert_eq!(CallErrorKind::Timeout.as_str(), "timeout");
@@ -372,7 +372,7 @@ async fn stream_의_첫_조각이_유휴_제한을_넘기면_500_하나로_끝�
         tokio::time::timeout(Duration::from_secs(4), router.stream(request()).collect())
             .await
             .expect("라우터의 제한이 먼저 끊는다");
-    assert_eq!(items, vec![Err(ApiError::Internal)]);
+    assert_eq!(items, vec![Err(ApiError::ModelTimeout)]);
     let record = only_record(&sink);
     assert_eq!(record.outcome, CallOutcome::Error(CallErrorKind::Timeout));
     assert_eq!(record.first_token_ms, None);
@@ -390,7 +390,10 @@ async fn stream_의_조각_사이가_유휴_제한을_넘기면_그때까지의_
         tokio::time::timeout(Duration::from_secs(4), router.stream(request()).collect())
             .await
             .expect("라우터의 제한이 먼저 끊는다");
-    assert_eq!(items, vec![Ok("앞".to_owned()), Err(ApiError::Internal)]);
+    assert_eq!(
+        items,
+        vec![Ok("앞".to_owned()), Err(ApiError::ModelTimeout)]
+    );
     let record = only_record(&sink);
     assert_eq!(record.outcome, CallOutcome::Error(CallErrorKind::Timeout));
     assert!(record.first_token_ms.is_some());

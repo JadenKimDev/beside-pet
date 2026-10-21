@@ -1,7 +1,7 @@
 //! 공급자 호출의 시간 제한 값: 응답 없는 모델에 무기한 걸리지 않게 라우터가 호출마다 두르는 상한.
 //!
 //! `generate` 는 호출 전체에, `stream` 은 이벤트와 이벤트 사이(첫 이벤트 전 포함)에 둔다. 넘기면 라우터가 `timeout` 으로 적고
-//! `ApiError::Internal` 을 낸다. 위기 판정이 제한을 넘기면 `safety` 가 키워드 결과로 대신한다(ADR-0004).
+//! `ApiError::ModelTimeout` 을 낸다. 위기 판정이 제한을 넘기면 `safety` 가 키워드 결과로 대신한다(ADR-0004).
 
 use std::time::Duration;
 

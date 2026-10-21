@@ -10,7 +10,6 @@ use super::access::{TURN_CANCELLED, TURN_NOT_FAILED, require, require_turn, sess
 use super::active::ActiveTurns;
 use super::adapters::{AccountLanguages, SystemClock};
 use super::cancel::cancel;
-use super::deadline::{CallLimits, Deadlined};
 use super::judge::SharedReplyJudge;
 use super::judging::Judging;
 use super::orchestrator::{Finished, greet, handle, new_turn_id, retry};
@@ -40,25 +39,19 @@ const SESSION_LIST_LIMIT: u32 = 20;
 #[derive(Clone)]
 pub struct SupportFlow {
     parts: Arc<FlowParts>,
-    /// `parts.model` 과 같은 제한 두른 모델. 발화는 이것으로 불러 제한을 넘긴 것과 모델 오류를 가른다.
-    replies: Arc<Deadlined>,
     /// 진행 중 턴 등록부(프로세스 메모리, ADR-0030).
     turns: ActiveTurns,
 }
 
 impl SupportFlow {
-    /// 모델에 `parts.limits` 의 시간 제한을 두른다.
     pub fn new(parts: FlowParts) -> SupportFlow {
-        let replies = Arc::new(Deadlined::new(parts.model, parts.limits));
-        let model: SharedTextModel = replies.clone();
         SupportFlow {
-            parts: Arc::new(FlowParts { model, ..parts }),
-            replies,
+            parts: Arc::new(parts),
             turns: ActiveTurns::default(),
         }
     }
 
-    /// 서버의 조립: Postgres 저장, 작업 디렉터리의 지식 파일, 계정 서비스의 대화 언어, 시스템 시계, 실제 제한,
+    /// 서버의 조립: Postgres 저장, 작업 디렉터리의 지식 파일, 계정 서비스의 대화 언어, 시스템 시계,
     /// 설정이 고른 답 판정기(`judge`)와 동기 턴의 후보 수, 직전 답의 임계값.
     pub fn live(
         db: PgPool,
@@ -74,7 +67,6 @@ impl SupportFlow {
             knowledge: KnowledgeBase::load(),
             languages: Arc::new(AccountLanguages(accounts)),
             clock: Arc::new(SystemClock),
-            limits: CallLimits::default(),
             judging: Judging {
                 judge,
                 candidates,
@@ -92,14 +84,7 @@ impl SupportFlow {
         let parts = self.parts.as_ref();
         let started = create(parts, requester, request).await?;
         parts.sessions.save(&started.session.snapshot()).await?;
-        greet(
-            parts,
-            &self.replies,
-            started.session,
-            started.previous.as_ref(),
-            voice,
-        )
-        .await
+        greet(parts, started.session, started.previous.as_ref(), voice).await
     }
 
     async fn send_turn(
@@ -112,16 +97,7 @@ impl SupportFlow {
         let turn_id = request.turn_id.unwrap_or_else(new_turn_id);
         let session = self.writable(requester, session_id, &turn_id).await?;
         let parts = self.parts.as_ref();
-        handle(
-            parts,
-            &self.replies,
-            &self.turns,
-            session,
-            turn_id,
-            &request.text,
-            voice,
-        )
-        .await
+        handle(parts, &self.turns, session, turn_id, &request.text, voice).await
     }
 
     async fn retry_failed(
@@ -132,15 +108,7 @@ impl SupportFlow {
         voice: &Voice<'_>,
     ) -> Result<Finished, ApiError> {
         let session = self.retriable(requester, session_id, turn_id).await?;
-        retry(
-            self.parts.as_ref(),
-            &self.replies,
-            &self.turns,
-            session,
-            turn_id,
-            voice,
-        )
-        .await
+        retry(self.parts.as_ref(), &self.turns, session, turn_id, voice).await
     }
 
     /// 답을 다시 받을 수 있는 세션: 있고, 요청자의 것이고, 그 턴이 실패했고, 열려 있다. 소유자의 대화 언어를 따른다.

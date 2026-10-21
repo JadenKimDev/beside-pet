@@ -12,12 +12,11 @@ use uuid::Uuid;
 
 use super::access::{TURN_ALREADY_RECEIVED, TURN_NOT_FAILED, session_conflict};
 use super::active::ActiveTurns;
-use super::deadline::{CallFailure, Deadlined};
 use super::judge::Judgement;
 use super::judging::{choose, judge_input, judge_once, record_after_stream};
 use super::live::LiveTurn;
 use super::parts::FlowParts;
-use super::voice::{Composed, Voice, compose_candidates};
+use super::voice::{Composed, Voice, compose_candidates, failed_turn_kind};
 use crate::identity::ChatLanguage;
 use crate::llm::{CallContext, CallPurpose, GenerationRequest};
 use crate::safety::{assess_risk_verdict, crisis_reply};
@@ -59,7 +58,6 @@ pub fn new_turn_id() -> String {
 /// 인사가 실패하면 받은 사용자 말이 없으므로 턴을 남기지 않는다.
 pub async fn greet(
     parts: &FlowParts,
-    replies: &Deadlined,
     mut session: Session,
     previous: Option<&Previous>,
     voice: &Voice<'_>,
@@ -73,11 +71,7 @@ pub async fn greet(
     voice.announce(session.meta_event()).await;
     let request = reply_request(parts, &session, phase, &knowledge, previous);
     // 첫 인사는 받은 사용자 말이 없어 중단 대상이 아니다(등록부에 오르지 않는다).
-    let Composed::Reply(reply) = voice
-        .compose(replies, request, None)
-        .await
-        .map_err(CallFailure::into_error)?
-    else {
+    let Composed::Reply(reply) = voice.compose(parts.model.as_ref(), request, None).await? else {
         // 등록부에 없는 턴은 중단될 수 없다.
         return Err(ApiError::Internal);
     };
@@ -92,7 +86,6 @@ pub async fn greet(
 /// 같은 턴 id 가 이 프로세스에서 아직 돌고 있으면(동시에 두 번 왔다) 둘째는 저장 전에 409 다.
 pub async fn handle(
     parts: &FlowParts,
-    replies: &Deadlined,
     turns: &ActiveTurns,
     mut session: Session,
     turn_id: String,
@@ -123,14 +116,13 @@ pub async fn handle(
     let live = LiveTurn::register(turns, session.id(), &turn_id)
         .map_err(|_| ApiError::Conflict(TURN_ALREADY_RECEIVED.to_owned()))?;
     parts.sessions.save(&session.snapshot()).await?;
-    answer(parts, replies, live, session, &turn_id, risk, voice).await
+    answer(parts, live, session, &turn_id, risk, voice).await
 }
 
 /// 실패한 턴의 답을 다시 받는다: 같은 사용자 메시지로 안전 확인과 전이를 다시 계산하고, 처음 턴과 같은 길(`pending` → `streaming` → `done`)을 밟는다.
 /// 사용자 메시지는 다시 적지 않는다. 다시 판정한 결과가 위기면 받은 턴처럼 고정 문구로 닫는다(ADR-0004).
 pub async fn retry(
     parts: &FlowParts,
-    replies: &Deadlined,
     turns: &ActiveTurns,
     mut session: Session,
     turn_id: &str,
@@ -162,14 +154,13 @@ pub async fn retry(
     }
     let live = LiveTurn::register(turns, session.id(), turn_id).map_err(|_| not_failed())?;
     parts.sessions.save(&session.snapshot()).await?;
-    answer(parts, replies, live, session, turn_id, risk, voice).await
+    answer(parts, live, session, turn_id, risk, voice).await
 }
 
 /// 받아 저장한 `pending` 턴의 답: 전이(계산만)와 `meta` → 지식 검색 → `streaming` 저장 → 발화 → 끝내기와 저장.
 /// 발화가 실패하면 `failed`, 중단되면 거기까지 모은 답과 함께 `cancelled` 로 닫아 저장한다. 어느 쪽이든 저장한 뒤에 등록부에서 빠진다.
 async fn answer(
     parts: &FlowParts,
-    replies: &Deadlined,
     mut live: LiveTurn,
     mut session: Session,
     turn_id: &str,
@@ -193,7 +184,7 @@ async fn answer(
     let candidates = parts.judging.candidates;
     let (composed, chosen) = match voice {
         Voice::Whole if candidates >= 2 => {
-            match compose_candidates(replies, request, candidates, &mut live).await {
+            match compose_candidates(parts.model.as_ref(), request, candidates, &mut live).await {
                 Ok(Some(replies)) => {
                     let (reply, judgement) =
                         choose(parts.judging.judge.as_ref(), &session, replies).await;
@@ -203,7 +194,12 @@ async fn answer(
                 Err(failure) => (Err(failure), None),
             }
         }
-        _ => (voice.compose(replies, request, Some(&mut live)).await, None),
+        _ => (
+            voice
+                .compose(parts.model.as_ref(), request, Some(&mut live))
+                .await,
+            None,
+        ),
     };
     let reply = match composed {
         // 답이 끝나는 순간에 온 중단도 중단이다(중단을 부른 쪽은 `cancelled` 를 기다린다).
@@ -211,10 +207,10 @@ async fn answer(
         Err(failure) if !live.is_cancelled() => {
             // 답이 실패해도 사용자 메시지는 남는다. 턴만 `failed` 로 닫는다.
             session
-                .fail_turn(turn_id, failure.kind(), parts.clock.now())
+                .fail_turn(turn_id, failed_turn_kind(&failure), parts.clock.now())
                 .map_err(|error| conflict(&session, error))?;
             parts.sessions.save(&session.snapshot()).await?;
-            return Err(failure.into_error());
+            return Err(failure);
         }
         _ => {
             // 중단: 거기까지 온 답을 그 턴의 답으로 적고 숨긴다. 세션 상태는 그대로다.

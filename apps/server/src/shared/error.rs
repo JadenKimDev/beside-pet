@@ -25,6 +25,8 @@ pub enum ApiError {
     NotImplemented,
     /// 알 수 없는 실패: `500 Internal server error`. 원인은 부른 쪽이 로그로 남긴다.
     Internal,
+    /// 모델 호출이 시간 제한을 넘겼다. HTTP 겉은 `Internal` 과 같은 500 이고, 부른 쪽(실패한 턴의 종류)만 갈라 본다.
+    ModelTimeout,
 }
 
 #[derive(Serialize)]
@@ -54,7 +56,7 @@ impl ApiError {
             ApiError::NotFound(_) => StatusCode::NOT_FOUND,
             ApiError::Conflict(_) => StatusCode::CONFLICT,
             ApiError::NotImplemented => StatusCode::NOT_IMPLEMENTED,
-            ApiError::Internal => StatusCode::INTERNAL_SERVER_ERROR,
+            ApiError::Internal | ApiError::ModelTimeout => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -66,7 +68,9 @@ impl ApiError {
             | ApiError::NotFound(m)
             | ApiError::Conflict(m) => Message::One(m.clone()),
             ApiError::NotImplemented => Message::One("Not implemented".to_owned()),
-            ApiError::Internal => Message::One("Internal server error".to_owned()),
+            ApiError::Internal | ApiError::ModelTimeout => {
+                Message::One("Internal server error".to_owned())
+            }
         }
     }
 }

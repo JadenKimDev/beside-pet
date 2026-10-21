@@ -128,7 +128,7 @@ impl TextModel for ModelRouter {
             let Ok(result) = tokio::time::timeout(limit, call).await else {
                 log_timeout("generate", limit);
                 meter.fail(CallErrorKind::Timeout);
-                return Err(ApiError::Internal);
+                return Err(ApiError::ModelTimeout);
             };
             match result {
                 Ok(generation) => {
@@ -160,7 +160,7 @@ impl TextModel for ModelRouter {
                     let Ok(event) = tokio::time::timeout(idle, events.next()).await else {
                         log_timeout("stream", idle);
                         meter.fail(CallErrorKind::Timeout);
-                        return Some((Err(ApiError::Internal), None));
+                        return Some((Err(ApiError::ModelTimeout), None));
                     };
                     match event {
                         Some(Ok(StreamEvent::Text(text))) => {

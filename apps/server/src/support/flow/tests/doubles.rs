@@ -1,4 +1,5 @@
 //! 흐름 테스트의 더블: 요청을 적어 두는 대본 모델, 메모리 저장, 고정 언어, 한 번에 1초씩 가는 시계, 그리고 조립 도우미.
+//! 대본 모델은 실제 라우터(`ModelRouter`) 뒤의 공급자로 끼워, 시간 제한과 호출 기록을 서버와 같은 자리에서 잰다.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,12 +12,15 @@ use futures_util::future::{self, BoxFuture};
 use futures_util::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
 
-use super::super::deadline::CallLimits;
 use super::super::judging::Judging;
 use super::super::outside::{ChatLanguages, Clock, SessionRepository};
 use super::super::{FlowParts, SupportFlow};
 use crate::identity::ChatLanguage;
-use crate::llm::{CallContext, GenerationRequest, TextModel, TextStream};
+use crate::llm::{
+    CallContext, CallErrorKind, CallLimits, CallOutcome, CallPurpose, Generation,
+    GenerationRequest, InMemoryUsageSink, LlmProvider, ModelRef, ModelRouter, ProviderStream,
+    StreamEvent as ProviderEvent, TextModel, TextModelProvider, TextStream, TokenUsage,
+};
 use crate::safety::RISK_SYSTEM_PROMPT;
 use crate::shared::ApiError;
 use crate::support::knowledge::KnowledgeBase;
@@ -317,6 +321,37 @@ impl TextModel for ScriptedModel {
     }
 }
 
+/// 대본 모델을 라우터 뒤의 공급자로 끼운다. 글은 그대로 넘기고 토큰 수는 0 이다.
+struct ScriptedProvider(Arc<ScriptedModel>);
+
+impl TextModelProvider for ScriptedProvider {
+    fn provider(&self) -> LlmProvider {
+        LlmProvider::Ollama
+    }
+
+    fn generate(
+        &self,
+        _model: &str,
+        request: GenerationRequest,
+    ) -> BoxFuture<'_, Result<Generation, ApiError>> {
+        let call = self.0.generate(request);
+        Box::pin(async move {
+            call.await.map(|text| Generation {
+                text,
+                usage: TokenUsage::default(),
+            })
+        })
+    }
+
+    fn stream(&self, _model: &str, request: GenerationRequest) -> ProviderStream {
+        Box::pin(
+            self.0
+                .stream(request)
+                .map(|chunk| chunk.map(ProviderEvent::Text)),
+        )
+    }
+}
+
 /// 메모리 저장. 저장할 때마다 스냅샷을 적어 둔다. 문을 걸면(`hold_saves`) 저장이 문이 열릴 때까지 기다린다.
 #[derive(Default)]
 pub struct MemorySessions {
@@ -450,7 +485,7 @@ impl Clock for StepClock {
     }
 }
 
-/// 테스트의 제한(짧다). 정상 더블은 곧바로 답하므로 걸리지 않는다.
+/// 테스트에서 라우터가 두르는 제한(짧다). 정상 더블은 곧바로 답하므로 걸리지 않는다.
 pub const TEST_LIMITS: CallLimits = CallLimits {
     generate: Duration::from_millis(300),
     stream_idle: Duration::from_millis(200),
@@ -472,6 +507,8 @@ pub struct Harness {
     pub flow: SupportFlow,
     pub model: Arc<ScriptedModel>,
     pub sessions: Arc<MemorySessions>,
+    /// 라우터가 남긴 모델 호출 기록(`llm_calls` 의 행).
+    pub calls: Arc<InMemoryUsageSink>,
 }
 
 impl Harness {
@@ -509,22 +546,45 @@ impl Harness {
     ) -> Harness {
         let model = Arc::new(model);
         let sessions = Arc::new(MemorySessions::default());
+        let calls = Arc::new(InMemoryUsageSink::default());
+        let router = ModelRouter::new(
+            ModelRef {
+                provider: LlmProvider::Ollama,
+                model: "scripted".to_owned(),
+            },
+            vec![Box::new(ScriptedProvider(model.clone()))],
+            calls.clone(),
+        )
+        .with_limits(limits);
         let flow = SupportFlow::new(FlowParts {
-            model: model.clone(),
+            model: Arc::new(router),
             sessions: sessions.clone(),
             knowledge: KnowledgeBase::from_json(KNOWLEDGE_JSON),
             languages: Arc::new(languages),
             clock: Arc::new(StepClock {
                 ticks: AtomicI64::new(0),
             }),
-            limits,
             judging,
         });
         Harness {
             flow,
             model,
             sessions,
+            calls,
         }
+    }
+
+    /// 라우터가 이 목적의 호출을 실패로 적은 종류들(적은 순서).
+    pub fn call_errors(&self, purpose: CallPurpose) -> Vec<CallErrorKind> {
+        self.calls
+            .list()
+            .into_iter()
+            .filter(|record| record.purpose == purpose)
+            .filter_map(|record| match record.outcome {
+                CallOutcome::Error(kind) => Some(kind),
+                CallOutcome::Ok => None,
+            })
+            .collect()
     }
 
     /// 온보딩으로 `SESSION_ID` 를 시작한다.

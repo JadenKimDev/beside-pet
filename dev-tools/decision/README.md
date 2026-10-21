@@ -48,8 +48,13 @@ pnpm decision:label --agree data/labels/a.jsonl data/labels/b.jsonl
                                           # 일치율, Cohen's kappa, data/labels/disagreements.jsonl(id, state, a, b)
 cd dev-tools/decision && uv run python -m decision.validate data/labels/a.jsonl          # 라벨 파일(label 필수, 기본)
 cd dev-tools/decision && uv run python -m decision.validate --candidates data/candidates.jsonl  # 후보 파일
+pnpm decision:eval --judge claude --model haiku   # 평가셋(final.jsonl 의 eval_personas)으로 재어 outputs/decision/<날짜>/report.md 에 행을 쌓는다
+pnpm decision:eval --judge laya --model 2nugu/laya-ko
 cd dev-tools/decision && uv run pytest -q
 ```
+
+`claude` 판정기의 프롬프트는 `src/decision/judges/claude.py` 의 `SYSTEM_PROMPT` 와 `USER_PROMPT_TEMPLATE` 한 곳에 있고,
+다음 PRD 의 서버 HaikuJudge 가 같은 문자열을 쓴다. 고치면 평가를 다시 돌리고 서버 쪽도 함께 고친다.
 
 `--agree` 의 경로는 `dev-tools/decision` 기준이다(스크립트가 그 디렉터리로 들어가 돈다).
 

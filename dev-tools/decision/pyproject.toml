@@ -3,7 +3,11 @@ name = "decision"
 version = "0.0.0"
 description = "상투성 판정기의 라벨 데이터와 평가 하네스(개발 전용)"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "laya==0.4.12",
+    "torch>=2.14",
+    "transformers>=5.20",
+]
 
 [dependency-groups]
 dev = ["pytest>=8"]

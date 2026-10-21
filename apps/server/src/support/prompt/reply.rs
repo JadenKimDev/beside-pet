@@ -1,4 +1,4 @@
-//! 발화 한 번의 모델 입력: 시스템 프롬프트와 단계 지침, 히스토리 창(TS 의 `reply.prompt.ts`).
+//! 발화 한 번의 모델 입력: 시스템 프롬프트와 단계 지침, 이번 턴의 화법 줄, 히스토리 창(TS 의 `reply.prompt.ts`).
 //!
 //! 단계와 과제는 규칙이 정해 넘긴다. 여기서는 그것을 글로 바꾸기만 한다. 문구는 TS 에서 왔고, 0.2.0 에서 정체·화법
 //! 지시문을 다시 썼다(괄호 예시 필수, 안심 지침, 질문 강제를 걷어 냈다).
@@ -8,6 +8,7 @@ use super::transcript::{speaker_lines, to_prompt_role};
 use crate::identity::ChatLanguage;
 use crate::llm::{PromptMessage, PromptRole};
 use crate::support::knowledge::KnowledgeChunk;
+use crate::support::rules::TurnStyle;
 use crate::support::session::Message;
 use crate::support::{ReplyPhase, SessionSummaryResponse};
 
@@ -36,6 +37,8 @@ pub struct ReplyContext<'a> {
     pub history: &'a [Message],
     /// 재개 인사일 때만 있다.
     pub previous: Option<PreviousSession<'a>>,
+    /// 이번 턴의 화법. 시스템 프롬프트의 마지막 줄이 된다.
+    pub turn_style: &'a TurnStyle,
 }
 
 pub fn reply_system_prompt(context: &ReplyContext<'_>) -> String {
@@ -64,6 +67,7 @@ pub fn reply_system_prompt(context: &ReplyContext<'_>) -> String {
         } else {
             format!("Ground your words in the following verified grief theory, but never quote or cite it:\n{grounding}")
         },
+        context.turn_style.instruction(),
     ];
     join_non_empty(&lines)
 }

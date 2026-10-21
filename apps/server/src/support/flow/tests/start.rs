@@ -34,6 +34,13 @@ async fn 온보딩은_과제_1_에서_인사하고_세션을_저장한다() {
     assert!(system.contains("Greet briefly"), "intro phase");
     assert!(system.contains("\"Biscuit\""));
     assert!(system.contains("Grief comes in waves."));
+    let line = system.lines().last().unwrap();
+    assert!(line.starts_with("For this reply:"), "{line}");
+    assert!(
+        line.contains("Open the story of the pet with one gentle question."),
+        "intro invites: {line}"
+    );
+    assert!(!line.contains("Do not ask"), "{line}");
 }
 
 #[tokio::test]

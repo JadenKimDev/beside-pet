@@ -10,7 +10,6 @@ mod supervisor;
 mod support_level;
 mod task;
 mod turn_analysis;
-#[allow(dead_code)] // #18 S3 가 orchestrator 에서 쓰기 전까지. S3 에서 지운다
 mod turn_style;
 
 pub use depth_gate::evaluate;
@@ -22,5 +21,6 @@ pub use supervisor::{review, should_review};
 pub use support_level::SupportLevel;
 pub use task::Task;
 pub use turn_analysis::{RiskAssessment, TaskTransition, TurnAnalysis};
-#[allow(unused_imports)] // #18 S3 가 orchestrator 에서 쓰기 전까지. S3 에서 지운다
-pub use turn_style::{QuestionPolicy, TurnStyle};
+#[cfg(test)]
+pub use turn_style::QuestionPolicy;
+pub use turn_style::TurnStyle;

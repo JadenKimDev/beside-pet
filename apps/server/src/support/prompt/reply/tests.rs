@@ -9,7 +9,7 @@ use super::{
 use crate::identity::ChatLanguage;
 use crate::llm::{PromptMessage, PromptRole};
 use crate::support::knowledge::KnowledgeChunk;
-use crate::support::rules::Task;
+use crate::support::rules::{QuestionPolicy, Task, TurnStyle};
 use crate::support::session::Message;
 use crate::support::{MessageRole, ReplyPhase, SessionSummaryResponse};
 
@@ -44,7 +44,17 @@ fn context<'a>(
         knowledge,
         history,
         previous: None,
+        turn_style: style(phase),
     }
+}
+
+/// 빈 기록에서 구한 이번 턴의 화법. 맥락이 참조로 받으므로 테스트에서는 놓아 둔다.
+fn style(phase: ReplyPhase) -> &'static TurnStyle {
+    Box::leak(Box::new(TurnStyle::from_history(phase, &[], &[])))
+}
+
+fn last_line(prompt: &str) -> &str {
+    prompt.lines().last().expect("a non-empty prompt")
 }
 
 fn chunk(source: &str, content: &str) -> KnowledgeChunk {
@@ -84,9 +94,55 @@ fn the_system_prompt_is_the_identity_and_style_text_with_grounding() {
         NO_INVENTING,
         "Current phase guidance: Pick up what the user just said and go one layer deeper — do not switch topics.",
         "Ground your words in the following verified grief theory, but never quote or cite it:\n- (출처A) 내용A\n- (출처B) 내용B",
+        "For this reply: Refer to what they said in your own words; do not open by repeating their sentence.",
     ]
     .join("\n");
     assert_eq!(prompt, expected);
+}
+
+#[test]
+fn every_phase_ends_with_this_turns_style_line() {
+    let knowledge = [chunk("출처A", "내용A")];
+    for phase in ALL_PHASES {
+        let ctx = context(phase, &[], &knowledge);
+        let prompt = reply_system_prompt(&ctx);
+        assert_eq!(
+            last_line(&prompt),
+            ctx.turn_style.instruction(),
+            "{phase:?}"
+        );
+        assert!(
+            last_line(&prompt).starts_with("For this reply:"),
+            "{phase:?}"
+        );
+    }
+}
+
+#[test]
+fn a_forbidding_style_puts_the_no_question_line_last() {
+    let forbid = TurnStyle::from_history(
+        ReplyPhase::Deepen,
+        &["그 길이 생각나시는군요. 어떤 길이었나요?"],
+        &["질문 그만 해요"],
+    );
+    assert_eq!(forbid.question, QuestionPolicy::Forbid);
+    let mut ctx = context(ReplyPhase::Deepen, &[], &[]);
+    ctx.turn_style = &forbid;
+    let prompt = reply_system_prompt(&ctx);
+    let line = last_line(&prompt);
+    assert!(line.starts_with("For this reply:"), "{line}");
+    assert!(line.contains("Do not ask any question"), "{line}");
+}
+
+#[test]
+fn an_intro_style_invites_one_gentle_question() {
+    let prompt = reply_system_prompt(&context(ReplyPhase::Intro, &[], &[]));
+    let line = last_line(&prompt);
+    assert!(
+        line.contains("Open the story of the pet with one gentle question."),
+        "{line}"
+    );
+    assert!(!line.contains("Do not ask"), "{line}");
 }
 
 #[test]
@@ -147,12 +203,12 @@ fn only_intro_and_retry_may_add_a_short_example() {
 }
 
 #[test]
-fn without_knowledge_or_previous_the_prompt_ends_with_the_phase_guidance_in_english() {
+fn without_knowledge_or_previous_the_phase_guidance_comes_just_before_the_style_line_in_english() {
     let mut ctx = context(ReplyPhase::Closing, &[], &[]);
     ctx.language = ChatLanguage::En;
     let prompt = reply_system_prompt(&ctx);
     let lines: Vec<&str> = prompt.lines().collect();
-    assert_eq!(lines.len(), 8);
+    assert_eq!(lines.len(), 9);
     assert_eq!(
         lines[1],
         "The pet's name is \"보리\". Respond ONLY in English."
@@ -161,6 +217,7 @@ fn without_knowledge_or_previous_the_prompt_ends_with_the_phase_guidance_in_engl
         lines[7],
         "Current phase guidance: Acknowledge what they shared today and close warmly. Do not ask a new question."
     );
+    assert_eq!(lines[8], ctx.turn_style.instruction());
 }
 
 #[test]
@@ -227,9 +284,11 @@ fn a_previous_session_without_summary_or_tail_keeps_only_the_frame() {
         recent_history: &[],
     });
     let prompt = reply_system_prompt(&ctx);
-    assert!(prompt.ends_with(
-        "Context from the previous conversation (for continuity — never quote it verbatim):\nGently acknowledge what was shared last time before asking your reopening question."
-    ));
+    let expected = format!(
+        "Context from the previous conversation (for continuity — never quote it verbatim):\nGently acknowledge what was shared last time before asking your reopening question.\n{}",
+        ctx.turn_style.instruction()
+    );
+    assert!(prompt.ends_with(&expected), "{prompt}");
 }
 
 #[test]

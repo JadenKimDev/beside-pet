@@ -1,6 +1,6 @@
 // 한 턴의 순서(ADR-0005, ADR-0028): 안전 확인 → 받기와 저장 → 과제 전이 → 지식 검색 → 발화 → 턴 분석 → 저장. 깊이 게이트가 응답의 진행률에 닿는다.
 
-use super::doubles::{Call, DUNNO, ENGAGED, Harness, SESSION_ID, reply_text};
+use super::doubles::{Call, DUNNO, ENGAGED, Harness, SESSION_ID, ScriptedModel, reply_text};
 use crate::llm::PromptRole;
 use crate::support::rules::Task;
 use crate::support::{MessageRole, ReplyPhase, SupportService};
@@ -121,4 +121,57 @@ async fn 클로징에_닿은_턴은_답을_쓴_뒤_세션을_닫는다() {
         .await
         .unwrap();
     assert!(state.closed && state.report_available);
+}
+
+/// 마지막 발화 요청의 시스템 프롬프트 끝 줄(이번 턴의 화법).
+fn style_line(h: &Harness) -> String {
+    let system = h.model.last_reply_request().system.unwrap();
+    system.lines().last().unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn 발화의_시스템_프롬프트는_이번_턴의_화법_한_줄로_끝난다() {
+    let h = Harness::with_model(ScriptedModel::answering(
+        "That river sounds like it mattered.",
+    ));
+    h.onboard().await;
+
+    h.say(ENGAGED).await;
+
+    let line = style_line(&h);
+    assert!(line.starts_with("For this reply:"), "{line}");
+    assert!(
+        !line.contains("Do not ask"),
+        "nothing asked to stop: {line}"
+    );
+}
+
+#[tokio::test]
+async fn 질문을_그만하라는_말_다음_턴에는_질문_금지_줄이_실린다() {
+    let h = Harness::with_model(ScriptedModel::answering(
+        "That river sounds like it mattered.",
+    ));
+    h.onboard().await;
+    h.say(ENGAGED).await;
+
+    h.say("Please stop asking me questions about him.").await;
+
+    let line = style_line(&h);
+    assert!(line.starts_with("For this reply:"), "{line}");
+    assert!(line.contains("Do not ask any question"), "{line}");
+}
+
+#[tokio::test]
+async fn 질문_좀_그만해요_다음_턴에도_질문_금지_줄이_실린다() {
+    let h = Harness::with_model(ScriptedModel::answering(
+        "That river sounds like it mattered.",
+    ));
+    h.onboard().await;
+    h.say(ENGAGED).await;
+
+    h.say("질문 좀 그만해요").await;
+
+    let line = style_line(&h);
+    assert!(line.starts_with("For this reply:"), "{line}");
+    assert!(line.contains("Do not ask any question"), "{line}");
 }

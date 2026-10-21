@@ -17,10 +17,11 @@ use crate::support::knowledge::{KNOWLEDGE_LIMIT, KnowledgeChunk};
 use crate::support::prompt::{
     PreviousSession, REPLY_PROMPT_VERSION, ReplyContext, reply_messages, reply_system_prompt,
 };
-use crate::support::rules::SupportLevel;
+use crate::support::rules::{SupportLevel, TurnStyle};
 use crate::support::session::{Message, Session, TurnStep};
 use crate::support::{
-    KnowledgeRefResponse, ReplyPhase, SessionSummaryResponse, StreamEvent, TurnResponse,
+    KnowledgeRefResponse, MessageRole, ReplyPhase, SessionSummaryResponse, StreamEvent,
+    TurnResponse,
 };
 
 /// 발화 한 번의 출력 상한(TS 의 `MAX_TOKENS`).
@@ -145,6 +146,7 @@ fn reply_request(
     previous: Option<&Previous>,
 ) -> GenerationRequest {
     let profile = session.grief_profile();
+    let turn_style = turn_style(phase, session.history());
     let context = ReplyContext {
         phase,
         pet_name: profile.display_pet_name(),
@@ -155,6 +157,7 @@ fn reply_request(
             summary: previous.summary.as_ref(),
             recent_history: &previous.recent_history,
         }),
+        turn_style: &turn_style,
     };
     GenerationRequest {
         system: Some(reply_system_prompt(&context)),
@@ -166,6 +169,22 @@ fn reply_request(
             session_id: Some(session.id().to_owned()),
         },
     }
+}
+
+/// 이 세션의 기록(재개 인사의 직전 세션은 넣지 않는다)을 동반자 답과 사용자 말로 갈라 이번 턴의 화법을 정한다.
+fn turn_style(phase: ReplyPhase, history: &[Message]) -> TurnStyle {
+    let said_by = |role: MessageRole| -> Vec<&str> {
+        history
+            .iter()
+            .filter(|message| message.role == role)
+            .map(|message| message.text.as_str())
+            .collect()
+    };
+    TurnStyle::from_history(
+        phase,
+        &said_by(MessageRole::Assistant),
+        &said_by(MessageRole::User),
+    )
 }
 
 /// 턴 분석에 남기는 지식의 출처와 꼬리표(본문은 남기지 않는다).

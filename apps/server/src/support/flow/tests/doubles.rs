@@ -86,6 +86,8 @@ pub struct ScriptedModel {
     fault: Mutex<Option<ReplyFault>>,
     stream_fails: bool,
     report_text: &'static str,
+    /// 동기 발화의 답. 없으면 `reply_text()`(질문으로 끝난다).
+    statement: Option<&'static str>,
     calls: Mutex<Vec<Call>>,
     /// 받은 요청의 호출 맥락(부른 순서).
     contexts: Mutex<Vec<CallContext>>,
@@ -103,6 +105,7 @@ impl ScriptedModel {
             fault: Mutex::new(None),
             stream_fails: false,
             report_text: REPORT_TEXT,
+            statement: None,
             calls: Mutex::new(Vec::new()),
             contexts: Mutex::new(Vec::new()),
         }
@@ -120,6 +123,14 @@ impl ScriptedModel {
     pub fn report_without_tags() -> ScriptedModel {
         ScriptedModel {
             report_text: REPORT_TEXT_WITHOUT_TAGS,
+            ..ScriptedModel::new()
+        }
+    }
+
+    /// 동기 발화가 질문으로 끝나지 않는 이 답을 낸다.
+    pub fn answering(statement: &'static str) -> ScriptedModel {
+        ScriptedModel {
+            statement: Some(statement),
             ..ScriptedModel::new()
         }
     }
@@ -221,7 +232,8 @@ impl TextModel for ScriptedModel {
             return Box::pin(future::pending());
         }
         // 앞뒤 공백은 흐름이 걷는다.
-        Box::pin(async { Ok(format!("  {}\n", reply_text())) })
+        let text = self.statement.map_or_else(reply_text, str::to_owned);
+        Box::pin(async move { Ok(format!("  {text}\n")) })
     }
 
     fn stream(&self, request: GenerationRequest) -> TextStream {

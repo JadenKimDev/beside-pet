@@ -3,6 +3,7 @@
 //! HTTP 겉(경로, 검증, SSE 프레임)과 SQL 은 맡지 않는다.
 
 mod access;
+mod active;
 mod adapters;
 mod deadline;
 mod orchestrator;

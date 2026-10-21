@@ -9,7 +9,9 @@
       "id": "S1",
       "title": "마이그레이션: `turns` 테이블, `messages.turn_id`",
       "scope": [
-        "apps/server/migrations/"
+        "apps/server/migrations/",
+        "apps/server/tests/schema/",
+        "apps/server/src/shared/db/tests.rs"
       ],
       "depends_on": [],
       "verify": [
@@ -17,10 +19,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-21T09:04:44.069Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -30,21 +32,25 @@
       "title": "세션: 메시지 받기와 전이 적용을 나눈다, 턴 목록과 상태, 스냅샷에 턴, 첫 인사도 턴",
       "scope": [
         "apps/server/src/support/session.rs",
-        "apps/server/src/support/session/"
+        "apps/server/src/support/session/",
+        "apps/server/src/support/store/rows.rs",
+        "apps/server/src/support/store/tests.rs",
+        "apps/server/src/support/prompt/",
+        "apps/server/src/support/flow/access.rs"
       ],
       "depends_on": [],
       "verify": [
         "pnpm test:stack"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
+      "red_at": "2026-10-21T09:08:48.398Z",
+      "status": "doing",
       "passes": false,
-      "retries": 0,
-      "started_at": null,
+      "retries": 2,
+      "started_at": "2026-10-21T09:04:51.573Z",
       "finished_at": null,
       "active_ms": null,
-      "verify_ms": null
+      "verify_ms": 5143
     },
     {
       "id": "S3",
@@ -107,18 +113,20 @@
         "apps/web/lib/api/",
         "apps/web/features/session/",
         "apps/web/components/chat/",
-        "apps/web/i18n/"
+        "apps/web/i18n/",
+        "apps/web/lib/data/",
+        "apps/web/lib/http/"
       ],
       "depends_on": [],
       "verify": [
         "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
+      "red_at": "2026-10-21T09:08:22.461Z",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-21T09:04:52.056Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -135,13 +143,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-21T09:04:52.499Z",
+      "finished_at": "2026-10-21T09:07:28.556Z",
+      "active_ms": 156057,
+      "verify_ms": 1798
     },
     {
       "id": "S7",

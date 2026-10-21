@@ -256,48 +256,6 @@ export interface Messages {
     revisit: string;
     toList: string;
   };
-  admin: {
-    title: string;
-    signedInAs: (username: string) => string;
-    empty: string;
-    columnUsername: string;
-    columnCompany: string;
-    columnStatus: string;
-    columnExpiry: string;
-    columnLastLogin: string;
-    columnActions: string;
-    statusPending: string;
-    statusActive: string;
-    statusRevoked: string;
-    statusDeleted: string;
-    statusExpired: string;
-    approve: string;
-    revoke: string;
-    reactivate: string;
-    delete: string;
-    setExpiry: string;
-    clearExpiry: string;
-    formUsername: string;
-    formPassword: string;
-    formCompany: string;
-    formExpiry: string;
-    formSubmit: string;
-    subtitle: string;
-    search: string;
-    filterAll: string;
-    badge: string;
-    filterLabel: string;
-    countsLabel: string;
-    loading: string;
-    noMatch: string;
-    addTitle: string;
-    cancel: string;
-    confirmDeleteTitle: (username: string) => string;
-    confirmDeleteBody: string;
-    confirmRevokeTitle: (username: string) => string;
-    confirmRevokeBody: string;
-    noExpiry: string;
-  };
   /** Fixed helpline copy shared by the help page, crisis card and footer (ADR-0004). */
   safety: {
     title: string;

@@ -2,9 +2,9 @@
 
 /**
  * Root — the public landing and sign-in gate.
- * Checks the session (/me) once on entry, then routes by role:
- *   admin  → /admin (account management)
- *   viewer → /sessions (list; redirects first-timers to /onboarding)
+ * Checks the session (/me) once on entry, then sends every signed-in role to
+ * /sessions (list; redirects first-timers to /onboarding). Admins are product
+ * users in this app too; account management lives in the separate backoffice app.
  * Signed-out visitors see the hero and the auth card. While the check runs the
  * hero is already drawn and only the card shows a skeleton (no empty first paint).
  */
@@ -15,10 +15,7 @@ import { AuthCard } from '@/features/auth/components/AuthCard';
 import { LandingHero } from '@/features/landing/components/LandingHero';
 import { LandingIntro } from '@/features/landing/components/LandingIntro';
 
-const HOME_FOR_ROLE: Record<string, string> = {
-  admin: '/admin',
-  viewer: '/sessions',
-};
+const HOME = '/sessions';
 
 export default function HomePage() {
   const router = useRouter();
@@ -29,10 +26,10 @@ export default function HomePage() {
     void init();
   }, [init]);
 
-  // Once signed in, route by role.
+  // Once signed in, go to the list (same for every role).
   useEffect(() => {
     if (principal) {
-      router.replace(HOME_FOR_ROLE[principal.role] ?? '/onboarding');
+      router.replace(HOME);
     }
   }, [principal, router]);
 

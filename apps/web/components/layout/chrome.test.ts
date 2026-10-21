@@ -29,9 +29,7 @@ describe('chromeFor', () => {
     expect(chromeFor('/help/').variant).toBe('public');
   });
 
-  it('관리자 화면만 도움 알약과 위기 띠를 끈다. 그 밖과 모르는 경로는 켠다', () => {
-    expect(chromeFor('/admin').crisis).toBe(false);
-    expect(chromeFor('/admin/accounts').crisis).toBe(false);
+  it('도움 알약과 위기 띠는 모든 경로와 모르는 경로에서 켠다', () => {
     expect(chromeFor('/session').crisis).toBe(true);
     expect(chromeFor('/sessions').crisis).toBe(true);
     expect(chromeFor('/help').crisis).toBe(true);

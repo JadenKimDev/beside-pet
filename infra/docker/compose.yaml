@@ -2,7 +2,7 @@
 #   production: docker compose -f infra/docker/compose.yaml -p beside-production --profile full up -d --build
 #   sandbox:    DB_PORT=5433 docker compose -f infra/docker/compose.yaml -p beside-sandbox up -d db
 # name: 을 고정하지 않는다. 프로젝트 이름마다 볼륨(<프로젝트>_dbdata)과 컨테이너가 따로 생긴다.
-# 호스트 포트는 루프백(127.0.0.1)에만 연다.
+# 호스트 포트는 루프백(127.0.0.1)에만 연다. 서비스: db, api(8000), web(8001), backoffice(8002).
 
 services:
   # PostgreSQL + pgvector.
@@ -62,6 +62,23 @@ services:
       - api
     ports:
       - "127.0.0.1:${WEB_PORT:-8001}:3001"
+
+  # 운영 화면(apps/backoffice/Dockerfile). --profile full 일 때만 뜬다.
+  backoffice:
+    profiles: ["full"]
+    build:
+      context: ../..
+      dockerfile: apps/backoffice/Dockerfile
+      args:
+        # 빌드 때 rewrites 에 굳는 값이다. /v1/... 을 넘기는 것은 브라우저가 아니라 컨테이너 안의 Next 서버라,
+        # compose 네트워크의 서비스 이름 api 와 컨테이너 안의 포트(3000)로 부른다. 컨테이너 안의 127.0.0.1 은
+        # 자기 자신이라 api 에 닿지 않는다. 쿠키의 Host 는 브라우저와 backoffice 사이의 것(127.0.0.1:8002)이라
+        # 이 주소와 무관하다.
+        API_BASE_URL: http://api:3000
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:${BACKOFFICE_PORT:-8002}:3002"
 
 volumes:
   dbdata:

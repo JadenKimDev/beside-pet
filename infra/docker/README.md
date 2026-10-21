@@ -26,7 +26,7 @@ user-data(`infra/` 의 호스트 정의)가 `compose.host.yaml` 과 `host-deploy
 
 | 환경 | 프로젝트 이름 | DB | 서버 | 대화 웹 | 쓰는 곳 |
 |---|---|---|---|---|---|
-| production 미리 돌려 보기 | `beside-production` | 127.0.0.1:5434 (컨테이너) | 127.0.0.1:8000 (컨테이너) | 127.0.0.1:8001 (컨테이너) | 이미지와 compose 를 이 머신에서 확인한다 |
+| production 미리 돌려 보기 | `beside-production` | 127.0.0.1:5434 (컨테이너) | 127.0.0.1:8000 (컨테이너) | 127.0.0.1:8001 (컨테이너) | 이미지와 compose 를 이 머신에서 확인한다. 운영 화면(backoffice)은 127.0.0.1:8002 (컨테이너) |
 | sandbox | `beside-sandbox` | 127.0.0.1:5433 (컨테이너) | 127.0.0.1:3000 (`pnpm dev`) | 127.0.0.1:3001 (`pnpm dev`) | 개발, 테스트, 실측. production DB 를 본문을 지워 복사한 것 |
 
 ### 서비스
@@ -34,6 +34,7 @@ user-data(`infra/` 의 호스트 정의)가 `compose.host.yaml` 과 `host-deploy
 - `db`: `pgvector/pgvector:pg16`. 사용자, 비밀번호, DB 이름은 `beside` / `beside` / `besidepet`.
 - `api`: `apps/server/Dockerfile`, 프로필 `full`. 컨테이너 안 3000.
 - `web`: `apps/web/Dockerfile`, 프로필 `full`. 컨테이너 안 3001. 빌드 인자 `NEXT_PUBLIC_API_BASE_URL` 은 `http://127.0.0.1:${API_PORT}` 다(EC2 의 이미지와 다르다).
+- `backoffice`: `apps/backoffice/Dockerfile`, 프로필 `full`. 컨테이너 안 3002, 호스트 127.0.0.1:8002. 이 머신에서만 띄우고 EC2 의 `compose.host.yaml` 에는 두지 않는다(ADR-0024). 빌드 인자 `API_BASE_URL` 은 `http://api:3000` 이다(rewrites 를 컨테이너 안의 Next 서버가 부르므로 compose 의 서비스 이름을 쓴다).
 
 ### 포트 변수
 
@@ -42,6 +43,7 @@ user-data(`infra/` 의 호스트 정의)가 `compose.host.yaml` 과 `host-deploy
 | `DB_PORT` | 5434 | `db` (sandbox 는 스크립트가 5433 을 넘긴다) |
 | `API_PORT` | 8000 | `api` |
 | `WEB_PORT` | 8001 | `web` |
+| `BACKOFFICE_PORT` | 8002 | `backoffice` |
 
 5432 는 이 머신에서 다른 프로젝트의 Postgres 가 쓴다.
 

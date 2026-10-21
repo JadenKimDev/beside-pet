@@ -2,7 +2,7 @@
 
 Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원(emotional support) 웹서비스다. 사용자에게 보이는 글에서는 상담, 치료라고 부르지 않는다(ADR-0003). 사용자 본인의 제품이고, 같은 레포에서 실제 제품과 포트폴리오용 구현을 함께 관리한다. 모바일 앱은 접었고 웹으로만 운영한다.
 
-모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, 서버(`apps/server`)는 Rust(axum, sqlx)와 PostgreSQL 이고, TS(NestJS) API 는 2026-10-16 에 지웠다(ADR-0019). AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(backoffice)과 포트폴리오용 구현(`showcase/`)은 앞으로 만든다.
+모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, 서버(`apps/server`)는 Rust(axum, sqlx)와 PostgreSQL 이고, TS(NestJS) API 는 2026-10-16 에 지웠다(ADR-0019). AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(`apps/backoffice`)은 Next.js 이고 이 머신에서만 띄우며 서버의 관리자 API 만 부른다(ADR-0024). 포트폴리오용 구현(`showcase/`)은 앞으로 만든다.
 
 조사 근거는 `docs/research/` 에 있다(로컬 전용, gitignore. 커밋하지 않는다). 제품과 구조의 결정과 그 이유는 `docs/adr/`, 해 봤는데 안 된 일은 `docs/devlog/` 에 적는다(추적 대상, 안내는 `docs/adr/README.md`). 매번 읽지 않고, PRD 를 쓰기 전과 결정이 갈릴 때 `pnpm docs:search` 로 찾아 나온 것만 읽는다.
 
@@ -75,7 +75,7 @@ Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원
 pnpm test           # biome, 전 워크스페이스 typecheck 와 테스트(레포 검사 포함), 그리고 스택의 테스트(test:stack: clippy 와 cargo test)
 pnpm lint           # biome 만
 pnpm db:up          # sandbox PostgreSQL(127.0.0.1:5433)을 띄운다 (db:down, db:status). pnpm sandbox:up 과 같다
-pnpm prod:up        # production 과 같은 compose(DB 5434, 서버 8000, 대화 웹 8001)를 이 머신의 Docker 에 미리 돌려 본다 (prod:down 은 멈추기만 하고 볼륨은 남긴다). apps/server/.env.production 이 필요하다
+pnpm prod:up        # production 과 같은 compose(DB 5434, 서버 8000, 대화 웹 8001, 운영 화면 8002)를 이 머신의 Docker 에 미리 돌려 본다 (prod:down 은 멈추기만 하고 볼륨은 남긴다). apps/server/.env.production 이 필요하다
 pnpm deploy:prod    # 이 Mac 에서 arm64 이미지를 빌드해 ECR 에 올리고 EC2 에 SSM 으로 배포한다 (infra/README.md). 작업 트리가 더러우면 멈춘다
 pnpm sandbox:reset  # 이 머신의 production(prod:up) DB 를 sandbox DB 에 다시 복원하고 본문을 자리 표시자로 바꾼다. 이전 sandbox 데이터는 버린다
 pnpm browser:tab <주소>  # herdr 의 따로 된 탭에 터미널 브라우저를 연다 (herdr 가 있을 때만)
@@ -83,7 +83,7 @@ pnpm chat:eval run --persona <이름>  # QA 계정으로 인물 대본의 대화
 ```
 
 ```bash
-pnpm dev            # Rust 서버(3000)와 대화 웹(3001)을 sandbox 로 띄운다(APP_ENV=sandbox). 서버는 apps/server/.env.sandbox 와 sandbox PostgreSQL 이 필요하다
+pnpm dev            # Rust 서버(3000)와 대화 웹(3001)과 운영 화면(3002)을 sandbox 로 띄운다(APP_ENV=sandbox). 서버는 apps/server/.env.sandbox 와 sandbox PostgreSQL 이 필요하다
 APP_ENV=sandbox dev-tools/scripts/cargo.sh run -p beside-pet-server   # Rust 서버(3000)만. cargo 는 이 머신의 PATH 에 없어 래퍼로 부른다. APP_ENV 와 DATABASE_URL 이 없으면 뜨지 않는다
 ```
 
@@ -119,6 +119,7 @@ herdr 는 선택이다. 없으면 워크트리는 git worktree 로만 만들고,
 |---|---|---|---|
 | `apps/` | TypeScript | 제품 코드. 영역마다 `apps/<영역>/` 하나와 그 영역의 규칙을 담은 `apps/<영역>/CLAUDE.md` | 있음 |
 | `apps/server/` | Rust (axum, sqlx) | 서버. 엔드포인트의 겉은 옛 TS API 의 것을 그대로 가진다(ADR-0015, ADR-0019) | 있음 |
+| `apps/backoffice/` | TypeScript (Next.js) | 운영 화면. 서버의 관리자 API 만 부르고 본문을 보이지 않는다. 구조는 FSD(ADR-0024) | 있음 |
 | `showcase/` | - | 포트폴리오용 구현 | 계획 |
 | `packages/dev-checks/` | TypeScript | 개발 전용 검사. 레포 검사 규칙(큰 파일, 같은 몸체 함수, 범용 타입)의 순수 함수와 단위 테스트 | 있음 |
 | `dev-tools/scripts/` | bash | 워크트리, pane, 브라우저 탭 스크립트 | 있음 |

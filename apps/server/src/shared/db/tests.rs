@@ -101,6 +101,7 @@ async fn 마이그레이션이_초기_스키마를_만든다() {
             "_sqlx_migrations",
             "accounts",
             "conversations_daily",
+        "daily_reply_labels",
             "llm_call_costs",
             "llm_calls",
             "llm_calls_daily",

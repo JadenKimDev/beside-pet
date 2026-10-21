@@ -12,3 +12,6 @@ mod costs;
 
 #[path = "schema/daily.rs"]
 mod daily;
+
+#[path = "schema/reply_labels.rs"]
+mod reply_labels;

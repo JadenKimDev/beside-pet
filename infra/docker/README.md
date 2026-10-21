@@ -16,6 +16,7 @@ user-data(`infra/` 의 호스트 정의)가 `compose.host.yaml` 과 `host-deploy
 
 - 포트: api 8000, web 8001 을 모든 주소에 연다. 보안 그룹이 CloudFront 에서 오는 것만 들인다. db 의 5432 는 호스트에 열지 않는다.
 - 서버 설정: SSM Parameter Store 의 SecureString `/beside-pet/production/server-env` 에 `.env.production` 의 내용을 그대로 둔다(사용자가 넣는다). `host-deploy.sh` 가 배포마다 이것을 `/opt/beside-pet/.env.production`(0600)으로 내려 쓰고, 값은 로그에 찍지 않는다.
+- 허용 출처: `APP_ENV=production` 의 서버는 `ALLOWED_ORIGINS` 가 없거나 비면 기동하지 않는다. 사용자가 SSM 파라미터 `/beside-pet/production/server-env` 에 `ALLOWED_ORIGINS=https://<배포 id>.cloudfront.net`(CloudFront 기본 도메인 하나, `cloudFrontDomain` 출력, 끝 `/` 없이)을 손으로 더한다. 이 줄이 없는 채로 새 이미지를 배포하면 api 가 뜨지 않는다.
 - 쿠키: `COOKIE_SECURE` 를 두지 않아 `APP_ENV=production` 의 기본(Secure)이다. https 는 CloudFront 가 끝낸다. web 이미지는 `NEXT_PUBLIC_API_BASE_URL=` 빈 값(같은 출처 상대 경로)으로 빌드한다.
 - healthcheck: api 이미지는 distroless 라 셸이 없어 healthcheck 를 두지 않는다. web 의 healthcheck 가 자기 화면과 api 의 `/v1/health` 를 함께 보고, `up --wait` 가 그것을 기다린다.
 - 데이터: 볼륨 `beside-production_dbdata`(루트 EBS, DLM 일일 스냅샷).
@@ -49,7 +50,7 @@ user-data(`infra/` 의 호스트 정의)가 `compose.host.yaml` 과 `host-deploy
 
 ### 서버 설정
 
-compose 가 `api` 에 `APP_ENV=production`, `PORT`, `DATABASE_URL`(compose 안의 `db`), `COOKIE_SECURE`(기본 `false`, http 루프백에서 로그인을 유지하려고), `OLLAMA_BASE_URL`(기본 `http://host.docker.internal:11434`)을 준다. 나머지 비밀과 모델 설정(`JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` 등)은 `apps/server/.env.production`(gitignore)에서 받는다. 비밀 값은 compose 파일에 쓰지 않는다.
+compose 가 `api` 에 `APP_ENV=production`, `PORT`, `DATABASE_URL`(compose 안의 `db`), `COOKIE_SECURE`(기본 `false`, http 루프백에서 로그인을 유지하려고), `OLLAMA_BASE_URL`(기본 `http://host.docker.internal:11434`)을 준다. 나머지 비밀과 모델 설정(`JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` 등)은 `apps/server/.env.production`(gitignore)에서 받는다. 비밀 값은 compose 파일에 쓰지 않는다. `APP_ENV=production` 이라 `.env.production` 에 `ALLOWED_ORIGINS` 도 있어야 api 가 뜬다. 이 머신의 대화 웹은 `http://127.0.0.1:${WEB_PORT}`(기본 8001)에서 `http://127.0.0.1:${API_PORT}` 를 부르므로 그 출처(브라우저 주소창에 `localhost` 로 연다면 `http://localhost:8001` 도)를 넣는다.
 
 ### 명령
 

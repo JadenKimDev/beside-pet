@@ -11,14 +11,23 @@ fn exact(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
     move |name| map.get(name).cloned()
 }
 
-/// 주어진 값에 `APP_ENV` 가 없으면 `sandbox` 를 더한 환경.
+/// 주어진 값에 `APP_ENV` 가 없으면 `sandbox` 를 더한 환경. `APP_ENV=production` 인데 `ALLOWED_ORIGINS` 가 없으면
+/// 허용 출처 하나를 더한다(production 의 필수 값이라, 다른 칸을 보는 테스트가 그 칸에 걸리지 않게 한다).
+/// `ALLOWED_ORIGINS` 자체를 보는 테스트는 `exact` 를 쓴다.
 fn lookup(pairs: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> + use<> {
     let mut pairs = pairs.to_vec();
     if !pairs.iter().any(|(k, _)| *k == "APP_ENV") {
         pairs.push(("APP_ENV", "sandbox"));
     }
+    let production = pairs.iter().any(|(k, v)| *k == "APP_ENV" && *v == "production");
+    if production && !pairs.iter().any(|(k, _)| *k == "ALLOWED_ORIGINS") {
+        pairs.push(("ALLOWED_ORIGINS", ORIGIN));
+    }
     exact(&pairs)
 }
+
+/// 테스트의 허용 출처(지어낸 값).
+const ORIGIN: &str = "https://app.example";
 
 #[test]
 fn database_url_가_없으면_이유를_적고_실패한다() {
@@ -131,6 +140,7 @@ fn app_env_는_production_과_sandbox_를_받는다() {
         DB,
         ("APP_ENV", "production"),
         ("JWT_SECRET", "fixture-secret"),
+        ("ALLOWED_ORIGINS", ORIGIN),
     ]))
     .unwrap();
     assert_eq!(prod.app_env, AppEnv::Production);
@@ -450,4 +460,72 @@ fn cookie_secure_가_true_false_가_아니면_이름만_적고_실패한다() {
     let text = err.to_string();
     assert!(text.contains("COOKIE_SECURE"), "{text}");
     assert!(!text.contains("yes-fixture"), "{text}");
+}
+
+#[test]
+fn production_에서_allowed_origins_가_없거나_비면_기동하지_않는다() {
+    for origins in [None, Some(""), Some("  "), Some(" , ,")] {
+        let mut pairs = vec![
+            DB,
+            ("APP_ENV", "production"),
+            ("JWT_SECRET", "fixture-secret"),
+        ];
+        if let Some(origins) = origins {
+            pairs.push(("ALLOWED_ORIGINS", origins));
+        }
+        let err = Config::from_lookup(exact(&pairs)).unwrap_err();
+        assert!(err.to_string().contains("ALLOWED_ORIGINS"), "{origins:?}: {err}");
+        assert!(!err.to_string().contains("fixture-secret"), "{err}");
+    }
+}
+
+#[test]
+fn sandbox_에서_allowed_origins_가_없으면_목록이_없다() {
+    for origins in [None, Some(""), Some("  ")] {
+        let mut pairs = vec![DB, ("APP_ENV", "sandbox")];
+        if let Some(origins) = origins {
+            pairs.push(("ALLOWED_ORIGINS", origins));
+        }
+        let config = Config::from_lookup(exact(&pairs)).unwrap();
+        assert_eq!(config.allowed_origins, None, "{origins:?}");
+    }
+}
+
+#[test]
+fn allowed_origins_는_쉼표로_나누고_공백과_빈_칸을_걷는다() {
+    for env in ["production", "sandbox"] {
+        let config = Config::from_lookup(exact(&[
+            DB,
+            ("APP_ENV", env),
+            ("JWT_SECRET", "fixture-secret"),
+            (
+                "ALLOWED_ORIGINS",
+                " https://app.example ,http://localhost:3001,, https://b.example/ ",
+            ),
+        ]))
+        .unwrap();
+        assert_eq!(
+            config.allowed_origins.as_deref(),
+            Some(
+                &[
+                    "https://app.example".to_owned(),
+                    "http://localhost:3001".to_owned(),
+                    "https://b.example".to_owned(),
+                ][..]
+            ),
+            "{env}"
+        );
+    }
+}
+
+#[test]
+fn 헤더에_담을_수_없는_출처는_이름만_적고_기동하지_않는다() {
+    let err = Config::from_lookup(exact(&[
+        DB,
+        ("APP_ENV", "sandbox"),
+        ("ALLOWED_ORIGINS", "https://app.example,https://secret\nfixture"),
+    ]))
+    .unwrap_err();
+    assert!(err.to_string().contains("ALLOWED_ORIGINS"), "{err}");
+    assert!(!err.to_string().contains("secret"), "{err}");
 }

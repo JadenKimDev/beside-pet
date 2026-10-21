@@ -3,7 +3,7 @@
 use axum::body::Bytes;
 use axum::extract::{FromRequest, Request};
 use axum::http::header::CONTENT_TYPE;
-use axum::http::{Method, Uri};
+use axum::http::{HeaderValue, Method, Uri};
 use serde_json::{Map, Value};
 use tower_http::cors::{AllowHeaders, AllowMethods, AllowOrigin, CorsLayer};
 
@@ -43,10 +43,21 @@ impl<S: Send + Sync> FromRequest<S> for JsonBody {
     }
 }
 
-/// 요청의 origin 을 그대로 돌려주고 쿠키를 허용한다(TS 의 `origin: true, credentials: true`).
-pub fn cors_layer() -> CorsLayer {
+/// 쿠키를 실은 브라우저 요청을 `allowed` 의 출처에만 허용한다. 목록 안 출처는 그 출처를 그대로 돌려주고
+/// `Allow-Credentials: true` 이며, 목록 밖 출처에는 `Access-Control-Allow-Origin` 을 내지 않는다.
+/// `allowed` 가 `None`(sandbox 에서 `ALLOWED_ORIGINS` 가 없을 때)이면 요청의 출처를 그대로 돌려준다.
+/// 목록의 칸은 `Config` 가 헤더 값으로 쓸 수 있는지 이미 확인했다.
+pub fn cors_layer(allowed: Option<&[String]>) -> CorsLayer {
+    let origin = match allowed {
+        Some(list) => AllowOrigin::list(
+            list.iter()
+                .filter_map(|v| HeaderValue::from_str(v).ok())
+                .collect::<Vec<_>>(),
+        ),
+        None => AllowOrigin::mirror_request(),
+    };
     CorsLayer::new()
-        .allow_origin(AllowOrigin::mirror_request())
+        .allow_origin(origin)
         .allow_credentials(true)
         .allow_methods(AllowMethods::mirror_request())
         .allow_headers(AllowHeaders::mirror_request())

@@ -166,6 +166,7 @@ impl FromRef<AppState> for SharedMetricsSource {
 
 /// 모든 경로는 `/v1` 아래다. 없는 경로와 메서드가 맞지 않는 경로는 Nest(Express)와 같이 `404 Cannot <METHOD> <path>` 다.
 pub fn router(state: AppState) -> Router {
+    let cors = cors_layer(state.config.allowed_origins.as_deref());
     Router::new()
         .route("/v1/health", get(health))
         .merge(safety::router())
@@ -174,7 +175,7 @@ pub fn router(state: AppState) -> Router {
         .merge(metrics::router())
         .fallback(route_not_found)
         .method_not_allowed_fallback(route_not_found)
-        .layer(cors_layer())
+        .layer(cors)
         .with_state(state)
 }
 

@@ -9,9 +9,15 @@ use super::{AppState, Services, router};
 use crate::shared::Config;
 
 fn state() -> AppState {
+    state_with_origins(None)
+}
+
+/// sandbox 설정의 상태. `origins` 가 있으면 `ALLOWED_ORIGINS` 로 준다.
+fn state_with_origins(origins: Option<&'static str>) -> AppState {
     let config = Config::from_lookup(|name| match name {
         "DATABASE_URL" => Some("postgres://u:p@127.0.0.1:1/none".to_owned()),
         "APP_ENV" => Some("sandbox".to_owned()),
+        "ALLOWED_ORIGINS" => origins.map(str::to_owned),
         _ => None,
     })
     .unwrap();
@@ -102,4 +108,33 @@ async fn 계측_경로는_조립되어_인증을_묻는다() {
         assert_eq!(status, StatusCode::UNAUTHORIZED, "{path}");
         assert_eq!(body["message"], "Not authenticated");
     }
+}
+
+#[tokio::test]
+async fn 라우터는_설정의_허용_출처로_cors_를_건다() {
+    let health = |origin: &str| {
+        Request::get("/v1/health")
+            .header("origin", origin)
+            .body(Body::empty())
+            .unwrap()
+    };
+    let allowed = router(state_with_origins(Some("http://localhost:3001")));
+    let inside = allowed
+        .clone()
+        .oneshot(health("http://localhost:3001"))
+        .await
+        .unwrap();
+    assert_eq!(
+        inside.headers()["access-control-allow-origin"],
+        "http://localhost:3001"
+    );
+    assert_eq!(inside.headers()["access-control-allow-credentials"], "true");
+    let outside = allowed.oneshot(health("https://evil.example")).await.unwrap();
+    assert!(outside.headers().get("access-control-allow-origin").is_none());
+
+    let mirror = router(state()).oneshot(health("https://evil.example")).await.unwrap();
+    assert_eq!(
+        mirror.headers()["access-control-allow-origin"],
+        "https://evil.example"
+    );
 }

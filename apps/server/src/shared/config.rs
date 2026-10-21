@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// 이 서버가 읽는 환경 변수의 이름. TS API(`apps/api`)와 같은 이름이고, 환경을 고르는 `APP_ENV` 만 예외다
 /// (TS API 의 `NODE_ENV` 는 더 읽지 않는다). 모델 쪽 이름의 해석은 `llm` 이, `JWT_*` 는 identity 가 맡는다.
-pub const ENV_NAMES: [&str; 14] = [
+pub const ENV_NAMES: [&str; 15] = [
     "PORT",
     "DATABASE_URL",
     "DATABASE_SSL",
@@ -21,6 +21,7 @@ pub const ENV_NAMES: [&str; 14] = [
     "OLLAMA_THINK",
     "APP_ENV",
     "COOKIE_SECURE",
+    "ALLOWED_ORIGINS",
 ];
 
 const DEFAULT_PORT: u16 = 3000;
@@ -33,7 +34,7 @@ const KNOWN_PROVIDERS: [&str; 2] = ["anthropic", "ollama"];
 /// 서버가 도는 환경. `APP_ENV` 가 고르고, 없거나 모르는 값이면 기동하지 않는다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AppEnv {
-    /// 실제로 쓰는 환경. `JWT_SECRET` 이 필수이고 모든 주소에 연다.
+    /// 실제로 쓰는 환경. `JWT_SECRET` 과 `ALLOWED_ORIGINS` 가 필수이고 모든 주소에 연다.
     Production,
     /// 개발, 테스트, 실측 환경. 두 루프백에만 연다.
     Sandbox,
@@ -80,6 +81,9 @@ pub struct Config {
     pub jwt_ttl: Option<String>,
     /// `COOKIE_SECURE` 의 값. 없으면 `None` 이고 `APP_ENV` 가 정한다(`secure_cookies`).
     pub cookie_secure: Option<bool>,
+    /// 자격증명(쿠키)을 실은 브라우저 요청을 허용하는 출처들(`ALLOWED_ORIGINS`). production 에서는 필수이고 비지 않는다.
+    /// sandbox 에서 없으면 `None` 이고, CORS 는 요청의 출처를 그대로 돌려준다(개발 편의).
+    pub allowed_origins: Option<Vec<String>>,
 }
 
 /// 모델 쪽 환경 변수의 값(앞뒤 공백을 걷고, 빈 값은 없는 것으로 본다). 기본값과 해석은 `llm` 의 설정이 맡는다.
@@ -118,6 +122,7 @@ impl fmt::Debug for Config {
             .field("jwt_secret", &"<hidden>")
             .field("jwt_ttl", &self.jwt_ttl)
             .field("cookie_secure", &self.cookie_secure)
+            .field("allowed_origins", &self.allowed_origins)
             .finish()
     }
 }
@@ -206,6 +211,16 @@ impl Config {
                 ));
             }
         };
+        let allowed_origins = match parse_origins(lookup("ALLOWED_ORIGINS"))? {
+            None if production => {
+                return Err(ConfigError(
+                    "ALLOWED_ORIGINS is not set — required when APP_ENV=production \
+                     (comma-separated origins, e.g. https://<distribution id>.cloudfront.net)"
+                        .to_owned(),
+                ));
+            }
+            origins => origins,
+        };
         Ok(Config {
             port,
             database_url,
@@ -215,6 +230,7 @@ impl Config {
             jwt_secret,
             jwt_ttl,
             cookie_secure,
+            allowed_origins,
         })
     }
 
@@ -259,6 +275,29 @@ impl Config {
     pub fn secure_cookies(&self) -> bool {
         self.cookie_secure.unwrap_or_else(|| self.is_production())
     }
+}
+
+/// `ALLOWED_ORIGINS` 를 쉼표로 나눈다. 칸마다 앞뒤 공백과 끝의 `/` 를 걷고 빈 칸은 버린다(브라우저의 `Origin` 에는
+/// 끝 `/` 가 없다). 남는 칸이 없으면 `None`. 헤더 값으로 쓸 수 없는 칸이 있으면 이름만 적고 실패한다.
+fn parse_origins(raw: Option<String>) -> Result<Option<Vec<String>>, ConfigError> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    let origins: Vec<String> = raw
+        .split(',')
+        .map(|v| v.trim().trim_end_matches('/').to_owned())
+        .filter(|v| !v.is_empty())
+        .collect();
+    if origins
+        .iter()
+        .any(|v| axum::http::HeaderValue::from_str(v).is_err())
+    {
+        return Err(ConfigError(
+            "ALLOWED_ORIGINS must be comma-separated origins (e.g. https://app.example)"
+                .to_owned(),
+        ));
+    }
+    Ok((!origins.is_empty()).then_some(origins))
 }
 
 /// 앞뒤 공백을 걷고, 빈 값은 없는 것으로 본다.

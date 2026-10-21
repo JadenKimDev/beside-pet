@@ -45,15 +45,6 @@ pub struct RiskVerdict {
     pub detector: RiskDetector,
 }
 
-/// 메시지 하나가 위기인가. 수준만 본다(`assess_risk_verdict` 의 `level`).
-pub async fn assess_risk(
-    text: &str,
-    session_id: Option<&str>,
-    model: &(dyn TextModel + Send + Sync),
-) -> RiskLevel {
-    assess_risk_verdict(text, session_id, model).await.level
-}
-
 /// 메시지 하나가 위기인가와 누가 잡았는가. 키워드와 모델 중 하나라도 위기면 위기다(안전은 오탐 쪽으로 기운다).
 /// `session_id` 는 모델 호출의 기록에만 쓴다.
 pub async fn assess_risk_verdict(

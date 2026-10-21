@@ -27,7 +27,7 @@ pub struct Services {
     pub support: SharedSupportService,
     /// `/v1/auth/me` 의 `hasProfile`: identity 가 묻고 대화 기능(`support::session_presence`)이 답한다.
     pub session_presence: SharedSessionPresence,
-    /// 대화 기능(`support::SupportFlow`)이 발화, 위기 판정(`safety::assess_risk`), 리포트에 쓴다.
+    /// 대화 기능(`support::SupportFlow`)이 발화, 위기 판정(`safety::assess_risk_verdict`), 리포트에 쓴다.
     pub text_model: SharedTextModel,
     /// 계측 API 가 기간의 집계를 읽는 저장.
     pub metrics: SharedMetricsSource,

@@ -66,6 +66,7 @@ pub(super) fn parse_phase(text: &str) -> Result<ReplyPhase, sqlx::Error> {
 pub(super) fn detector_text(detector: RiskDetector) -> &'static str {
     match detector {
         RiskDetector::Keyword => "keyword",
+        RiskDetector::Model => "model",
         RiskDetector::None => "none",
     }
 }
@@ -73,6 +74,7 @@ pub(super) fn detector_text(detector: RiskDetector) -> &'static str {
 pub(super) fn parse_detector(text: &str) -> Result<RiskDetector, sqlx::Error> {
     match text {
         "keyword" => Ok(RiskDetector::Keyword),
+        "model" => Ok(RiskDetector::Model),
         "none" => Ok(RiskDetector::None),
         _ => Err(unknown("turn_analyses.risk_detected_by", text)),
     }

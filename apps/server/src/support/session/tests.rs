@@ -7,10 +7,12 @@ use chrono::{DateTime, Duration, TimeZone, Utc};
 
 use super::{Message, Session, SessionError, SessionSnapshot, TurnStep};
 use crate::identity::ChatLanguage;
-use crate::support::rules::{GriefProfile, MindReport, REPORT_SECTION_ORDER, SupportLevel, Task};
+use crate::support::rules::{
+    GriefProfile, MindReport, REPORT_SECTION_ORDER, RiskAssessment, SupportLevel, Task,
+};
 use crate::support::{
     GriefPath, KnowledgeRefResponse, MessageRole, MindReportSectionResponse, ReplyPhase,
-    SupervisionQuality,
+    RiskDetector, SupervisionQuality,
 };
 
 const ENGAGED: &str = "She loved napping in the sun by the window.";
@@ -55,10 +57,38 @@ fn session() -> Session {
     session_at(Task::FIRST)
 }
 
-fn safe_turn(session: &mut Session, text: &str, minute: i64) -> TurnStep {
+fn id(n: u32) -> String {
+    format!("00000000-0000-4000-8000-{n:012}")
+}
+
+/// 아무도 위기로 잡지 않은 판정.
+fn safe() -> RiskAssessment {
+    RiskAssessment {
+        level: SupportLevel::Safe,
+        detected_by: RiskDetector::None,
+    }
+}
+
+/// 받고 이 판정과 답으로 끝낸 턴. 받기와 끝내기는 같은 시각이다.
+fn answered(
+    session: &mut Session,
+    n: u32,
+    text: &str,
+    risk: RiskAssessment,
+    reply: &str,
+    knowledge: Vec<KnowledgeRefResponse>,
+    minute: i64,
+) -> TurnStep {
+    session.accept_user_turn(id(n), text, at(minute)).unwrap();
     session
-        .apply_user_turn(text, SupportLevel::Safe, at(minute))
+        .complete_turn(&id(n), risk, reply, knowledge, at(minute))
         .unwrap()
+}
+
+/// 받고 바로 안전한 답까지 끝낸 턴. 턴 번호는 분과 같다.
+fn safe_turn(session: &mut Session, text: &str, minute: i64) -> TurnStep {
+    let n = u32::try_from(minute).unwrap();
+    answered(session, n, text, safe(), "A made-up reply.", vec![], minute)
 }
 
 fn report() -> MindReport {
@@ -109,14 +139,14 @@ fn 사용자_턴은_그때의_과제로_전사에_적힌다() {
     let mut session = session();
     let step = safe_turn(&mut session, ENGAGED, 1);
     assert_eq!(
-        session.history(),
-        &[Message {
+        session.history()[0],
+        Message {
             role: MessageRole::User,
             text: ENGAGED.to_owned(),
             task: Task::FIRST,
             at: at(1),
-            turn_id: None,
-        }]
+            turn_id: Some(id(1)),
+        }
     );
     assert_eq!(
         step,
@@ -125,7 +155,7 @@ fn 사용자_턴은_그때의_과제로_전사에_적힌다() {
             to: Task::FIRST,
             advanced: false,
             phase: ReplyPhase::Deepen,
-            level: SupportLevel::Safe,
+            risk: safe(),
         }
     );
     assert_eq!(session.retry_count, 1);
@@ -145,8 +175,10 @@ fn 세_턴_진솔하면_다음_과제로_넘어가고_재시도가_0이_된다()
     assert_eq!(session.task(), task(2));
     assert_eq!(session.progress(), 0.25);
     assert_eq!(session.retry_count, 0);
+    let third_answer = &session.history()[4];
+    assert_eq!(third_answer.role, MessageRole::User);
     assert_eq!(
-        session.history()[2].task,
+        third_answer.task,
         task(1),
         "넘어간 턴의 답은 그 전 과제로 적힌다"
     );
@@ -172,28 +204,17 @@ fn 비몰입_2연속이면_부드럽게_넘어간다() {
 }
 
 #[test]
-fn 클로징에_닿으면_답_뒤에_닫는다() {
-    let mut session = session_at(task(4));
-    safe_turn(&mut session, ENGAGED, 1);
-    safe_turn(&mut session, ENGAGED, 2);
-    let step = safe_turn(&mut session, ENGAGED, 3);
-    assert_eq!(step.to, Task::CLOSING);
-    assert_eq!(step.phase, ReplyPhase::Closing);
-    assert!(step.closes());
-    assert!(!step.is_crisis());
-    assert!(!session.closed(), "닫기는 답을 적은 뒤 부르는 쪽이 한다");
-    session.record_reply("A made-up closing reply.", at(4));
-    session.close();
-    assert!(session.closed());
-    assert_eq!(session.progress(), 1.0);
-}
-
-#[test]
-fn 위기면_과제를_넘기지_않고_바로_닫는다() {
+fn 위기면_과제를_넘기지_않고_바로_닫고_감지_주체를_싣는다() {
     let mut session = session();
     safe_turn(&mut session, ENGAGED, 1);
     let step = session
-        .apply_user_turn("made-up crisis text", SupportLevel::Crisis, at(2))
+        .accept_crisis_turn(
+            id(2),
+            "made-up crisis text",
+            "A fixed crisis reply.",
+            RiskDetector::Model,
+            at(2),
+        )
         .unwrap();
     assert_eq!(
         step,
@@ -202,7 +223,10 @@ fn 위기면_과제를_넘기지_않고_바로_닫는다() {
             to: task(1),
             advanced: false,
             phase: ReplyPhase::Closing,
-            level: SupportLevel::Crisis,
+            risk: RiskAssessment {
+                level: SupportLevel::Crisis,
+                detected_by: RiskDetector::Model,
+            },
         }
     );
     assert!(step.is_crisis());
@@ -214,42 +238,29 @@ fn 위기면_과제를_넘기지_않고_바로_닫는다() {
         session.retry_count, 1,
         "위기 턴은 깊이 게이트를 거치지 않는다"
     );
-    assert_eq!(session.history().len(), 2, "위기 발화도 전사에 남는다");
-}
-
-#[test]
-fn 닫힌_세션의_턴은_오류이고_아무것도_바뀌지_않는다() {
-    let mut session = session();
-    session.close();
-    let before = session.clone();
-    assert_eq!(
-        session.apply_user_turn(ENGAGED, SupportLevel::Safe, at(1)),
-        Err(SessionError::Closed)
-    );
-    assert_eq!(session, before);
+    assert_eq!(session.history().len(), 4, "위기 발화도 전사에 남는다");
+    assert_eq!(session.analyses.last().unwrap().risk, step.risk);
 }
 
 #[test]
 fn 지원_수준은_내려가지_않는다() {
     let mut session = session();
-    session
-        .apply_user_turn(ENGAGED, SupportLevel::Watch, at(1))
-        .unwrap();
+    let watch = RiskAssessment {
+        level: SupportLevel::Watch,
+        detected_by: RiskDetector::Keyword,
+    };
+    answered(
+        &mut session,
+        1,
+        ENGAGED,
+        watch,
+        "A made-up reply.",
+        vec![],
+        1,
+    );
     assert_eq!(session.support_level(), SupportLevel::Watch);
     safe_turn(&mut session, ENGAGED, 2);
     assert_eq!(session.support_level(), SupportLevel::Watch);
-}
-
-#[test]
-fn 답은_지금_과제로_적히고_닫힌_뒤에도_적힌다() {
-    let mut session = at_task_two();
-    session.record_reply("A made-up reply.", at(4));
-    let last = session.history().last().unwrap();
-    assert_eq!(last.role, MessageRole::Assistant);
-    assert_eq!(last.task, task(2));
-    session.close();
-    session.record_reply("A made-up crisis reply.", at(5));
-    assert_eq!(session.history().len(), 5);
 }
 
 #[test]
@@ -260,22 +271,27 @@ fn 턴_분석과_감독_게이트() {
         tags: vec!["task1".to_owned()],
     }];
     // 첫 턴: turn_index 0 은 표본이라 감독이 돈다.
-    let step = safe_turn(&mut session, ENGAGED, 1);
-    session.record_turn(&step, "A reply.", knowledge.clone(), at(2));
+    answered(
+        &mut session,
+        1,
+        ENGAGED,
+        safe(),
+        "A reply.",
+        knowledge.clone(),
+        1,
+    );
     // 둘째 턴: 넘어가지 않았고 안전, turn_index 1 이라 돌지 않는다.
-    let step = safe_turn(&mut session, ENGAGED, 3);
-    session.record_turn(&step, "A reply.", vec![], at(4));
+    answered(&mut session, 2, ENGAGED, safe(), "A reply.", vec![], 3);
     // 셋째 턴: 넘어갔다.
-    let step = safe_turn(&mut session, ENGAGED, 5);
-    session.record_turn(&step, "", vec![], at(6));
+    answered(&mut session, 3, ENGAGED, safe(), "", vec![], 5);
 
     let analyses = session.analyses;
     assert_eq!(analyses.len(), 3);
     let first = &analyses[0];
-    assert_eq!(first.at, at(2));
+    assert_eq!(first.at, at(1));
     assert_eq!(first.task, task(1));
     assert_eq!(first.phase, ReplyPhase::Deepen);
-    assert_eq!(first.risk.level, SupportLevel::Safe);
+    assert_eq!(first.risk, safe());
     assert_eq!(first.transition.from, task(1));
     assert_eq!(first.transition.retry_count, 1);
     assert_eq!(first.knowledge, knowledge);
@@ -299,14 +315,25 @@ fn 턴_분석과_감독_게이트() {
 fn 위기_턴의_분석() {
     let mut session = session();
     safe_turn(&mut session, ENGAGED, 1);
-    let step = session
-        .apply_user_turn("made-up crisis text", SupportLevel::Crisis, at(2))
+    session
+        .accept_crisis_turn(
+            id(2),
+            "made-up crisis text",
+            "A fixed crisis reply.",
+            RiskDetector::Keyword,
+            at(3),
+        )
         .unwrap();
-    session.record_reply("A fixed crisis reply.", at(3));
-    session.record_turn(&step, "A fixed crisis reply.", vec![], at(3));
     let analysis = session.analyses.last().unwrap();
+    assert_eq!(analysis.at, at(3));
     assert_eq!(analysis.phase, ReplyPhase::Closing);
-    assert_eq!(analysis.risk.level, SupportLevel::Crisis);
+    assert_eq!(
+        analysis.risk,
+        RiskAssessment {
+            level: SupportLevel::Crisis,
+            detected_by: RiskDetector::Keyword,
+        }
+    );
     assert_eq!(analysis.transition.from, analysis.transition.to);
     assert!(!analysis.transition.advanced);
     assert!(analysis.knowledge.is_empty());
@@ -361,9 +388,7 @@ fn 리포트는_한_번_붙으면_바뀌지_않는다() {
 #[test]
 fn 스냅샷으로_오가도_같다() {
     let mut session = at_task_two();
-    session.record_reply("A made-up reply.", at(4));
-    let step = safe_turn(&mut session, DUNNO, 5);
-    session.record_turn(&step, "A reply.", vec![], at(6));
+    safe_turn(&mut session, DUNNO, 5);
     session.close();
     session.attach_report(report()).unwrap();
 
@@ -376,8 +401,9 @@ fn 스냅샷으로_오가도_같다() {
     assert_eq!(snapshot.retry_count, 1);
     assert_eq!(snapshot.support_level, SupportLevel::Safe);
     assert!(snapshot.closed);
-    assert_eq!(snapshot.history.len(), 5);
-    assert_eq!(snapshot.analyses.len(), 1);
+    assert_eq!(snapshot.history.len(), 8);
+    assert_eq!(snapshot.analyses.len(), 4);
+    assert_eq!(snapshot.turns.len(), 4);
     assert_eq!(snapshot.report, Some(report()));
 
     let back = Session::rehydrate(snapshot.clone());
@@ -421,16 +447,14 @@ fn 계획은_프로필에서_다시_구하고_시각은_시작_시각이다() {
 fn 요약은_닫힌_세션에만_있고_분석에서_다시_구한다() {
     let mut session = at_task_two();
     assert!(session.summary().is_none());
-    let step = safe_turn(&mut session, ENGAGED, 4);
-    session.record_turn(&step, "A reply.", vec![], at(5));
-    session.record_reply("A reply.", at(5));
+    safe_turn(&mut session, ENGAGED, 5);
     session.close();
     let summary = session.summary().unwrap();
     assert_eq!(summary.at, at(5), "마지막 메시지의 시각");
     assert_eq!(summary.reached_task, 2);
-    assert_eq!(summary.turn_count, 1);
+    assert_eq!(summary.turn_count, 4);
     assert_eq!(summary.highest_support_level, 1);
-    assert_eq!(summary.headline, "Reached task 2 of 4 across 1 turns.");
+    assert_eq!(summary.headline, "Reached task 2 of 4 across 4 turns.");
 
     let mut empty = session_at(task(1));
     empty.close();

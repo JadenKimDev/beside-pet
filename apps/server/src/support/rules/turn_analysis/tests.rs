@@ -1,6 +1,7 @@
 use chrono::{TimeZone, Utc};
 
 use super::{RiskAssessment, TaskTransition, TurnAnalysis};
+use crate::safety::{self, RiskLevel, RiskVerdict};
 use crate::support::rules::{SupportLevel, Task};
 use crate::support::{
     KnowledgeRefResponse, ReplyPhase, RiskAssessmentResponse, RiskDetector, SupervisionQuality,
@@ -12,18 +13,40 @@ fn task(number: u8) -> Task {
 }
 
 #[test]
-fn 위기_판정의_감지자() {
-    assert_eq!(
-        RiskAssessment::of(SupportLevel::Safe).detected_by,
-        RiskDetector::None
-    );
-    assert_eq!(
-        RiskAssessment::of(SupportLevel::Watch).detected_by,
-        RiskDetector::Keyword
-    );
-    let crisis = RiskAssessment::of(SupportLevel::Crisis);
-    assert_eq!(crisis.detected_by, RiskDetector::Keyword);
-    assert_eq!(crisis.level, SupportLevel::Crisis);
+fn 위기_판정은_safety_의_수준과_감지_주체를_그대로_옮긴다() {
+    let cases = [
+        (
+            RiskVerdict {
+                level: RiskLevel::Crisis,
+                detector: safety::RiskDetector::Keyword,
+            },
+            SupportLevel::Crisis,
+            RiskDetector::Keyword,
+        ),
+        (
+            RiskVerdict {
+                level: RiskLevel::Crisis,
+                detector: safety::RiskDetector::Model,
+            },
+            SupportLevel::Crisis,
+            RiskDetector::Model,
+        ),
+        (
+            RiskVerdict {
+                level: RiskLevel::Safe,
+                detector: safety::RiskDetector::None,
+            },
+            SupportLevel::Safe,
+            RiskDetector::None,
+        ),
+    ];
+    for (verdict, level, detected_by) in cases {
+        assert_eq!(
+            RiskAssessment::from(verdict),
+            RiskAssessment { level, detected_by },
+            "{verdict:?}"
+        );
+    }
 }
 
 #[test]
@@ -43,7 +66,10 @@ fn 응답_모양() {
         at,
         task: task(2),
         phase: ReplyPhase::Task,
-        risk: RiskAssessment::of(SupportLevel::Safe),
+        risk: RiskAssessment {
+            level: SupportLevel::Safe,
+            detected_by: RiskDetector::None,
+        },
         transition: TaskTransition {
             from: task(1),
             to: task(2),

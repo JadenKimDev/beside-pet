@@ -82,6 +82,8 @@ pub enum ReplyFault {
 /// 요청의 모양으로 위기 판정·발화·리포트를 가려 대본의 답을 내고, 받은 요청을 적어 둔다.
 pub struct ScriptedModel {
     risk_answer: &'static str,
+    /// 위기 판정의 `generate` 가 공급자 오류를 낸다.
+    risk_fails: bool,
     hang: Hang,
     fault: Mutex<Option<ReplyFault>>,
     stream_fails: bool,
@@ -101,6 +103,7 @@ impl ScriptedModel {
     pub fn with(hang: Hang) -> ScriptedModel {
         ScriptedModel {
             risk_answer: "NO",
+            risk_fails: false,
             hang,
             fault: Mutex::new(None),
             stream_fails: false,
@@ -115,6 +118,15 @@ impl ScriptedModel {
     pub fn flagging() -> ScriptedModel {
         ScriptedModel {
             risk_answer: "YES",
+            ..ScriptedModel::new()
+        }
+    }
+
+    /// 위기 판정이 공급자 오류로 실패한다(YES 라고 답할 모델이라도).
+    pub fn failing_risk() -> ScriptedModel {
+        ScriptedModel {
+            risk_answer: "YES",
+            risk_fails: true,
             ..ScriptedModel::new()
         }
     }
@@ -213,6 +225,9 @@ impl TextModel for ScriptedModel {
             self.push(Call::Risk(text));
             if self.hang == Hang::Risk {
                 return Box::pin(future::pending());
+            }
+            if self.risk_fails {
+                return Box::pin(async { Err(ApiError::Internal) });
             }
             let answer = self.risk_answer.to_owned();
             return Box::pin(async move { Ok(answer) });

@@ -5,6 +5,7 @@ mod access;
 mod context;
 mod crisis;
 mod deadline;
+mod detector;
 mod doubles;
 mod lifecycle;
 mod report;

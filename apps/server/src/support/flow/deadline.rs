@@ -1,7 +1,7 @@
 //! 모델 호출의 시간 제한: 대화가 부르는 모든 호출(위기 판정, 발화, 리포트)을 감싸 응답 없는 모델에 무기한 걸리지 않게 한다.
 //!
 //! `generate` 는 호출 전체에, `stream` 은 조각과 조각 사이(첫 조각 전 포함)에 제한을 둔다. 넘기면 종류만 로그에 남기고
-//! `ApiError::Internal` 이다. 위기 판정이 제한을 넘기면 `safety::assess_risk` 가 키워드 결과로 대신한다(ADR-0004).
+//! `ApiError::Internal` 이다. 위기 판정이 제한을 넘기면 `safety::assess_risk_verdict` 가 키워드 결과로 대신한다(ADR-0004).
 //! 발화는 `_within` 으로 불러 제한을 넘긴 것과 모델의 오류를 가른다(실패한 턴의 종류, ADR-0028).
 
 use std::time::Duration;

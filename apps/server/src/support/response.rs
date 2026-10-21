@@ -158,6 +158,7 @@ pub struct TurnAnalysisResponse {
 #[serde(rename_all = "camelCase")]
 pub enum RiskDetector {
     Keyword,
+    Model,
     None,
 }
 

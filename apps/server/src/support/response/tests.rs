@@ -312,3 +312,14 @@ fn 값_이름들() {
     assert_eq!(names(json!(ReportSectionKey::Emotions)), "emotions");
     assert_eq!(names(json!(ReportSectionKey::Keepsake)), "keepsake");
 }
+
+#[test]
+fn 감지_주체는_keyword_model_none_으로_나간다() {
+    for (detector, text) in [
+        (RiskDetector::Keyword, "keyword"),
+        (RiskDetector::Model, "model"),
+        (RiskDetector::None, "none"),
+    ] {
+        assert_eq!(serde_json::to_value(detector).unwrap(), json!(text));
+    }
+}

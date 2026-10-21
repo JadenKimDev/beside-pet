@@ -9,7 +9,8 @@ use std::fmt;
 use chrono::{DateTime, Utc};
 
 use super::response::{
-    KnowledgeRefResponse, MessageRole, ReplyPhase, SessionSummaryResponse, SupportPlanResponse,
+    KnowledgeRefResponse, MessageRole, ReplyPhase, RiskDetector, SessionSummaryResponse,
+    SupportPlanResponse,
 };
 use super::rules::{
     GriefProfile, MindReport, RiskAssessment, SupportLevel, Task, TaskTransition, TurnAnalysis,
@@ -61,7 +62,7 @@ impl fmt::Display for SessionError {
 
 impl std::error::Error for SessionError {}
 
-/// 사용자 턴 하나를 적용한 결과: 답을 쓰고 턴 분석을 남기는 데 필요한 구조.
+/// 사용자 턴 하나의 전이: 답을 쓰고 턴 분석을 남기는 데 필요한 구조.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TurnStep {
     /// 이 턴 전의 과제.
@@ -71,14 +72,14 @@ pub struct TurnStep {
     pub advanced: bool,
     /// 답의 단계. 위기와 클로징은 `Closing` 이다.
     pub phase: ReplyPhase,
-    /// 이 턴의 위기 판정.
-    pub level: SupportLevel,
+    /// 이 턴의 위기 판정(수준과 감지 주체). 턴 분석에 그대로 적힌다.
+    pub risk: RiskAssessment,
 }
 
 impl TurnStep {
     /// 위기로 닫혔는가(고정 문구를 보내고 모델을 부르지 않는다). 세션은 이미 닫혔다.
     pub fn is_crisis(&self) -> bool {
-        self.level.is_crisis()
+        self.risk.level.is_crisis()
     }
 
     /// 이 턴의 답 뒤에 세션을 닫아야 하는가(클로징에 닿았거나 위기).
@@ -213,36 +214,8 @@ impl Session {
         self.grief_profile.preferred_language = Some(language);
     }
 
-    /// 턴 없는 옛 흐름. 테스트만 부른다. 후속 PRD 에서 지운다.
-    /// 사용자 턴 하나를 한 번에 적용한다(턴 없이): 전사에 적고, 지원 수준을 올리고(내려가지 않는다), 위기면 닫고,
-    /// 아니면 깊이 게이트로 과제를 넘기거나 머문다. 클로징에 닿아도 여기서는 닫지 않는다
-    /// (스트림의 `meta` 가 답 전에 나가므로, 답을 적은 뒤 부르는 쪽이 `close` 한다. `TurnStep::closes`).
-    /// 턴을 쓰는 흐름은 `accept_user_turn` 과 `complete_turn` 을 쓴다.
-    #[cfg(test)]
-    pub fn apply_user_turn(
-        &mut self,
-        text: &str,
-        level: SupportLevel,
-        at: DateTime<Utc>,
-    ) -> Result<TurnStep, SessionError> {
-        if self.closed {
-            return Err(SessionError::Closed);
-        }
-        self.push(MessageRole::User, text, at, None);
-        let step = self.step_for(None, level);
-        self.apply_step(&step);
-        Ok(step)
-    }
-
-    /// 턴 없는 옛 흐름. 테스트만 부른다. 후속 PRD 에서 지운다.
-    /// 상대(assistant)의 답을 지금 과제로 적는다. 위기 답은 닫힌 뒤에 적는다.
-    #[cfg(test)]
-    pub fn record_reply(&mut self, text: &str, at: DateTime<Utc>) {
-        self.push(MessageRole::Assistant, text, at, None);
-    }
-
     /// 턴 분석을 남긴다. 감독 게이트가 열리면 Supervisor 가 답을 본다.
-    pub fn record_turn(
+    fn record_turn(
         &mut self,
         step: &TurnStep,
         reply: &str,
@@ -250,13 +223,14 @@ impl Session {
         at: DateTime<Utc>,
     ) {
         let turn_index = self.analyses.len();
+        let level = step.risk.level;
         let supervision =
-            should_review(step.advanced, step.level, turn_index).then(|| review(reply, step.level));
+            should_review(step.advanced, level, turn_index).then(|| review(reply, level));
         self.analyses.push(TurnAnalysis {
             at,
             task: self.task,
             phase: step.phase,
-            risk: RiskAssessment::of(step.level),
+            risk: step.risk,
             transition: TaskTransition {
                 from: step.from,
                 to: step.to,
@@ -327,15 +301,15 @@ impl Session {
     }
 
     /// 이 판정으로 지금 과제에서 낼 전이. 세션을 바꾸지 않는다.
-    fn step_for(&self, current: Option<&str>, level: SupportLevel) -> TurnStep {
+    fn step_for(&self, current: Option<&str>, risk: RiskAssessment) -> TurnStep {
         let from = self.task;
-        if level.is_crisis() {
+        if risk.level.is_crisis() {
             return TurnStep {
                 from,
                 to: from,
                 advanced: false,
                 phase: ReplyPhase::Closing,
-                level,
+                risk,
             };
         }
         let answers: Vec<&str> = self
@@ -365,13 +339,13 @@ impl Session {
             to,
             advanced: progression.advanced,
             phase,
-            level,
+            risk,
         }
     }
 
     /// 전이를 적용한다: 지원 수준을 올리고, 위기면 닫고, 아니면 과제를 넘기거나 재시도를 센다. 클로징은 닫지 않는다.
     fn apply_step(&mut self, step: &TurnStep) {
-        self.support_level = self.support_level.raised(step.level);
+        self.support_level = self.support_level.raised(step.risk.level);
         if step.is_crisis() {
             self.closed = true;
         } else if step.advanced {
@@ -409,21 +383,25 @@ impl Session {
 
     /// `pending` 턴의 전이를 계산한다. 세션을 바꾸지 않는다. 같은 전사와 같은 판정이면 같은 결과다(깊이 게이트는 결정론, ADR-0005).
     /// 깊이는 지금 과제의 사용자 메시지 중 끝난 턴(과 턴 없는 옛 메시지)과 이 턴의 것만 센다. 실패하거나 아직 도는 다른 턴은 세지 않는다.
-    pub fn transition(&self, turn_id: &str, level: SupportLevel) -> Result<TurnStep, SessionError> {
+    pub fn transition(
+        &self,
+        turn_id: &str,
+        risk: RiskAssessment,
+    ) -> Result<TurnStep, SessionError> {
         self.pending_turn(turn_id)?;
-        Ok(self.step_for(Some(turn_id), level))
+        Ok(self.step_for(Some(turn_id), risk))
     }
 
     /// `pending` 턴을 끝낸다: 전이를 적용하고(지원 수준, 과제, 재시도, 클로징·위기면 닫기), 답과 턴 분석을 적고, 턴을 `done` 으로 닫는다.
     pub fn complete_turn(
         &mut self,
         turn_id: &str,
-        level: SupportLevel,
+        risk: RiskAssessment,
         reply: &str,
         knowledge: Vec<KnowledgeRefResponse>,
         at: DateTime<Utc>,
     ) -> Result<TurnStep, SessionError> {
-        let step = self.transition(turn_id, level)?;
+        let step = self.transition(turn_id, risk)?;
         self.apply_step(&step);
         self.push(MessageRole::Assistant, reply, at, Some(turn_id));
         self.record_turn(&step, reply, knowledge, at);
@@ -446,16 +424,22 @@ impl Session {
     }
 
     /// 위기 턴은 받자마자 끝낸다: 메시지를 받고, 닫고, 고정 문구(부르는 쪽이 `safety` 에서 넘긴다)를 적고, 턴은 바로 `done` 이다(ADR-0004).
+    /// 수준은 위기이고, 누가 잡았는지(`detected_by`)는 부르는 쪽이 `safety` 의 판정에서 넘긴다.
     pub fn accept_crisis_turn(
         &mut self,
         turn_id: String,
         text: &str,
         reply: &str,
+        detected_by: RiskDetector,
         at: DateTime<Utc>,
     ) -> Result<TurnStep, SessionError> {
         let id = turn_id.clone();
         self.accept_user_turn(turn_id, text, at)?;
-        self.complete_turn(&id, SupportLevel::Crisis, reply, Vec::new(), at)
+        let risk = RiskAssessment {
+            level: SupportLevel::Crisis,
+            detected_by,
+        };
+        self.complete_turn(&id, risk, reply, Vec::new(), at)
     }
 
     /// 첫 인사: 사용자 메시지 없는 턴 하나. 답을 지금 과제로 적고 턴은 바로 `done` 이다. 턴 분석은 남기지 않는다.

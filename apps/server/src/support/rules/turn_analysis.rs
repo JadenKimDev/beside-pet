@@ -7,23 +7,31 @@ use super::super::response::{
     TaskTransitionResponse, TurnAnalysisResponse,
 };
 use super::{SupportLevel, Task};
+use crate::safety::{self, RiskVerdict};
 
-/// 한 사용자 턴의 위기 판정.
+/// 한 사용자 턴의 위기 판정. 수준과 감지 주체는 `safety` 의 판정을 그대로 옮기고 수준에서 주체를 지어내지 않는다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RiskAssessment {
     pub level: SupportLevel,
     pub detected_by: RiskDetector,
 }
 
-impl RiskAssessment {
-    /// 수준에서 판정을 적는다. 주의(2) 이상이면 `keyword`, 아니면 `none`(TS 와 같다).
-    pub fn of(level: SupportLevel) -> RiskAssessment {
-        let detected_by = if level >= SupportLevel::Watch {
-            RiskDetector::Keyword
-        } else {
-            RiskDetector::None
-        };
-        RiskAssessment { level, detected_by }
+impl From<RiskVerdict> for RiskAssessment {
+    fn from(verdict: RiskVerdict) -> RiskAssessment {
+        RiskAssessment {
+            level: SupportLevel::from(verdict.level),
+            detected_by: RiskDetector::from(verdict.detector),
+        }
+    }
+}
+
+impl From<safety::RiskDetector> for RiskDetector {
+    fn from(detector: safety::RiskDetector) -> RiskDetector {
+        match detector {
+            safety::RiskDetector::Keyword => RiskDetector::Keyword,
+            safety::RiskDetector::Model => RiskDetector::Model,
+            safety::RiskDetector::None => RiskDetector::None,
+        }
     }
 }
 

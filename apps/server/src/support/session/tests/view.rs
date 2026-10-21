@@ -3,9 +3,11 @@
 use chrono::{DateTime, TimeZone, Utc};
 
 use crate::identity::ChatLanguage;
-use crate::support::rules::{GriefProfile, SupportLevel, Task};
+use crate::support::rules::{GriefProfile, RiskAssessment, SupportLevel, Task};
 use crate::support::session::{MessageActivity, Session};
-use crate::support::{GriefPath, MessageResponse, MessageRole, StreamEvent, TurnResponse};
+use crate::support::{
+    GriefPath, MessageResponse, MessageRole, RiskDetector, StreamEvent, TurnResponse,
+};
 
 const ENGAGED: &str = "He waited at the door every evening for me.";
 
@@ -35,20 +37,19 @@ fn session(pet_name: Option<&str>) -> Session {
 /// 진솔한 답 셋으로 과제 2 에 닿고 닫힌 세션.
 fn closed_at_two() -> Session {
     let mut session = session(Some("Bori"));
+    let safe = RiskAssessment {
+        level: SupportLevel::Safe,
+        detected_by: RiskDetector::None,
+    };
     for minute in 1..=3 {
-        let step = session
-            .apply_user_turn(
-                ENGAGED,
-                SupportLevel::Safe,
-                t0() + chrono::Duration::minutes(minute),
-            )
+        let at = t0() + chrono::Duration::minutes(minute);
+        let turn_id = format!("turn-{minute}");
+        session
+            .accept_user_turn(turn_id.clone(), ENGAGED, at)
             .unwrap();
-        session.record_turn(
-            &step,
-            "A reply.",
-            vec![],
-            t0() + chrono::Duration::minutes(minute),
-        );
+        session
+            .complete_turn(&turn_id, safe, "A reply.", vec![], at)
+            .unwrap();
     }
     session.close();
     session
@@ -118,7 +119,7 @@ fn 상태와_목록_항목() {
 fn 기록() {
     let session = closed_at_two();
     let history = session.history_response();
-    assert_eq!(history.len(), 3);
+    assert_eq!(history.len(), 6);
     assert_eq!(
         history[0],
         MessageResponse {
@@ -126,7 +127,7 @@ fn 기록() {
             text: ENGAGED.to_owned(),
             task: 1,
             at: t0() + chrono::Duration::minutes(1),
-            turn_id: None,
+            turn_id: Some("turn-1".to_owned()),
         }
     );
 }
@@ -145,5 +146,5 @@ fn 분석_보기는_계획과_요약을_다시_구한다() {
     assert_eq!(view.summary, closed.summary());
     assert_eq!(view.analyses.len(), 3);
     assert_eq!(view.analyses[2], closed.analyses[2].to_response());
-    assert_eq!(view.history.len(), 3);
+    assert_eq!(view.history.len(), 6);
 }

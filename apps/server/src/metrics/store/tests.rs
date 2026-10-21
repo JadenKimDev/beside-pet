@@ -403,6 +403,7 @@ async fn 날짜별_대화는_시작한_대화와_사용자_턴과_위기를_센�
         message("sess-fake-b", 2, "user", "2026-10-19T09:01:00Z"),
         message("sess-fake-c", 0, "user", "2026-10-20T09:01:00Z"),
         analysis("sess-fake-a", 1, 3, "keyword", "2026-10-18T08:00:00Z"),
+        analysis("sess-fake-c", 1, 3, "model", "2026-10-18T10:01:00Z"),
         analysis("sess-fake-b", 1, 1, "none", "2026-10-18T09:01:00Z"),
         analysis("sess-fake-b", 2, 3, "model", "2026-10-19T09:01:00Z"),
         analysis("sess-fake-c", 0, 3, "keyword", "2026-10-20T09:01:00Z"),
@@ -419,7 +420,7 @@ async fn 날짜별_대화는_시작한_대화와_사용자_턴과_위기를_센�
                 date: day("2026-10-18"),
                 sessions: 2,
                 turns: 2,
-                crisis: crisis(1, 0),
+                crisis: crisis(1, 1),
             },
             ConversationDay {
                 date: day("2026-10-19"),

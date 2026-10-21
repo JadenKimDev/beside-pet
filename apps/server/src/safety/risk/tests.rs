@@ -6,8 +6,7 @@ use futures_util::future::BoxFuture;
 use futures_util::stream;
 
 use super::{
-    PROMPT_VERSION, RISK_SYSTEM_PROMPT, RiskDetector, RiskLevel, RiskVerdict, assess_risk,
-    assess_risk_verdict,
+    PROMPT_VERSION, RISK_SYSTEM_PROMPT, RiskDetector, RiskLevel, RiskVerdict, assess_risk_verdict,
 };
 use crate::llm::{
     CallContext, CallPurpose, GenerationRequest, PromptMessage, PromptRole, TextModel, TextStream,
@@ -60,7 +59,9 @@ const PLAIN_TEXT: &str = "I miss walking Bori in the park every morning.";
 async fn 키워드가_걸리면_모델에_묻지_않고_위기다() {
     let model = FixedModel::answering("NO");
     assert_eq!(
-        assess_risk(KEYWORD_TEXT, SESSION, &model).await,
+        assess_risk_verdict(KEYWORD_TEXT, SESSION, &model)
+            .await
+            .level,
         RiskLevel::Crisis
     );
     assert!(model.requests().is_empty());
@@ -70,7 +71,9 @@ async fn 키워드가_걸리면_모델에_묻지_않고_위기다() {
 async fn 키워드가_걸리면_모델이_실패해도_위기다() {
     let model = FixedModel::failing();
     assert_eq!(
-        assess_risk(KEYWORD_TEXT, SESSION, &model).await,
+        assess_risk_verdict(KEYWORD_TEXT, SESSION, &model)
+            .await
+            .level,
         RiskLevel::Crisis
     );
 }
@@ -80,7 +83,9 @@ async fn 키워드가_없어도_모델이_yes_면_위기다() {
     for answer in ["YES", " yes\n", "Yes."] {
         let model = FixedModel::answering(answer);
         assert_eq!(
-            assess_risk("사라지고 싶다는 생각만 든다", SESSION, &model).await,
+            assess_risk_verdict("사라지고 싶다는 생각만 든다", SESSION, &model)
+                .await
+                .level,
             RiskLevel::Crisis,
             "{answer:?}"
         );
@@ -91,7 +96,7 @@ async fn 키워드가_없어도_모델이_yes_면_위기다() {
 async fn 키워드도_없고_모델이_no_면_안전하다() {
     let model = FixedModel::answering("NO");
     assert_eq!(
-        assess_risk(PLAIN_TEXT, SESSION, &model).await,
+        assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await.level,
         RiskLevel::Safe
     );
 }
@@ -100,7 +105,7 @@ async fn 키워드도_없고_모델이_no_면_안전하다() {
 async fn 모델이_실패하면_키워드_결과를_쓴다() {
     let model = FixedModel::failing();
     assert_eq!(
-        assess_risk(PLAIN_TEXT, SESSION, &model).await,
+        assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await.level,
         RiskLevel::Safe
     );
     assert_eq!(model.requests().len(), 1);
@@ -109,7 +114,7 @@ async fn 모델이_실패하면_키워드_결과를_쓴다() {
 #[tokio::test]
 async fn 모델에는_판정_프롬프트와_사용자_글_하나를_작은_상한으로_보낸다() {
     let model = FixedModel::answering("NO");
-    assess_risk(PLAIN_TEXT, SESSION, &model).await;
+    assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await;
     assert_eq!(
         model.requests(),
         vec![GenerationRequest {
@@ -148,7 +153,7 @@ fn 판정_프롬프트의_버전은_0_1_0_이다() {
 #[tokio::test]
 async fn 세션이_없는_판정은_세션_없이_묻는다() {
     let model = FixedModel::answering("NO");
-    assess_risk(PLAIN_TEXT, None, &model).await;
+    assess_risk_verdict(PLAIN_TEXT, None, &model).await;
     assert_eq!(model.requests()[0].context.session_id, None);
 }
 
@@ -204,17 +209,4 @@ async fn 키워드가_걸리면_모델이_실패해도_주체는_키워드다() 
         assess_risk_verdict(KEYWORD_TEXT, SESSION, &model).await,
         verdict(RiskLevel::Crisis, RiskDetector::Keyword)
     );
-}
-
-#[tokio::test]
-async fn 수준만_돌려주는_판정은_판정의_수준과_같다() {
-    for (text, answer) in [
-        (KEYWORD_TEXT, "NO"),
-        ("사라지고 싶다는 생각만 든다", "YES"),
-        (PLAIN_TEXT, "NO"),
-    ] {
-        let model = FixedModel::answering(answer);
-        let full = assess_risk_verdict(text, SESSION, &model).await;
-        assert_eq!(assess_risk(text, SESSION, &model).await, full.level);
-    }
 }

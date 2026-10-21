@@ -10,7 +10,7 @@ use sqlx::{AssertSqlSafe, Executor, PgPool};
 use super::super::request::{DailyStateRequest, GriefPath, LossType, SleepState, TogetherRange};
 use super::super::response::{
     KnowledgeRefResponse, MessageRole, MindReportSectionResponse, ReplyPhase, ReportSectionKey,
-    SupervisionQuality, SupervisionResponse,
+    RiskDetector, SupervisionQuality, SupervisionResponse,
 };
 use super::super::rules::{
     GriefProfile, MindReport, RiskAssessment, SupportLevel, Task, TaskTransition, TurnAnalysis,
@@ -163,7 +163,10 @@ fn analysis(at: i64, from: u8, to: u8, supervised: bool) -> TurnAnalysis {
         } else {
             ReplyPhase::Task
         },
-        risk: RiskAssessment::of(SupportLevel::Safe),
+        risk: RiskAssessment {
+            level: SupportLevel::Safe,
+            detected_by: RiskDetector::None,
+        },
         transition: TaskTransition {
             from: task(from),
             to: task(to),
@@ -248,7 +251,7 @@ fn report(at: i64) -> MindReport {
     }
 }
 
-/// 닫히고 리포트가 붙은, 위기 판정이 있는 세션.
+/// 닫히고 리포트가 붙은, 모델이 잡은 위기 판정이 있는 세션.
 fn closed_with_report(id: &str, owner: &str, started: i64) -> SessionSnapshot {
     let mut snap = snapshot(id, owner, started);
     snap.task = task(3);
@@ -256,7 +259,10 @@ fn closed_with_report(id: &str, owner: &str, started: i64) -> SessionSnapshot {
     snap.support_level = SupportLevel::Crisis;
     snap.analyses.push(TurnAnalysis {
         phase: ReplyPhase::Closing,
-        risk: RiskAssessment::of(SupportLevel::Crisis),
+        risk: RiskAssessment {
+            level: SupportLevel::Crisis,
+            detected_by: RiskDetector::Model,
+        },
         ..analysis(started + 3, 3, 3, false)
     });
     snap.report = Some(report(started + 4));
@@ -288,6 +294,44 @@ async fn 저장한_세션을_그대로_되살린다() {
     assert_eq!(store.find("s-open").await.unwrap(), Some(open));
     assert_eq!(store.find("s-closed").await.unwrap(), Some(closed));
     assert_eq!(store.find("s-nobody").await.unwrap(), None);
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 감지_주체는_그대로_적히고_읽힌다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    let mut snap = snapshot("s-detectors", "owner-a", 0);
+    snap.analyses = [
+        (SupportLevel::Crisis, RiskDetector::Keyword),
+        (SupportLevel::Crisis, RiskDetector::Model),
+        (SupportLevel::Safe, RiskDetector::None),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(n, (level, detected_by))| TurnAnalysis {
+        risk: RiskAssessment { level, detected_by },
+        ..analysis(i64::try_from(n).unwrap() + 1, 2, 2, false)
+    })
+    .collect();
+    store.save(&snap).await.unwrap();
+
+    let written: Vec<(String,)> = sqlx::query_as(
+        "SELECT risk_detected_by FROM turn_analyses WHERE session_id = $1 ORDER BY seq",
+    )
+    .bind("s-detectors")
+    .fetch_all(&db.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        written,
+        vec![
+            ("keyword".to_owned(),),
+            ("model".to_owned(),),
+            ("none".to_owned(),)
+        ]
+    );
+    assert_eq!(store.find("s-detectors").await.unwrap(), Some(snap));
     db.close().await;
 }
 
@@ -619,7 +663,7 @@ async fn 모르는_역할은_읽기_오류다() {
 #[tokio::test]
 async fn 모르는_단계와_감지자는_읽기_오류다() {
     assert_corrupt_read("UPDATE turn_analyses SET phase = 'wander' WHERE seq = 0").await;
-    assert_corrupt_read("UPDATE turn_analyses SET risk_detected_by = 'model' WHERE seq = 0").await;
+    assert_corrupt_read("UPDATE turn_analyses SET risk_detected_by = 'human' WHERE seq = 0").await;
 }
 
 #[tokio::test]
@@ -767,7 +811,11 @@ async fn 다른_세션이_쓴_턴_id_로는_쓰지_않는다() {
         store.save(&theirs).await,
         Err(StoreError::TurnIdTaken)
     ));
-    assert_eq!(store.find("s-2").await.unwrap(), None, "아무것도 쓰지 않는다");
+    assert_eq!(
+        store.find("s-2").await.unwrap(),
+        None,
+        "아무것도 쓰지 않는다"
+    );
     assert_eq!(db.rows_of("s-2").await, (0, 0, 0, 0));
 
     let existing = snapshot("s-2", "owner-b", 30);

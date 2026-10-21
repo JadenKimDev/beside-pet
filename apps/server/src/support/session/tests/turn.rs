@@ -1,28 +1,15 @@
 // 턴의 받기와 전이 적용, 턴 상태. 픽스처는 지어낸 값이다.
 
-use super::{DUNNO, ENGAGED, at, profile, session, session_at, t0, task};
-use crate::support::rules::{SupportLevel, Task};
-use crate::support::session::{Session, SessionError, Turn, TurnErrorKind, TurnStatus};
-use crate::support::{MessageRole, ReplyPhase};
+use super::{DUNNO, ENGAGED, answered, at, id, profile, safe, session, session_at, t0, task};
+use crate::support::rules::{RiskAssessment, SupportLevel, Task};
+use crate::support::session::{Message, Session, SessionError, Turn, TurnErrorKind, TurnStatus};
+use crate::support::{MessageRole, ReplyPhase, RiskDetector};
 
 const CRISIS_REPLY: &str = "A made-up fixed crisis reply.";
 
-fn id(n: u32) -> String {
-    format!("00000000-0000-4000-8000-{n:012}")
-}
-
-/// 받고 바로 답까지 끝낸 턴.
+/// 받고 바로 안전한 답까지 끝낸 턴.
 fn done_turn(session: &mut Session, n: u32, text: &str, minute: i64) {
-    session.accept_user_turn(id(n), text, at(minute)).unwrap();
-    session
-        .complete_turn(
-            &id(n),
-            SupportLevel::Safe,
-            "A made-up reply.",
-            vec![],
-            at(minute),
-        )
-        .unwrap();
+    answered(session, n, text, safe(), "A made-up reply.", vec![], minute);
 }
 
 #[test]
@@ -58,7 +45,10 @@ fn 전이_적용은_답과_분석을_적고_턴을_done_으로_닫는다() {
     let step = session
         .complete_turn(
             &id(1),
-            SupportLevel::Watch,
+            RiskAssessment {
+                level: SupportLevel::Watch,
+                detected_by: RiskDetector::Keyword,
+            },
             "A made-up reply.",
             vec![],
             at(2),
@@ -84,21 +74,37 @@ fn 전이_계산은_상태를_바꾸지_않고_적용과_같은_결과를_낸다
     done_turn(&mut session, 2, ENGAGED, 2);
     session.accept_user_turn(id(3), ENGAGED, at(3)).unwrap();
     let before = session.clone();
-    let planned = session.transition(&id(3), SupportLevel::Safe).unwrap();
+    let planned = session.transition(&id(3), safe()).unwrap();
     assert_eq!(session, before, "계산은 세션을 바꾸지 않는다");
     assert!(planned.advanced);
     assert_eq!(planned.to, task(2));
     let applied = session
-        .complete_turn(
-            &id(3),
-            SupportLevel::Safe,
-            "A made-up reply.",
-            vec![],
-            at(4),
-        )
+        .complete_turn(&id(3), safe(), "A made-up reply.", vec![], at(4))
         .unwrap();
     assert_eq!(applied, planned);
     assert_eq!(session.task(), task(2));
+    let reply = session.history().last().unwrap();
+    assert_eq!(reply.role, MessageRole::Assistant);
+    assert_eq!(reply.task, task(2), "넘어간 턴의 답은 넘어간 과제로 적힌다");
+}
+
+#[test]
+fn 턴_없는_옛_사용자_메시지도_깊이에_센다() {
+    let mut snapshot = session().snapshot();
+    snapshot.history = (1..=2)
+        .map(|minute| Message {
+            role: MessageRole::User,
+            text: ENGAGED.to_owned(),
+            task: Task::FIRST,
+            at: at(minute),
+            turn_id: None,
+        })
+        .collect();
+    let mut back = Session::rehydrate(snapshot);
+    back.accept_user_turn(id(3), ENGAGED, at(3)).unwrap();
+    let step = back.transition(&id(3), safe()).unwrap();
+    assert!(step.advanced, "턴 없는 옛 메시지 둘과 이 턴으로 셋이다");
+    assert_eq!(step.to, task(2));
 }
 
 #[test]
@@ -107,7 +113,7 @@ fn 실패한_턴은_전이를_움직이지_않고_같은_메시지에서_같은_
     done_turn(&mut failed, 1, ENGAGED, 1);
     done_turn(&mut failed, 2, ENGAGED, 2);
     failed.accept_user_turn(id(3), ENGAGED, at(3)).unwrap();
-    let before_fail = failed.transition(&id(3), SupportLevel::Safe).unwrap();
+    let before_fail = failed.transition(&id(3), safe()).unwrap();
     failed
         .fail_turn(&id(3), TurnErrorKind::Timeout, at(4))
         .unwrap();
@@ -124,17 +130,14 @@ fn 실패한_턴은_전이를_움직이지_않고_같은_메시지에서_같은_
         "사용자 메시지는 남는다"
     );
     assert_eq!(
-        failed.transition(&id(3), SupportLevel::Safe),
+        failed.transition(&id(3), safe()),
         Err(SessionError::TurnNotPending),
         "끝난 턴은 다시 적용하지 않는다"
     );
 
     // 실패한 턴의 메시지는 다음 턴의 깊이에 세지 않는다: 같은 메시지를 새 턴으로 받으면 같은 전이다.
     failed.accept_user_turn(id(4), ENGAGED, at(5)).unwrap();
-    assert_eq!(
-        failed.transition(&id(4), SupportLevel::Safe),
-        Ok(before_fail)
-    );
+    assert_eq!(failed.transition(&id(4), safe()), Ok(before_fail));
 }
 
 #[test]
@@ -170,11 +173,11 @@ fn 닫힌_세션은_메시지를_받지_않는다() {
 fn 없는_턴은_적용하거나_실패로_닫을_수_없다() {
     let mut session = session();
     assert_eq!(
-        session.transition(&id(9), SupportLevel::Safe),
+        session.transition(&id(9), safe()),
         Err(SessionError::TurnNotFound)
     );
     assert_eq!(
-        session.complete_turn(&id(9), SupportLevel::Safe, "x", vec![], at(1)),
+        session.complete_turn(&id(9), safe(), "x", vec![], at(1)),
         Err(SessionError::TurnNotFound)
     );
     assert_eq!(
@@ -193,7 +196,7 @@ fn 끝난_턴은_다시_닫지_않는다() {
         Err(SessionError::TurnNotPending)
     );
     assert_eq!(
-        session.complete_turn(&id(1), SupportLevel::Safe, "x", vec![], at(2)),
+        session.complete_turn(&id(1), safe(), "x", vec![], at(2)),
         Err(SessionError::TurnNotPending)
     );
     assert_eq!(session, before);
@@ -208,17 +211,12 @@ fn 클로징에_닿은_턴은_적용과_함께_닫힌다() {
     session.accept_user_turn(id(3), ENGAGED, at(3)).unwrap();
     assert!(!session.closed(), "받기만 해서는 닫히지 않는다");
     let step = session
-        .complete_turn(
-            &id(3),
-            SupportLevel::Safe,
-            "A made-up closing.",
-            vec![],
-            at(4),
-        )
+        .complete_turn(&id(3), safe(), "A made-up closing.", vec![], at(4))
         .unwrap();
     assert!(step.closes());
     assert!(session.closed());
     assert_eq!(session.task(), Task::CLOSING);
+    assert_eq!(session.progress(), 1.0);
 }
 
 #[test]
@@ -226,7 +224,13 @@ fn 위기_턴은_받자마자_닫고_고정_문구를_적고_done_이다() {
     let mut session = session();
     done_turn(&mut session, 1, ENGAGED, 1);
     let step = session
-        .accept_crisis_turn(id(2), "made-up crisis text", CRISIS_REPLY, at(2))
+        .accept_crisis_turn(
+            id(2),
+            "made-up crisis text",
+            CRISIS_REPLY,
+            RiskDetector::Keyword,
+            at(2),
+        )
         .unwrap();
     assert!(step.is_crisis());
     assert!(step.closes());
@@ -260,13 +264,25 @@ fn 위기_턴도_같은_턴_id_와_닫힌_세션을_받지_않는다() {
     let mut session = session();
     session.accept_user_turn(id(1), ENGAGED, at(1)).unwrap();
     assert_eq!(
-        session.accept_crisis_turn(id(1), "made-up crisis text", CRISIS_REPLY, at(2)),
+        session.accept_crisis_turn(
+            id(1),
+            "made-up crisis text",
+            CRISIS_REPLY,
+            RiskDetector::Keyword,
+            at(2)
+        ),
         Err(SessionError::TurnAlreadyReceived)
     );
     let mut closed = super::session();
     closed.close();
     assert_eq!(
-        closed.accept_crisis_turn(id(2), "made-up crisis text", CRISIS_REPLY, at(2)),
+        closed.accept_crisis_turn(
+            id(2),
+            "made-up crisis text",
+            CRISIS_REPLY,
+            RiskDetector::Keyword,
+            at(2)
+        ),
         Err(SessionError::Closed)
     );
 }
@@ -345,22 +361,7 @@ fn 스냅샷에_턴이_들어가고_되살려도_같다() {
         Err(SessionError::TurnAlreadyReceived),
         "되살린 세션도 받은 턴 id 를 안다"
     );
-    back.complete_turn(
-        &id(4),
-        SupportLevel::Safe,
-        "A made-up reply.",
-        vec![],
-        at(5),
-    )
-    .unwrap();
+    back.complete_turn(&id(4), safe(), "A made-up reply.", vec![], at(5))
+        .unwrap();
     assert_eq!(back.turns()[3].status, TurnStatus::Done);
-}
-
-#[test]
-fn 옛_메서드는_턴_없이_그대로_돈다() {
-    let mut session = session();
-    super::safe_turn(&mut session, ENGAGED, 1);
-    session.record_reply("A made-up reply.", at(2));
-    assert!(session.turns().is_empty());
-    assert!(session.history().iter().all(|m| m.turn_id.is_none()));
 }

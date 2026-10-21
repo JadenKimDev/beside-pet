@@ -11,13 +11,13 @@ use super::deadline::{CallFailure, Deadlined};
 use super::parts::FlowParts;
 use super::voice::Voice;
 use crate::llm::{CallContext, CallPurpose, GenerationRequest};
-use crate::safety::{assess_risk, crisis_reply};
+use crate::safety::{assess_risk_verdict, crisis_reply};
 use crate::shared::ApiError;
 use crate::support::knowledge::{KNOWLEDGE_LIMIT, KnowledgeChunk};
 use crate::support::prompt::{
     PreviousSession, REPLY_PROMPT_VERSION, ReplyContext, reply_messages, reply_system_prompt,
 };
-use crate::support::rules::{SupportLevel, TurnStyle};
+use crate::support::rules::{RiskAssessment, TurnStyle};
 use crate::support::session::{Message, Session, TurnStep};
 use crate::support::{
     KnowledgeRefResponse, MessageRole, ReplyPhase, SessionSummaryResponse, StreamEvent,
@@ -77,14 +77,15 @@ pub async fn handle(
     voice: &Voice<'_>,
 ) -> Result<TurnResponse, ApiError> {
     let conflict = |session: &Session, error| session_conflict(session.id(), error);
-    // 1) 안전 확인: 키워드 ∪ 모델 판정.
-    let level =
-        SupportLevel::from(assess_risk(text, Some(session.id()), parts.model.as_ref()).await);
+    // 1) 안전 확인: 키워드 ∪ 모델 판정. 누가 잡았는지도 턴 분석까지 싣는다.
+    let risk = RiskAssessment::from(
+        assess_risk_verdict(text, Some(session.id()), parts.model.as_ref()).await,
+    );
     // 위기는 받자마자 닫고 고정 문구로 끝낸다(저장 한 번).
-    if level.is_crisis() {
+    if risk.level.is_crisis() {
         let reply = crisis_reply();
         session
-            .accept_crisis_turn(turn_id, text, reply, parts.clock.now())
+            .accept_crisis_turn(turn_id, text, reply, risk.detected_by, parts.clock.now())
             .map_err(|error| conflict(&session, error))?;
         parts.sessions.save(&session.snapshot()).await?;
         voice.announce(session.meta_event()).await;
@@ -98,7 +99,7 @@ pub async fn handle(
     parts.sessions.save(&session.snapshot()).await?;
     // 3) 과제 전이(계산만)와 `meta`: 저장한 뒤에 이번 턴이 끝나면 될 구조를 알린다.
     let step = session
-        .transition(&turn_id, level)
+        .transition(&turn_id, risk)
         .map_err(|error| conflict(&session, error))?;
     voice.announce(meta_for(&session, &step)).await;
     // 4) 지식 검색, 5) 발화.
@@ -119,7 +120,7 @@ pub async fn handle(
     session
         .complete_turn(
             &turn_id,
-            level,
+            risk,
             &reply,
             knowledge_refs(&knowledge),
             parts.clock.now(),
@@ -134,7 +135,7 @@ fn meta_for(session: &Session, step: &TurnStep) -> StreamEvent {
     StreamEvent::Meta {
         task: step.to.number(),
         progress: step.to.progress(),
-        support_level: session.support_level().raised(step.level).number(),
+        support_level: session.support_level().raised(step.risk.level).number(),
         done: false,
     }
 }

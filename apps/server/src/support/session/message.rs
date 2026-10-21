@@ -1,4 +1,4 @@
-//! 전사의 메시지 하나: 말한 쪽, 본문, 그때의 과제, 시각. `messages` 행 하나다.
+//! 전사의 메시지 하나: 말한 쪽, 본문, 그때의 과제, 시각, 속한 턴. `messages` 행 하나다.
 
 use chrono::{DateTime, Utc};
 
@@ -12,6 +12,8 @@ pub struct Message {
     /// 이 메시지를 적을 때의 과제.
     pub task: Task,
     pub at: DateTime<Utc>,
+    /// 이 메시지가 속한 턴. 턴을 두기 전의 메시지와 옛 메서드로 적은 메시지는 없다.
+    pub turn_id: Option<String>,
 }
 
 impl Message {

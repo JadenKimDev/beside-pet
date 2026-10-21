@@ -1,6 +1,7 @@
-//! 세션 애그리게이트: 한 대화의 상태(과제, 재시도, 지원 수준, 닫힘, 전사, 턴 분석, 리포트)와 그 전이.
+//! 세션 애그리게이트: 한 대화의 상태(과제, 재시도, 지원 수준, 닫힘, 전사, 턴, 턴 분석, 리포트)와 그 전이.
 //!
 //! 상태는 메서드로만 바뀐다. 닫힌 세션은 사용자 턴을 받지 않고, 리포트는 닫혔고 과제 2 이상일 때 한 번만 붙는다(ADR-0005, ADR-0008).
+//! 사용자 턴은 받기(메시지와 `pending` 턴만)와 끝내기(전이 적용, 답, 분석, `done`)로 나뉜다. 상태는 끝난 턴에서만 바뀐다(위기 제외).
 //! 계획과 요약은 저장하지 않고 프로필과 전사·분석에서 규칙으로 다시 구한다. 시각은 부르는 쪽이 넘긴다.
 
 use std::fmt;
@@ -19,13 +20,19 @@ use crate::identity::ChatLanguage;
 mod activity;
 mod message;
 mod snapshot;
+mod turn;
 mod view;
 
 pub use activity::MessageActivity;
 pub use message::Message;
 pub use snapshot::SessionSnapshot;
+pub use turn::{Turn, TurnErrorKind, TurnStatus};
 
 /// 세션의 불변식을 어긴 요청.
+#[allow(
+    dead_code,
+    reason = "턴 변형은 #19 S4 가 흐름에서 턴 메서드를 부르기 전까지 테스트만 만든다"
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionError {
     /// 닫힌 세션에 사용자 턴이 왔다(HTTP 409).
@@ -34,6 +41,12 @@ pub enum SessionError {
     ReportUnavailable,
     /// 리포트가 이미 있다(write-once).
     ReportAlreadyWritten,
+    /// 같은 세션에 같은 턴 id 가 이미 있다(HTTP 409 "Turn already received").
+    TurnAlreadyReceived,
+    /// 그런 턴이 이 세션에 없다.
+    TurnNotFound,
+    /// 턴이 이미 끝났다(`done` 또는 `failed`).
+    TurnNotPending,
 }
 
 impl fmt::Display for SessionError {
@@ -42,6 +55,9 @@ impl fmt::Display for SessionError {
             SessionError::Closed => "session is already closed",
             SessionError::ReportUnavailable => "report is not available for this session",
             SessionError::ReportAlreadyWritten => "report is already written",
+            SessionError::TurnAlreadyReceived => "turn is already received",
+            SessionError::TurnNotFound => "turn is not in this session",
+            SessionError::TurnNotPending => "turn is already finished",
         };
         f.write_str(text)
     }
@@ -87,6 +103,7 @@ pub struct Session {
     closed: bool,
     history: Vec<Message>,
     analyses: Vec<TurnAnalysis>,
+    turns: Vec<Turn>,
     report: Option<MindReport>,
 }
 
@@ -110,6 +127,7 @@ impl Session {
             closed: false,
             history: Vec::new(),
             analyses: Vec::new(),
+            turns: Vec::new(),
             report: None,
         }
     }
@@ -127,6 +145,7 @@ impl Session {
             closed: snapshot.closed,
             history: snapshot.history,
             analyses: snapshot.analyses,
+            turns: snapshot.turns,
             report: snapshot.report,
         }
     }
@@ -144,6 +163,7 @@ impl Session {
             closed: self.closed,
             history: self.history.clone(),
             analyses: self.analyses.clone(),
+            turns: self.turns.clone(),
             report: self.report.clone(),
         }
     }
@@ -197,9 +217,10 @@ impl Session {
         self.grief_profile.preferred_language = Some(language);
     }
 
-    /// 사용자 턴 하나를 적용한다: 전사에 적고, 지원 수준을 올리고(내려가지 않는다), 위기면 닫고,
+    /// 사용자 턴 하나를 한 번에 적용한다(턴 없이): 전사에 적고, 지원 수준을 올리고(내려가지 않는다), 위기면 닫고,
     /// 아니면 깊이 게이트로 과제를 넘기거나 머문다. 클로징에 닿아도 여기서는 닫지 않는다
     /// (스트림의 `meta` 가 답 전에 나가므로, 답을 적은 뒤 부르는 쪽이 `close` 한다. `TurnStep::closes`).
+    /// 턴을 쓰는 흐름은 `accept_user_turn` 과 `complete_turn` 을 쓴다.
     pub fn apply_user_turn(
         &mut self,
         text: &str,
@@ -209,53 +230,15 @@ impl Session {
         if self.closed {
             return Err(SessionError::Closed);
         }
-        self.push(MessageRole::User, text, at);
-        self.support_level = self.support_level.raised(level);
-        let from = self.task;
-        if level.is_crisis() {
-            self.closed = true;
-            return Ok(TurnStep {
-                from,
-                to: from,
-                advanced: false,
-                phase: ReplyPhase::Closing,
-                level,
-            });
-        }
-        let answers: Vec<&str> = self
-            .history
-            .iter()
-            .filter(|message| message.role == MessageRole::User && message.task == from)
-            .map(|message| message.text.as_str())
-            .collect();
-        let progression = evaluate(&answers);
-        if progression.advanced {
-            self.task = from.next();
-            self.retry_count = 0;
-        } else {
-            self.retry_count += 1;
-        }
-        let phase = if self.task.is_closing() {
-            ReplyPhase::Closing
-        } else if progression.advanced {
-            ReplyPhase::Task
-        } else if progression.last_engaged {
-            ReplyPhase::Deepen
-        } else {
-            ReplyPhase::Retry
-        };
-        Ok(TurnStep {
-            from,
-            to: self.task,
-            advanced: progression.advanced,
-            phase,
-            level,
-        })
+        self.push(MessageRole::User, text, at, None);
+        let step = self.step_for(None, level);
+        self.apply_step(&step);
+        Ok(step)
     }
 
     /// 상대(assistant)의 답을 지금 과제로 적는다. 위기 답은 닫힌 뒤에 적는다.
     pub fn record_reply(&mut self, text: &str, at: DateTime<Utc>) {
-        self.push(MessageRole::Assistant, text, at);
+        self.push(MessageRole::Assistant, text, at, None);
     }
 
     /// 턴 분석을 남긴다. 감독 게이트가 열리면 Supervisor 가 답을 본다.
@@ -321,13 +304,204 @@ impl Session {
     }
 
     /// 전사에 지금 과제로 한 줄 더한다.
-    fn push(&mut self, role: MessageRole, text: &str, at: DateTime<Utc>) {
+    fn push(&mut self, role: MessageRole, text: &str, at: DateTime<Utc>, turn_id: Option<&str>) {
         self.history.push(Message {
             role,
             text: text.to_owned(),
             task: self.task,
             at,
+            turn_id: turn_id.map(str::to_owned),
         });
+    }
+
+    /// 깊이에 세는 사용자 메시지인가: 턴 없는 옛 메시지, 끝난 턴의 것, 지금 턴(`current`)의 것.
+    fn counts_toward_depth(&self, message: &Message, current: Option<&str>) -> bool {
+        match message.turn_id.as_deref() {
+            None => true,
+            Some(id) if Some(id) == current => true,
+            Some(id) => self
+                .turns
+                .iter()
+                .any(|turn| turn.id == id && turn.status == TurnStatus::Done),
+        }
+    }
+
+    /// 이 판정으로 지금 과제에서 낼 전이. 세션을 바꾸지 않는다.
+    fn step_for(&self, current: Option<&str>, level: SupportLevel) -> TurnStep {
+        let from = self.task;
+        if level.is_crisis() {
+            return TurnStep {
+                from,
+                to: from,
+                advanced: false,
+                phase: ReplyPhase::Closing,
+                level,
+            };
+        }
+        let answers: Vec<&str> = self
+            .history
+            .iter()
+            .filter(|message| message.role == MessageRole::User && message.task == from)
+            .filter(|message| self.counts_toward_depth(message, current))
+            .map(|message| message.text.as_str())
+            .collect();
+        let progression = evaluate(&answers);
+        let to = if progression.advanced {
+            from.next()
+        } else {
+            from
+        };
+        let phase = if to.is_closing() {
+            ReplyPhase::Closing
+        } else if progression.advanced {
+            ReplyPhase::Task
+        } else if progression.last_engaged {
+            ReplyPhase::Deepen
+        } else {
+            ReplyPhase::Retry
+        };
+        TurnStep {
+            from,
+            to,
+            advanced: progression.advanced,
+            phase,
+            level,
+        }
+    }
+
+    /// 전이를 적용한다: 지원 수준을 올리고, 위기면 닫고, 아니면 과제를 넘기거나 재시도를 센다. 클로징은 닫지 않는다.
+    fn apply_step(&mut self, step: &TurnStep) {
+        self.support_level = self.support_level.raised(step.level);
+        if step.is_crisis() {
+            self.closed = true;
+        } else if step.advanced {
+            self.task = step.to;
+            self.retry_count = 0;
+        } else {
+            self.retry_count += 1;
+        }
+    }
+}
+
+/// 턴 단위의 흐름: 받기, 전이 계산, 끝내기, 실패, 위기, 첫 인사.
+#[allow(
+    dead_code,
+    reason = "#19 S4 가 흐름을 이 메서드로 갈아타기 전까지는 테스트만 부른다"
+)]
+impl Session {
+    /// 받은 순서대로의 턴.
+    pub fn turns(&self) -> &[Turn] {
+        &self.turns
+    }
+
+    /// 사용자 메시지를 받는다: 전사에 지금 과제로 적고 `pending` 턴을 만든다. 세션 상태(과제, 재시도, 지원 수준, 닫힘)는 바꾸지 않는다.
+    /// 안전 확인은 부르는 쪽이 먼저 한다. 위기면 `accept_crisis_turn` 을 쓴다.
+    pub fn accept_user_turn(
+        &mut self,
+        turn_id: String,
+        text: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), SessionError> {
+        self.ensure_new_turn(&turn_id)?;
+        if self.closed {
+            return Err(SessionError::Closed);
+        }
+        self.push(MessageRole::User, text, at, Some(&turn_id));
+        self.turns.push(Turn::pending(turn_id, at));
+        Ok(())
+    }
+
+    /// `pending` 턴의 전이를 계산한다. 세션을 바꾸지 않는다. 같은 전사와 같은 판정이면 같은 결과다(깊이 게이트는 결정론, ADR-0005).
+    /// 깊이는 지금 과제의 사용자 메시지 중 끝난 턴(과 턴 없는 옛 메시지)과 이 턴의 것만 센다. 실패하거나 아직 도는 다른 턴은 세지 않는다.
+    pub fn transition(&self, turn_id: &str, level: SupportLevel) -> Result<TurnStep, SessionError> {
+        self.pending_turn(turn_id)?;
+        Ok(self.step_for(Some(turn_id), level))
+    }
+
+    /// `pending` 턴을 끝낸다: 전이를 적용하고(지원 수준, 과제, 재시도, 클로징·위기면 닫기), 답과 턴 분석을 적고, 턴을 `done` 으로 닫는다.
+    pub fn complete_turn(
+        &mut self,
+        turn_id: &str,
+        level: SupportLevel,
+        reply: &str,
+        knowledge: Vec<KnowledgeRefResponse>,
+        at: DateTime<Utc>,
+    ) -> Result<TurnStep, SessionError> {
+        let step = self.transition(turn_id, level)?;
+        self.apply_step(&step);
+        self.push(MessageRole::Assistant, reply, at, Some(turn_id));
+        self.record_turn(&step, reply, knowledge, at);
+        if step.closes() {
+            self.closed = true;
+        }
+        self.pending_turn_mut(turn_id)?.finish(at);
+        Ok(step)
+    }
+
+    /// `pending` 턴을 `failed` 로 닫는다. 사용자 메시지는 남고 세션 상태는 움직이지 않는다.
+    pub fn fail_turn(
+        &mut self,
+        turn_id: &str,
+        kind: TurnErrorKind,
+        at: DateTime<Utc>,
+    ) -> Result<(), SessionError> {
+        self.pending_turn_mut(turn_id)?.fail(kind, at);
+        Ok(())
+    }
+
+    /// 위기 턴은 받자마자 끝낸다: 메시지를 받고, 닫고, 고정 문구(부르는 쪽이 `safety` 에서 넘긴다)를 적고, 턴은 바로 `done` 이다(ADR-0004).
+    pub fn accept_crisis_turn(
+        &mut self,
+        turn_id: String,
+        text: &str,
+        reply: &str,
+        at: DateTime<Utc>,
+    ) -> Result<TurnStep, SessionError> {
+        let id = turn_id.clone();
+        self.accept_user_turn(turn_id, text, at)?;
+        self.complete_turn(&id, SupportLevel::Crisis, reply, Vec::new(), at)
+    }
+
+    /// 첫 인사: 사용자 메시지 없는 턴 하나. 답을 지금 과제로 적고 턴은 바로 `done` 이다. 턴 분석은 남기지 않는다.
+    pub fn greet(
+        &mut self,
+        turn_id: String,
+        reply: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), SessionError> {
+        self.ensure_new_turn(&turn_id)?;
+        self.push(MessageRole::Assistant, reply, at, Some(&turn_id));
+        let mut turn = Turn::pending(turn_id, at);
+        turn.finish(at);
+        self.turns.push(turn);
+        Ok(())
+    }
+
+    fn ensure_new_turn(&self, turn_id: &str) -> Result<(), SessionError> {
+        if self.turns.iter().any(|turn| turn.id == turn_id) {
+            return Err(SessionError::TurnAlreadyReceived);
+        }
+        Ok(())
+    }
+
+    fn pending_turn(&self, turn_id: &str) -> Result<&Turn, SessionError> {
+        let turn = self
+            .turns
+            .iter()
+            .find(|turn| turn.id == turn_id)
+            .ok_or(SessionError::TurnNotFound)?;
+        if !turn.is_pending() {
+            return Err(SessionError::TurnNotPending);
+        }
+        Ok(turn)
+    }
+
+    fn pending_turn_mut(&mut self, turn_id: &str) -> Result<&mut Turn, SessionError> {
+        self.pending_turn(turn_id)?;
+        self.turns
+            .iter_mut()
+            .find(|turn| turn.id == turn_id)
+            .ok_or(SessionError::TurnNotFound)
     }
 }
 

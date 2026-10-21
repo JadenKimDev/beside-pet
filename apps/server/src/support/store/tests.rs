@@ -115,6 +115,7 @@ fn message(role: MessageRole, text: &str, number: u8, at: i64) -> Message {
         text: text.to_owned(),
         task: task(number),
         at: minute(at),
+        turn_id: None,
     }
 }
 
@@ -171,6 +172,7 @@ fn snapshot(id: &str, owner: &str, started: i64) -> SessionSnapshot {
             analysis(started + 1, 1, 2, true),
             analysis(started + 2, 2, 2, false),
         ],
+        turns: Vec::new(),
         report: None,
     }
 }

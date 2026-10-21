@@ -1,5 +1,6 @@
 // 세션 애그리게이트의 전이. 픽스처는 지어낸 값이다.
 
+mod turn;
 mod view;
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
@@ -114,6 +115,7 @@ fn 사용자_턴은_그때의_과제로_전사에_적힌다() {
             text: ENGAGED.to_owned(),
             task: Task::FIRST,
             at: at(1),
+            turn_id: None,
         }]
     );
     assert_eq!(

@@ -33,5 +33,8 @@ pub fn session_conflict(id: &str, error: SessionError) -> ApiError {
         SessionError::ReportUnavailable | SessionError::ReportAlreadyWritten => {
             ApiError::Conflict(REPORT_UNAVAILABLE.to_owned())
         }
+        SessionError::TurnAlreadyReceived
+        | SessionError::TurnNotFound
+        | SessionError::TurnNotPending => ApiError::Conflict("Turn already received".to_owned()),
     }
 }

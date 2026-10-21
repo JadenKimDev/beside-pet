@@ -195,6 +195,7 @@ impl MessageRow {
             task: parse_task("messages.task", self.task)?,
             text: self.text,
             at: self.at,
+            turn_id: None,
         })
     }
 }
@@ -286,6 +287,7 @@ impl Transcripts {
             started_at: row.created_at,
             history: self.history.remove(&row.id).unwrap_or_default(),
             analyses: self.analyses.remove(&row.id).unwrap_or_default(),
+            turns: Vec::new(),
             owner_id: row.owner_id,
             id: row.id,
         })

@@ -25,6 +25,7 @@ fn message(role: MessageRole, text: &str) -> Message {
         text: text.to_owned(),
         task: Task::FIRST,
         at: Utc.with_ymd_and_hms(2026, 1, 2, 3, 4, 5).unwrap(),
+        turn_id: None,
     }
 }
 

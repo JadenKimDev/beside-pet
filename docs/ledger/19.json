@@ -44,13 +44,13 @@
       ],
       "tdd": true,
       "red_at": "2026-10-21T09:08:48.398Z",
-      "status": "doing",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 2,
       "started_at": "2026-10-21T09:04:51.573Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": 5143
+      "finished_at": "2026-10-21T09:32:54.675Z",
+      "active_ms": 1683102,
+      "verify_ms": 17004
     },
     {
       "id": "S3",

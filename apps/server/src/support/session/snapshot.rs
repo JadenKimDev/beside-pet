@@ -1,11 +1,11 @@
-//! 세션 스냅샷: 저장에 넘기고 저장에서 받는 평범한 데이터. `sessions` 행 + `messages` 행 + `turn_analyses` 행 + 저장된 리포트.
+//! 세션 스냅샷: 저장에 넘기고 저장에서 받는 평범한 데이터. `sessions` 행 + `messages` 행 + `turn_analyses` 행 + `turns` 행 + 저장된 리포트.
 //!
 //! 계획과 요약은 없다. 결정론적 파생값이라 저장하지 않는다.
 
 use chrono::{DateTime, Utc};
 
 use super::super::rules::{GriefProfile, MindReport, SupportLevel, Task, TurnAnalysis};
-use super::Message;
+use super::{Message, Turn};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionSnapshot {
@@ -23,6 +23,8 @@ pub struct SessionSnapshot {
     pub history: Vec<Message>,
     /// 순서대로.
     pub analyses: Vec<TurnAnalysis>,
+    /// 받은 순서대로(첫 인사 포함).
+    pub turns: Vec<Turn>,
     /// JSONB(`Serialize + Deserialize`). 처음 요청 때 한 번 쓴다.
     pub report: Option<MindReport>,
 }

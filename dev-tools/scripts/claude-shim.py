@@ -56,12 +56,20 @@ def ask_claude(model: str, system: str | None, prompt: str, max_tokens: int | No
     if system:
         cmd += ["--system-prompt", system]
     # 빈 디렉터리에서 돌려 이 레포의 CLAUDE.md 와 메모리가 프롬프트에 섞이지 않게 한다.
-    proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=300, cwd=EMPTY_CWD)
-    if proc.returncode != 0:
-        raise RuntimeError(f"claude exited {proc.returncode}")
-    data = json.loads(proc.stdout)
-    if data.get("is_error"):
-        raise RuntimeError("claude returned is_error")
+    # claude 프로세스가 드물게 비정상 종료한다(60여 번에 한 번). 한 번만 다시 시도한다.
+    last_error = None
+    for attempt in range(2):
+        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=300, cwd=EMPTY_CWD)
+        if proc.returncode != 0:
+            last_error = RuntimeError(f"claude exited {proc.returncode}")
+            continue
+        data = json.loads(proc.stdout)
+        if data.get("is_error"):
+            last_error = RuntimeError("claude returned is_error")
+            continue
+        break
+    else:
+        raise last_error
     text = data.get("result") or ""
     usage = data.get("usage") or {}
     if max_tokens and len(text) > max_tokens * 6:  # 대략의 상한. 글자 6개를 토큰 하나로 본다

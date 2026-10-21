@@ -54,7 +54,7 @@ export function AppShell({ viewer, children }: { viewer: Viewer; children: React
             <LogoutButton onDone={() => router.replace(LOGIN_PATH)} className="shrink-0" />
           </div>
         </div>
-        {nav('grid grid-cols-3 border-t border-border md:hidden', 'h-11')}
+        {nav('grid grid-cols-4 border-t border-border md:hidden', 'h-11')}
       </header>
       <main className="mx-auto w-full max-w-[1200px] flex-1 px-4 py-6 md:px-6">{children}</main>
     </div>

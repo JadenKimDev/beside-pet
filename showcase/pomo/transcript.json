@@ -1,0 +1,348 @@
+{
+  "fictional": true,
+  "note": "이 파일의 모든 글(이름, 보호자의 말, 동반자의 답, 리포트)은 지어낸 것이다. 실제 사용자의 대화가 아니며, sandbox 의 지어낸 계정으로 한 번 돌린 대화를 옮겼다.",
+  "pet": {
+    "name": "뽀모",
+    "kind": "포메라니안",
+    "age": 14
+  },
+  "account": "showcase-pomo (sandbox 전용, 지어낸 계정)",
+  "date": "2026-10-21",
+  "turns": [
+    {
+      "role": "companion",
+      "text": "안녕하세요, 뽀모를 떠나보내신 마음이 많이 무거우시겠어요. 천천히 이야기해 주셔도 괜찮아요. 뽀모는 어떤 아이였는지, 함께 지내며 가장 기억에 남는 순간을 하나 들려주실 수 있을까요? 예를 들어 좋아하던 장소나 늘 하던 습관 같은 것도 좋아요.",
+      "stage": "1/4 상실의 현실 받아들이기"
+    },
+    {
+      "role": "user",
+      "text": "뽀모가 제일 좋아하던 건 저녁에 제 무릎 위에서 자는 거였어요. 퇴근하고 소파에 앉으면 꼭 올라와서 턱을 제 팔에 올리고 잠들었어요.",
+      "stage": "1/4 상실의 현실 받아들이기"
+    },
+    {
+      "role": "companion",
+      "text": "퇴근하고 소파에 앉으면 뽀모가 올라와 팔에 턱을 올리고 잠들던 그 저녁들이, 하루의 끝을 얼마나 따뜻하게 만들어 줬을지 느껴져요. 지금 소파에 앉으시면 그 무게가 자꾸 떠오르실 것 같아요.",
+      "stage": "1/4 상실의 현실 받아들이기"
+    },
+    {
+      "role": "user",
+      "text": "네, 소파에 앉으면 그 무게가 없어서 자꾸 손이 옆자리로 가요. 지난주에 떠났는데 아직 사료 그릇도 못 치웠어요.",
+      "stage": "1/4 상실의 현실 받아들이기"
+    },
+    {
+      "role": "companion",
+      "text": "손이 자꾸 옆자리로 가는 건, 그만큼 뽀모와의 시간이 몸에 배어 있었다는 뜻이겠지요. 지난주에 떠났으니 아직 모든 게 낯설고 마음이 따라가지 못하는 것도 자연스러워요. 사료 그릇은 준비되실 때까지 그대로 두셔도 괜찮아요, 천천히 가셔도 됩니다.",
+      "stage": "1/4 상실의 현실 받아들이기"
+    },
+    {
+      "role": "user",
+      "text": "열네 살이었어요. 마지막 몇 달은 다리가 약해져서 제가 안아서 침대에 올려줬어요. 그래도 끝까지 밥은 잘 먹었어요.",
+      "stage": "1/4 상실의 현실 받아들이기"
+    },
+    {
+      "role": "companion",
+      "text": "열네 살 동안 함께 지내셨고, 마지막 몇 달은 안아서 침대에 올려주며 곁을 지켜주셨네요. 끝까지 밥을 잘 먹었다는 말에서 뽀모가 편안하게 지냈던 시간이 조금이나마 느껴져요. 그 마지막 시간들을 돌보시느라 많이 애쓰셨겠어요.",
+      "stage": "2/4 슬픔의 감정 마주하기"
+    },
+    {
+      "role": "user",
+      "text": "어제는 사료 그릇을 치우려다가 그 앞에서 한참 울었어요. 그릇 하나 치우는 게 이렇게 어려울 줄 몰랐어요.",
+      "stage": "2/4 슬픔의 감정 마주하기"
+    },
+    {
+      "role": "companion",
+      "text": "그릇 하나였는데도 그 앞에서 한참 울게 되셨군요. 뽀모가 매일 밥을 먹던 자리였으니, 그 작은 그릇이 그동안의 시간을 한꺼번에 떠올리게 했을 것 같아요. 치우지 못하는 날도, 울고 나서야 치울 수 있는 날도 모두 괜찮아요.",
+      "stage": "2/4 슬픔의 감정 마주하기"
+    },
+    {
+      "role": "user",
+      "text": "저녁 산책 시간이 되면 몸이 먼저 일어나요. 그러고 나서야 뽀모가 없다는 걸 다시 알게 돼요.",
+      "stage": "2/4 슬픔의 감정 마주하기"
+    },
+    {
+      "role": "companion",
+      "text": "저녁 산책 시간이면 몸이 먼저 기억하고 일어나는데, 그다음에야 뽀모가 없다는 걸 다시 알게 되시는 거군요. 매일 같은 시간에 뽀모와 함께 나섰던 길이라, 몸에 새겨진 습관이 한동안 계속 불러낼 것 같아요.",
+      "stage": "2/4 슬픔의 감정 마주하기"
+    },
+    {
+      "role": "user",
+      "text": "마지막 날 병원에서 더 해 줄 게 없었는지 자꾸 생각나요. 조금만 더 일찍 데려갔으면 어땠을까 싶고요.",
+      "stage": "2/4 슬픔의 감정 마주하기"
+    },
+    {
+      "role": "companion",
+      "text": "그 마지막 날을 자꾸 되짚어 보시는 게 얼마나 무거우실지 짐작이 돼요. 그때 할 수 있는 최선을 생각하며 결정하셨을 텐데, 지금은 그 순간을 다시 들여다보느라 마음이 많이 힘드시겠어요. 혹시 그날 병원에서 가장 마음에 남는 장면이 있으세요?",
+      "stage": "3/4 없는 일상에 적응하기"
+    },
+    {
+      "role": "user",
+      "text": "선생님이 이제 보내 주자고 했을 때 뽀모가 제 손을 핥았어요. 그 장면이 제일 남아요. 그래도 요즘은 뽀모가 좋아하던 창가 자리를 자주 봐요. 오후 햇빛이 들면 거기서 배를 깔고 누워 있었거든요.",
+      "stage": "3/4 없는 일상에 적응하기"
+    },
+    {
+      "role": "companion",
+      "text": "손을 핥아 주던 그 장면이 마지막까지 마음에 남아 있는 걸 보니, 뽀모가 그 순간에도 곁에 있는 사람의 마음을 알아챘던 것 같아요. 요즘 창가 자리를 자주 바라보시는 것도, 오후 햇살 아래 배를 깔고 눕던 뽀모를 그리워하고 계셔서겠지요. 그 자리가 한동안 뽀모와의 시간을 다시 만나는 곳이 될 것 같아요.",
+      "stage": "3/4 없는 일상에 적응하기"
+    },
+    {
+      "role": "user",
+      "text": "첫날 집에 왔을 때는 상자에서 한참을 안 나왔어요. 제가 옆에 누워서 기다리니까 그제야 코를 내밀었고요.",
+      "stage": "3/4 없는 일상에 적응하기"
+    },
+    {
+      "role": "companion",
+      "text": "뽀모가 처음 집에 왔을 때 상자 안에서 머뭇거리다가, 옆에 누워 기다려 주신 덕분에 코를 내밀었던 그날이 떠오르네요. 그렇게 천천히 서로를 믿게 된 시간이 있었기에, 열네 해 동안 그렇게 깊이 함께할 수 있었던 것 같아요.",
+      "stage": "3/4 없는 일상에 적응하기"
+    },
+    {
+      "role": "user",
+      "text": "비 오는 날 발 닦이던 수건이 아직 현관에 걸려 있어요. 그건 못 버릴 것 같아요.",
+      "stage": "3/4 없는 일상에 적응하기"
+    },
+    {
+      "role": "companion",
+      "text": "그 수건은 비 오는 날마다 뽀모의 발을 닦아 주던 손길이 함께 담긴 물건이니, 지금은 그냥 그대로 두셔도 괜찮아요. 언젠가 마음이 허락하는 때가 오면 그 수건을 어떻게 간직할지 천천히 정해 보셔도 되고요. 뽀모를 기억하는 자리가 하나쯤 있다는 건 그만큼 사랑이 깊었다는 뜻이기도 하니까요.",
+      "stage": "4/4 연결을 간직하며 나아가기"
+    },
+    {
+      "role": "user",
+      "text": "요즘은 사진을 하루에 한 장씩 보고 있어요. 울기도 하는데, 상자 사진을 보면서는 웃었어요.",
+      "stage": "4/4 연결을 간직하며 나아가기"
+    },
+    {
+      "role": "companion",
+      "text": "상자 속에서 나오지 않던 뽀모 사진을 보며 웃으셨다니, 그 장면이 얼마나 귀여웠을지 조금 짐작이 되네요. 울다가도 웃음이 나는 순간이 함께 찾아온다는 건, 그만큼 뽀모와의 기억이 따뜻하게 남아 있다는 뜻일 거예요. 그 사진들을 하루에 한 장씩 천천히 보시는 것도 뽀모를 기억하는 좋은 방법이 될 것 같아요.",
+      "stage": "4/4 연결을 간직하며 나아가기"
+    },
+    {
+      "role": "user",
+      "text": "다음 주엔 뽀모 산책길을 한 번 걸어 보려고 해요. 혼자 가는 건 처음이라 조금 겁나지만요.",
+      "stage": "4/4 연결을 간직하며 나아가기"
+    },
+    {
+      "role": "companion",
+      "text": "뽀모와 늘 함께 걷던 길을 다시 혼자 걸으려니 겁이 나는 게 당연하게 느껴져요. 그래도 그 길에서 뽀모가 좋아하던 곳이 떠오르면, 그때 잠시 멈춰 서서 뽀모를 떠올려 보셔도 좋을 것 같아요. 너무 힘들면 언제든 중간에 돌아와도 괜찮아요.",
+      "stage": "4/4 연결을 간직하며 나아가기"
+    }
+  ],
+  "closing_notice": {
+    "title": "오늘 대화를 마쳤어요",
+    "body": "함께 걸어온 길을 마음 리포트로 정리해 두었어요. 이 대화는 목록에서 언제든 다시 볼 수 있어요."
+  },
+  "report": {
+    "title": "뽀모와 함께 걸어온 길",
+    "subtitle": "2026년 10월 21일의 대화 · 네 번째 걸음까지",
+    "journey": "뽀모를 떠나보낸 뒤 이렇게 마음을 천천히 꺼내 보신 것만으로도 큰 걸음을 내디디신 거예요. 그릇 앞에서 울던 날부터 사진을 한 장씩 보며 웃기까지, 그 모든 순간이 애도를 살아내고 계신 흔적이에요.",
+    "emotions": "그 저녁 무릎 위의 무게와 마지막 날을 자꾸 되짚는 마음 모두, 뽀모를 깊이 사랑했기에 생기는 자연스러운 감정이에요. 그리움도 후회도 다 사랑의 다른 모습이니, 스스로를 탓하지 않으셔도 괜찮아요.",
+    "emotion_tags": ["그리움", "죄책감", "따뜻함"],
+    "keepsakes": "퇴근하고 소파에 앉으면 팔에 턱을 올리고 잠들던 뽀모의 모습을 기억해 주세요. 그 따뜻한 무게가 늘 하루의 끝을 포근하게 만들어 주었다는 사실을 마음 한편에 간직하셨으면 해요.",
+    "encouragement": "오늘도 뽀모를 그리워하며 이야기를 꺼내 주셨으니 정말 애쓰셨어요. 천천히, 마음이 허락하는 만큼만 걸어가시면 돼요.",
+    "signature": "— 마음이",
+    "footnote": "이 리포트는 처음 열었을 때 한 번 쓰이고, 다시 쓰지 않아요. 대화를 지우면 함께 지워져요."
+  },
+  "sessions_list_card": {
+    "title": "연결을 간직하며 나아가기까지",
+    "badge": "마친 대화",
+    "meta": "수 오후 7:19 · 뽀모 · 6분 · 메시지 23개"
+  },
+  "steps": [
+    {
+      "id": "onboarding-language",
+      "screenshot": "01-onboarding-language.webp",
+      "caption": "대화에 쓸 언어를 고른다",
+      "turns": null,
+      "kind": "onboarding"
+    },
+    {
+      "id": "onboarding-name",
+      "screenshot": "02-onboarding-name.webp",
+      "caption": "반려동물의 이름을 적는다",
+      "turns": null,
+      "kind": "onboarding"
+    },
+    {
+      "id": "onboarding-status",
+      "screenshot": "03-onboarding-status.webp",
+      "caption": "이미 떠났는지, 아직 함께 있는지 고른다",
+      "turns": null,
+      "kind": "onboarding"
+    },
+    {
+      "id": "onboarding-years",
+      "screenshot": "04-onboarding-years.webp",
+      "caption": "함께한 세월을 고른다",
+      "turns": null,
+      "kind": "onboarding"
+    },
+    {
+      "id": "onboarding-how",
+      "screenshot": "05-onboarding-how.webp",
+      "caption": "어떻게 이별했는지 편한 만큼만 고른다",
+      "turns": null,
+      "kind": "onboarding"
+    },
+    {
+      "id": "onboarding-sleep",
+      "screenshot": "06-onboarding-sleep.webp",
+      "caption": "요즘의 잠을 묻는다. 모든 질문은 건너뛸 수 있다",
+      "turns": null,
+      "kind": "onboarding"
+    },
+    {
+      "id": "onboarding-summary",
+      "screenshot": "07-onboarding-summary.webp",
+      "caption": "답한 것을 모아 보고 대화를 시작한다",
+      "turns": null,
+      "kind": "onboarding"
+    },
+    {
+      "id": "greeting",
+      "screenshot": "08-greeting.webp",
+      "caption": "첫 인사. 뽀모가 어떤 아이였는지 묻는다",
+      "stage": "1/4 상실의 현실 받아들이기",
+      "turns": [0, 0],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-lap",
+      "screenshot": "09-turn1-lap.webp",
+      "caption": "무릎 위에서 잠들던 저녁",
+      "stage": "1/4 상실의 현실 받아들이기",
+      "turns": [0, 2],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-sofa-bowl",
+      "screenshot": "10-turn2-sofa-bowl.webp",
+      "caption": "빈 옆자리와 치우지 못한 사료 그릇",
+      "stage": "1/4 상실의 현실 받아들이기",
+      "turns": [1, 4],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-fourteen",
+      "screenshot": "11-turn3-fourteen-stage2.webp",
+      "caption": "열네 살의 마지막 몇 달. 두 번째 걸음으로 넘어간다",
+      "stage": "2/4 슬픔의 감정 마주하기",
+      "turns": [4, 6],
+      "kind": "chat"
+    },
+    {
+      "id": "stage2-marker",
+      "screenshot": "12-stage2-marker.webp",
+      "caption": "대화 사이에 걸음이 바뀌었다는 표시가 남는다",
+      "stage": "2/4 슬픔의 감정 마주하기",
+      "turns": [4, 7],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-bowl-walk",
+      "screenshot": "13-turn4-5-bowl-walk.webp",
+      "caption": "그릇 앞에서 운 날과 몸이 먼저 기억하는 산책 시간",
+      "stage": "2/4 슬픔의 감정 마주하기",
+      "turns": [6, 10],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-clinic",
+      "screenshot": "14-turn6-clinic-stage3.webp",
+      "caption": "마지막 날의 후회. 세 번째 걸음으로 넘어간다",
+      "stage": "3/4 없는 일상에 적응하기",
+      "turns": [9, 12],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-window",
+      "screenshot": "15-turn7-window.webp",
+      "caption": "손을 핥던 장면과 오후 햇살의 창가 자리",
+      "stage": "3/4 없는 일상에 적응하기",
+      "turns": [12, 14],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-box",
+      "screenshot": "16-turn8-box.webp",
+      "caption": "처음 집에 온 날, 상자 밖으로 내민 코",
+      "stage": "3/4 없는 일상에 적응하기",
+      "turns": [13, 16],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-towel",
+      "screenshot": "17-turn9-towel-stage4.webp",
+      "caption": "현관의 발 수건. 네 번째 걸음으로 넘어간다",
+      "stage": "4/4 연결을 간직하며 나아가기",
+      "turns": [15, 18],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-photos",
+      "screenshot": "18-turn10-photos.webp",
+      "caption": "하루에 한 장씩 보는 사진",
+      "stage": "4/4 연결을 간직하며 나아가기",
+      "turns": [18, 20],
+      "kind": "chat"
+    },
+    {
+      "id": "turn-walk-route",
+      "screenshot": "19-turn11-walk-route.webp",
+      "caption": "혼자 걸어 볼 산책길",
+      "stage": "4/4 연결을 간직하며 나아가기",
+      "turns": [19, 22],
+      "kind": "chat"
+    },
+    {
+      "id": "end-confirm",
+      "screenshot": "20-end-confirm-dialog.webp",
+      "caption": "대화를 마칠지 한 번 더 묻는다",
+      "turns": null,
+      "kind": "closing"
+    },
+    {
+      "id": "session-closed",
+      "screenshot": "21-session-closed.webp",
+      "caption": "대화를 마치면 마음 리포트로 가는 안내가 남는다",
+      "turns": [21, 22],
+      "kind": "closing"
+    },
+    {
+      "id": "report-journey",
+      "screenshot": "22-report-journey.webp",
+      "caption": "마음 리포트: 함께 걸어온 길",
+      "turns": null,
+      "kind": "report",
+      "report_section": "journey"
+    },
+    {
+      "id": "report-emotions",
+      "screenshot": "23-report-emotions.webp",
+      "caption": "마음 리포트: 마음에 담긴 감정",
+      "turns": null,
+      "kind": "report",
+      "report_section": "emotions"
+    },
+    {
+      "id": "report-keepsake",
+      "screenshot": "24-report-keepsake.webp",
+      "caption": "마음 리포트: 기억하고 싶은 것",
+      "turns": null,
+      "kind": "report",
+      "report_section": "keepsakes"
+    },
+    {
+      "id": "report-encouragement",
+      "screenshot": "25-report-encouragement.webp",
+      "caption": "마음 리포트: 다독임 한마디",
+      "turns": null,
+      "kind": "report",
+      "report_section": "encouragement"
+    },
+    {
+      "id": "sessions-list",
+      "screenshot": "26-sessions-list-closed.webp",
+      "caption": "마친 대화는 목록에 남아 다시 보거나 리포트를 열 수 있다",
+      "turns": null,
+      "kind": "list"
+    }
+  ]
+}

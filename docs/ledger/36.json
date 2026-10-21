@@ -7,10 +7,12 @@
   "tasks": [
     {
       "id": "S1",
-      "title": "자료 틀: `showcase/pomo/transcript.json` 과 `showcase/dev-notes.json` 의 타입(`features/showcase/model/types.ts`)과 읽기 함수, 복사 스크립트(`prebuild`/`predev`), gitignore. 지어낸 전사 자료 한 벌(뽀모)과 스크린샷은 팀장이 이 머신에서 만들어 넣는다",
+      "title": "자료 틀: `showcase/pomo/transcript.json` 과 `showcase/dev-notes.json` 의 타입(`features/showcase/model/types.ts`)과 읽기 함수, 복사 스크립트(`prebuild`/`predev`), gitignore, 웹 Docker 이미지의 빌드 컨텍스트에 `showcase/` 넣기. 지어낸 전사 자료 한 벌(뽀모)과 스크린샷은 팀장이 이 머신에서 만들어 넣는다",
       "scope": [
         "apps/web/features/showcase/model",
         "apps/web/package.json",
+        "apps/web/Dockerfile",
+        "apps/web/Dockerfile.dockerignore",
         "showcase",
         ".gitignore"
       ],
@@ -20,13 +22,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "doing",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
       "started_at": "2026-10-21T10:48:47.396Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-21T10:52:02.525Z",
+      "active_ms": 195129,
+      "verify_ms": 1995
     },
     {
       "id": "S2",

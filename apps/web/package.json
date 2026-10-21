@@ -4,7 +4,9 @@
   "private": true,
   "description": "Pet-loss emotional support agent web client (Next.js)",
   "scripts": {
+    "predev": "rm -rf public/showcase && cp -R ../../showcase public/showcase",
     "dev": "next dev --hostname 127.0.0.1 --port 3001",
+    "prebuild": "rm -rf public/showcase && cp -R ../../showcase public/showcase",
     "build": "next build",
     "start": "next start --port 3001",
     "lint": "biome check .",

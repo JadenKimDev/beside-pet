@@ -35,3 +35,6 @@ infra/bin/
 
 # Rust 빌드 산출물(Cargo 워크스페이스)
 /target/
+
+# 쇼케이스 자료의 복사본. 정본은 /showcase/ 이고 apps/web 의 predev, prebuild 가 복사한다.
+/apps/web/public/showcase/

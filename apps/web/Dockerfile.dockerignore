@@ -1,11 +1,12 @@
 # apps/web/Dockerfile 의 빌드 컨텍스트(레포 루트)에서 뺄 것. 남기는 것만 다시 넣는다:
-# 루트 package.json·pnpm-lock.yaml·pnpm-workspace.yaml 과 apps/web. 루트의 outputs, data, target 은 * 가 뺀다
+# 루트 package.json·pnpm-lock.yaml·pnpm-workspace.yaml 과 apps/web, 그리고 prebuild 가 복사하는 showcase. 루트의 outputs, data, target 은 * 가 뺀다
 # (**/data 로 쓰면 apps/web/lib/data 까지 빠진다).
 *
 !package.json
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
 !apps/web
+!showcase
 **/node_modules
 **/.next
 **/.env*

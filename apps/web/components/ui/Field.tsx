@@ -58,7 +58,7 @@ export function Field({
 export type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   /** 오류 테두리. Field 안이면 `aria-invalid` 로도 켜진다. */
   invalid?: boolean;
-  /** `lg` 는 온보딩 이름 입력(높이 56, 글 17). */
+  /** `lg` 는 온보딩 이름 입력(높이 56, 글 17). 글은 16px 이상이다(iOS 가 입력에 맞춰 확대하지 않게). */
   inputSize?: 'md' | 'lg';
 };
 
@@ -69,7 +69,7 @@ export function Input({ invalid, inputSize = 'md', className, ...rest }: InputPr
       aria-invalid={invalid ? true : rest['aria-invalid']}
       className={cx(
         'w-full rounded-md border border-border-strong bg-surface px-4 text-fg transition-[border-color,box-shadow] duration-(--t-fast) ease-soft placeholder:text-fg-muted placeholder:opacity-80 hover:border-fg-muted focus:border-accent focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--color-accent)_20%,transparent)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-45 aria-invalid:border-danger',
-        inputSize === 'lg' ? 'h-14 rounded-pill px-5 text-[17px]' : 'h-12 text-[15px]',
+        inputSize === 'lg' ? 'h-14 rounded-pill px-5 text-[17px]' : 'h-12 text-base',
         className,
       )}
     />

@@ -40,4 +40,36 @@ describe('chromeFor', () => {
     expect(chromeFor(null).variant).toBe('public');
     expect(chromeFor('/nowhere').variant).toBe('public');
   });
+
+  it('모든 경로의 머리는 스크롤돼도 붙어 있다(도움 알약이 늘 보인다). 대화 화면도 붙는다', () => {
+    for (const path of [
+      '/',
+      '/help',
+      '/session',
+      '/onboarding',
+      '/sessions',
+      '/sessions/abc',
+      '/settings',
+    ]) {
+      expect(chromeFor(path).stickyHeader).toBe(true);
+    }
+    expect(chromeFor(null).stickyHeader).toBe(true);
+    expect(chromeFor('/nowhere').stickyHeader).toBe(true);
+  });
+
+  it('위기 띠를 입력창 아래에 붙여 늘 보이게 하는 것은 대화 화면뿐이다', () => {
+    expect(chromeFor('/session').crisisDock).toBe(true);
+    for (const path of [
+      '/',
+      '/help',
+      '/onboarding',
+      '/sessions',
+      '/sessions/abc',
+      '/settings',
+      '/nowhere',
+    ]) {
+      expect(chromeFor(path).crisisDock).toBe(false);
+    }
+    expect(chromeFor(null).crisisDock).toBe(false);
+  });
 });

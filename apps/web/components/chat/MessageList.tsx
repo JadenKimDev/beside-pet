@@ -87,6 +87,15 @@ export function MessageList({
     }
   }, [messages, scrollToEnd]);
 
+  // 답이 끝나면 그 아래에 위기 카드나 마침 카드가 붙는다. 바닥 근처였으면 그것까지 보이게 내려간다.
+  // 바닥에 새로 붙은 것(멈춤 안내)이 layout effect 에서 높이를 알린 뒤라야 하므로 useEffect 에서 한다.
+  const wasStreaming = useRef(streaming);
+  useEffect(() => {
+    const finished = wasStreaming.current && !streaming;
+    wasStreaming.current = streaming;
+    if (finished && nearBottom.current) scrollToEnd(false);
+  }, [streaming, scrollToEnd]);
+
   const dayFormat = new Intl.DateTimeFormat(locale, {
     month: 'long',
     day: 'numeric',

@@ -100,7 +100,7 @@ export function Menu({
                 item.onSelect();
               }}
               className={cx(
-                'flex w-full cursor-pointer items-center gap-2.5 rounded-sm border-0 bg-transparent px-3 py-2.5 text-left text-sm whitespace-nowrap hover:bg-bg-sunk focus-visible:bg-bg-sunk focus-visible:outline-none [&_svg]:size-4 [&_svg]:flex-none',
+                'flex w-full cursor-pointer items-center gap-2.5 rounded-sm border-0 bg-transparent px-3 py-2.5 text-left text-sm whitespace-nowrap max-sm:min-h-11 hover:bg-bg-sunk focus-visible:bg-bg-sunk focus-visible:outline-none [&_svg]:size-4 [&_svg]:flex-none',
                 item.tone === 'danger' ? 'text-danger' : 'text-fg',
               )}
             >

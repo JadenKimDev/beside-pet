@@ -12,7 +12,8 @@ const BASE =
   'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-pill border border-transparent font-semibold no-underline transition-[background-color,border-color,color,box-shadow,transform,filter] duration-(--t-fast) ease-soft focus-visible:shadow-focus focus-visible:outline-none [&_svg]:size-[18px] [&_svg]:shrink-0';
 
 const SIZE: Record<ButtonSize, string> = {
-  sm: 'h-9 px-3.5 text-[13px]',
+  // 모바일은 44px 터치 대상(데스크톱 모양은 그대로).
+  sm: 'h-9 px-3.5 text-[13px] max-sm:h-11',
   md: 'h-12 px-[22px] text-[15px]',
   lg: 'h-14 px-7 text-base',
 };

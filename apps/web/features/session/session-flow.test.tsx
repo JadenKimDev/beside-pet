@@ -394,4 +394,39 @@ describe('대화 화면의 스크롤과 입력창 높이', () => {
     expect(document.querySelector('textarea')).toBeNull();
     expect(composerVar()).toBe('0px');
   });
+
+  it('대화 화면의 입력창 안(재는 높이 안)에 위기 띠의 두 번호가 전화 링크로 붙는다', async () => {
+    await openGreeting();
+    const form = document.querySelector('form');
+    const hrefs = Array.from(form?.querySelectorAll('a[href^="tel:"]') ?? [], (a) =>
+      a.getAttribute('href'),
+    );
+    expect(hrefs).toEqual(['tel:109', 'tel:15771366']);
+  });
+
+  it('위기 턴 뒤의 멈춤 안내도 자기 높이를 입력창 높이로 알려, 위기 카드의 끝이 안내에 가리지 않게 한다', async () => {
+    const STOPPED_HEIGHT = 152;
+    const formRect = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
+      if (this instanceof HTMLElement && this.hasAttribute('data-crisis-stopped')) {
+        return { ...originalRect.call(this), height: STOPPED_HEIGHT } as DOMRect;
+      }
+      return formRect.call(this);
+    };
+    const { stream, pending } = await openGreeting();
+    stream.push({ kind: 'meta', task: 1, progress: 0, supportLevel: 3, done: true });
+    stream.push({
+      kind: 'done',
+      result: { reply: '다시 와 주셔서 ', task: 1, progress: 0, supportLevel: 3, done: true },
+    });
+    stream.end();
+    await flush();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(document.querySelector('textarea')).toBeNull();
+    expect(document.querySelector('[data-crisis-stopped]')).not.toBeNull();
+    expect(composerVar()).toBe(`${STOPPED_HEIGHT}px`);
+  });
 });

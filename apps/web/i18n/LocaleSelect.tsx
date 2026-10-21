@@ -10,7 +10,8 @@ import { Segmented } from '@/components/ui';
 import { LOCALE_LABELS, LOCALES } from './config';
 import { useLocale, useTranslations } from './I18nProvider';
 
-export function LocaleSelect() {
+/** `fill={false}` 는 머리처럼 좁은 줄 안에서 쓴다(칸을 늘리지 않고 글자를 한 줄로 둔다). */
+export function LocaleSelect({ fill = true }: { fill?: boolean }) {
   const translations = useTranslations();
   const { locale, setLocale } = useLocale();
 
@@ -19,6 +20,7 @@ export function LocaleSelect() {
       label={translations.settings.uiLanguage}
       value={locale}
       onChange={setLocale}
+      fill={fill}
       options={LOCALES.map((candidate) => ({ value: candidate, label: LOCALE_LABELS[candidate] }))}
     />
   );

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Gowun_Batang } from 'next/font/google';
 import { cookies, headers } from 'next/headers';
 import { SiteChrome } from '@/components/layout/SiteChrome';
@@ -21,6 +21,15 @@ const gowunBatang = Gowun_Batang({
 export const metadata: Metadata = {
   title: 'Beside Pet',
   description: 'An AI companion for those who have lost a pet.',
+};
+
+// viewport-fit=cover 로 노치 아래까지 그리고(바닥 여백은 safe-area 로 띄운다), 휴대폰 키보드가 올라오면
+// 레이아웃 뷰포트가 줄게 해(resizes-content) 대화 화면의 100dvh 와 붙은 입력창이 키보드 위에 남게 한다.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
 };
 
 export default async function RootLayout({

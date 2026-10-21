@@ -8,10 +8,13 @@
  * the pause notice. Every stage, level and "done" comes from the server via the store.
  */
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Composer } from '@/components/chat/Composer';
 import { MessageList } from '@/components/chat/MessageList';
 import type { Message } from '@/components/chat/types';
+import { CrisisLine } from '@/components/layout/CrisisLine';
+import { chromeFor } from '@/components/layout/chrome';
 import { Button, buttonClass, EmptyState, Icon, IconButton, Modal } from '@/components/ui';
 import { CrisisResources } from '@/features/safety/components/CrisisResources';
 import { ClosedCard } from '@/features/session/components/ClosedCard';
@@ -52,6 +55,7 @@ export default function SessionPage() {
   const petName = storedPetName ?? listedPetName;
 
   const [confirmingEnd, setConfirmingEnd] = useState(false);
+  const { crisisDock } = chromeFor(usePathname());
 
   if (status === 'idle') {
     return (
@@ -99,7 +103,9 @@ export default function SessionPage() {
   };
 
   return (
-    <main className="flex w-full flex-1 flex-col">
+    // 대화는 휴대폰 주소창·키보드에 따라 줄어드는 높이(100dvh)에서 전역 머리를 뺀 만큼을 채워,
+    // 입력창이 보이는 화면 바닥에 앉는다.
+    <main className="flex min-h-[calc(100dvh-4rem)] w-full flex-1 flex-col max-sm:min-h-[calc(100dvh-3.5rem)]">
       <SessionHeader
         task={task}
         petName={petName}
@@ -146,6 +152,7 @@ export default function SessionPage() {
             busy={streaming}
             disabled={closing}
             onSend={(text) => void sendUserMessage(text)}
+            footer={crisisDock ? <CrisisLine compact /> : undefined}
           />
         )
       )}

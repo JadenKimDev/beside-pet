@@ -15,6 +15,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
         variant={chrome.variant}
         showLocale={chrome.showLocale}
         showHelp={chrome.crisis}
+        sticky={chrome.stickyHeader}
       />
       {children}
       <SiteFooter showCrisis={chrome.crisis} />

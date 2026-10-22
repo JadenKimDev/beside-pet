@@ -60,7 +60,7 @@ export function moveSection(run: RunResult): string[] {
   return [
     "## 동작과 길이",
     "",
-    "위기 턴(고정 안내)은 뺀다. 동작 패턴은 서버의 `turn_style/patterns.rs` 와 같은 문자열이다.",
+    "위기 턴(고정 안내)은 뺀다. 동작 패턴은 서버의 `turn_style.rs` 와 같은 문자열이다.",
     "",
     ...table(
       ["칸", "값"],

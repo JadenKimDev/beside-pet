@@ -1,10 +1,10 @@
-//! 대화 저장: `sessions`·`messages`·`turn_analyses`·`turns` 의 SQL.
+//! 대화 저장: `sessions`·`messages`·`turn_analyses`·`turns` 의 SQL. 기억 테이블의 SQL 은 `memory` 가 맡는다.
 //!
 //! 스냅샷 하나는 세션 행 하나, 메시지 행(순번 = 전사의 자리), 턴 분석 행(순번 = 분석의 자리, 답의 판정 칸과 sandbox 의 추적 칸 포함), 턴 행(id = 클라이언트의
 //! 멱등 키, ADR-0028)이다. 저장은 한 트랜잭션의 upsert 라 두 번 해도 같고, 턴의 상태 전이도 upsert 로 덮인다. 턴은 일어난
 //! 사실이라 스냅샷에서 빠져도 지우지 않는다. 계획·요약·진행률은 규칙으로 다시 구하므로 저장하지 않는다. 삭제는 한
-//! 트랜잭션으로 turn_analyses → messages → turns → sessions 순서로 지운다(ADR-0006). 시각은 timestamptz 라 마이크로초까지
-//! 남는다.
+//! 트랜잭션으로 그 세션의 기억(memory_optouts → memory_notes → pets) → turn_analyses → messages → turns → sessions
+//! 순서로 지운다(ADR-0006). 시각은 timestamptz 라 마이크로초까지 남는다.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -21,7 +21,10 @@ use rows::{
 };
 
 mod codec;
+mod memory;
 mod rows;
+
+pub use memory::PgMemoryStore;
 
 const SESSION_COLUMNS: &str = "id, owner_id, task, retry_count, support_level, closed, \
                                grief_profile::text AS grief_profile, report::text AS report, created_at";
@@ -174,6 +177,32 @@ impl SessionStore {
         .await
     }
 
+    /// 소유자의 직전 세션과 그 마지막 활동 시각: 마지막 메시지 시각(`messages` 의 `max(at)`, 메시지가 없으면
+    /// `sessions.created_at`)이 가장 늦은 세션이다. 같으면 시작이 늦은 것, 그다음 id 가 큰 것. 세션이 없으면 `None`.
+    pub async fn latest_by_owner(
+        &self,
+        owner_id: &str,
+    ) -> Result<Option<(SessionSnapshot, DateTime<Utc>)>, StoreError> {
+        let latest: Option<(String, DateTime<Utc>)> = sqlx::query_as(
+            "SELECT s.id, coalesce(m.last_at, s.created_at) AS last_active_at \
+             FROM sessions s \
+             LEFT JOIN LATERAL (SELECT max(at) AS last_at FROM messages WHERE session_id = s.id) m ON true \
+             WHERE s.owner_id = $1 \
+             ORDER BY last_active_at DESC, s.created_at DESC, s.id DESC LIMIT 1",
+        )
+        .bind(owner_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some((id, last_active_at)) = latest else {
+            return Ok(None);
+        };
+        // 고른 뒤 그 사이에 지워졌으면 없는 것으로 본다.
+        Ok(self
+            .find(&id)
+            .await?
+            .map(|snapshot| (snapshot, last_active_at)))
+    }
+
     /// 세션들의 메시지 집계(마지막 시각, 첫·마지막 사이의 분, 수)를 한 질의로 구한다. 중단한 턴의 메시지는 숨으므로 세지
     /// 않는다. 메시지가 없는 세션은 빠진다.
     pub async fn message_activity(
@@ -232,10 +261,15 @@ impl SessionStore {
         Ok(exists)
     }
 
-    /// 그 세션의 턴 분석, 메시지, 턴, 세션 행을 한 트랜잭션으로 지운다. 없는 id 는 아무것도 하지 않는다.
+    /// 그 세션이 출처인 기억(사실, 옵트아웃, 아이), 턴 분석, 메시지, 턴, 세션 행을 한 트랜잭션으로 지운다. 기억 테이블의
+    /// FK 연쇄가 같은 일을 하지만 여기서도 명시한다(ADR-0006). 다른 세션의 사실이 지운 아이나 사실을 가리키면 FK 가 그
+    /// 칸만 비운다. 없는 id 는 아무것도 하지 않는다.
     pub async fn delete(&self, id: &str) -> Result<(), StoreError> {
         let mut tx = self.pool.begin().await?;
         for statement in [
+            "DELETE FROM memory_optouts WHERE session_id = $1",
+            "DELETE FROM memory_notes WHERE session_id = $1",
+            "DELETE FROM pets WHERE source_session_id = $1",
             "DELETE FROM turn_analyses WHERE session_id = $1",
             "DELETE FROM messages WHERE session_id = $1",
             "DELETE FROM turns WHERE session_id = $1",

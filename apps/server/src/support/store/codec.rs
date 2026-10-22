@@ -18,7 +18,7 @@ fn decode_error(message: String) -> sqlx::Error {
     sqlx::Error::Decode(message.into())
 }
 
-fn unknown(column: &str, text: &str) -> sqlx::Error {
+pub(super) fn unknown(column: &str, text: &str) -> sqlx::Error {
     decode_error(format!("{column} has an unknown value {text:?}"))
 }
 

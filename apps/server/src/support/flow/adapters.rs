@@ -1,4 +1,5 @@
-//! 바깥 trait 의 실제 구현: `SessionStore` 를 저장으로, `identity` 의 계정 서비스를 대화 언어로, 시스템 시계.
+//! 바깥 trait 의 실제 구현: `SessionStore` 를 저장으로, `PgMemoryStore` 를 기억으로, `identity` 의 계정 서비스를 대화 언어로,
+//! 시스템 시계.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -7,13 +8,16 @@ use chrono::{DateTime, Utc};
 use futures_util::future::BoxFuture;
 
 use super::access::NOT_OWNER;
-use super::outside::{ChatLanguages, Clock, SessionRepository};
+use super::outside::{ChatLanguages, Clock, LatestSession, SessionRepository};
 use crate::identity::{
     AccountActivity, ChatLanguage, SessionPresence, SharedAccountService, SharedSessionPresence,
 };
 use crate::shared::ApiError;
+use crate::support::memory::{
+    MemoryNote, MemoryOptout, MemoryStore, MemoryView, NewNote, NewPet, Pet, SharedMemoryStore,
+};
 use crate::support::session::{MessageActivity, SessionSnapshot};
-use crate::support::store::{SessionStore, StoreError};
+use crate::support::store::{PgMemoryStore, SessionStore, StoreError};
 
 /// 저장의 실패를 HTTP 겉으로 옮긴다. 원인은 종류만 로그에 남긴다(본문과 식별 정보는 싣지 않는다).
 fn store_error(error: StoreError) -> ApiError {
@@ -64,6 +68,21 @@ impl SessionRepository for SessionStore {
         })
     }
 
+    fn latest_by_owner<'a>(
+        &'a self,
+        owner_id: &'a str,
+    ) -> BoxFuture<'a, Result<Option<LatestSession>, ApiError>> {
+        Box::pin(async move {
+            let latest = SessionStore::latest_by_owner(self, owner_id)
+                .await
+                .map_err(store_error)?;
+            Ok(latest.map(|(snapshot, last_active_at)| LatestSession {
+                snapshot,
+                last_active_at,
+            }))
+        })
+    }
+
     fn message_activity<'a>(
         &'a self,
         session_ids: &'a [&'a str],
@@ -106,6 +125,62 @@ impl SessionPresence for SessionStore {
 pub async fn fail_pending_turns(db: sqlx::PgPool, at: DateTime<Utc>) -> Result<u64, ApiError> {
     SessionStore::new(db)
         .fail_pending_turns(at)
+        .await
+        .map_err(store_error)
+}
+
+impl MemoryStore for PgMemoryStore {
+    fn view<'a>(&'a self, owner_id: &'a str) -> BoxFuture<'a, Result<MemoryView, ApiError>> {
+        Box::pin(async move {
+            PgMemoryStore::view(self, owner_id)
+                .await
+                .map_err(store_error)
+        })
+    }
+
+    fn upsert_pet<'a>(&'a self, pet: &'a NewPet) -> BoxFuture<'a, Result<Pet, ApiError>> {
+        Box::pin(async move {
+            PgMemoryStore::upsert_pet(self, pet)
+                .await
+                .map_err(store_error)
+        })
+    }
+
+    fn insert_note<'a>(
+        &'a self,
+        note: &'a NewNote,
+        supersedes: &'a [String],
+    ) -> BoxFuture<'a, Result<MemoryNote, ApiError>> {
+        Box::pin(async move {
+            PgMemoryStore::insert_note(self, note, supersedes)
+                .await
+                .map_err(store_error)
+        })
+    }
+
+    fn record_optout<'a>(
+        &'a self,
+        optout: &'a MemoryOptout,
+    ) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(async move {
+            PgMemoryStore::record_optout(self, optout)
+                .await
+                .map_err(store_error)
+        })
+    }
+}
+
+/// 흐름에 끼울 기억 저장의 구현(Postgres).
+pub fn memory_store(db: sqlx::PgPool) -> SharedMemoryStore {
+    Arc::new(PgMemoryStore::new(db))
+}
+
+/// 기동 때 정리: 마지막 대화가 보존 기간(`MEMORY_RETENTION_MONTHS`)보다 오래된 계정의 기억(아이, 사실, 옵트아웃)을 지우고
+/// 지운 행 수를 돌려준다. 세션은 지우지 않는다.
+#[allow(dead_code)] // 기동의 호출(flow/mod.rs 재export 와 app.rs)은 S6 이 넣고 그때 이 줄을 지운다.
+pub async fn purge_stale_memory(db: sqlx::PgPool, at: DateTime<Utc>) -> Result<u64, ApiError> {
+    PgMemoryStore::new(db)
+        .purge_expired(at)
         .await
         .map_err(store_error)
 }

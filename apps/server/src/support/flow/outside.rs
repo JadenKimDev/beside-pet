@@ -12,6 +12,14 @@ use crate::identity::ChatLanguage;
 use crate::shared::ApiError;
 use crate::support::session::{MessageActivity, SessionSnapshot};
 
+/// 재개가 잇는 직전 세션과 그 마지막 활동 시각. 경과 일수는 부르는 쪽이 이 시각에서 구한다(저장하지 않는다).
+#[derive(Debug, Clone, PartialEq)]
+pub struct LatestSession {
+    pub snapshot: SessionSnapshot,
+    /// 그 세션의 마지막 메시지 시각(`messages` 의 `max(at)`), 메시지가 없으면 세션 시작 시각. 저장의 SQL 이 구한다.
+    pub last_active_at: DateTime<Utc>,
+}
+
 /// 세션을 읽고 쓰는 곳.
 pub trait SessionRepository {
     /// 넣거나 갱신한다. 같은 id 가 다른 소유자의 것이면 `403`.
@@ -23,6 +31,11 @@ pub trait SessionRepository {
         owner_id: &'a str,
         limit: u32,
     ) -> BoxFuture<'a, Result<Vec<SessionSnapshot>, ApiError>>;
+    /// 소유자의 직전 세션: 마지막 메시지 시각(메시지가 없으면 세션 시작 시각)이 가장 늦은 세션과 그 시각. 없으면 `None`.
+    fn latest_by_owner<'a>(
+        &'a self,
+        owner_id: &'a str,
+    ) -> BoxFuture<'a, Result<Option<LatestSession>, ApiError>>;
     /// 세션들의 메시지 집계. 메시지가 없는 세션은 빠진다(부르는 쪽이 `Default` 로 본다).
     fn message_activity<'a>(
         &'a self,

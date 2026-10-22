@@ -1,6 +1,8 @@
 //! 대화 저장 SQL 의 테스트. DATABASE_URL 이 없으면 이유를 적고 실패한다(건너뛰지 않는다).
 //! 테스트마다 새 스키마에 마이그레이션을 돌리고 끝나면 지운다. 값은 모두 지어낸 것이다.
 
+mod latest;
+mod memory;
 mod reply_judgement;
 mod trace;
 mod turn_states;

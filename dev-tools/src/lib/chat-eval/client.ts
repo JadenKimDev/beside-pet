@@ -81,6 +81,9 @@ export type MindReportResponse = {
   sections: { key: "journey" | "emotions" | "keepsake" | "encouragement"; body: string; tags?: string[] }[];
 };
 
+/** `GET /v1/sessions` 의 항목. 여기서 쓰는 칸만 적는다. */
+export type SessionListItem = { sessionId: string; startedAt: string; closed: boolean };
+
 /** 스트림으로 받은 턴. `firstTokenMs` 는 요청을 보낸 때부터 첫 `token` 이벤트까지(토큰이 없으면 null). */
 export type StreamedTurn = { result: TurnResponse; firstTokenMs: number | null; tokens: number };
 
@@ -266,6 +269,12 @@ export function createClient(options: { baseUrl?: string; account: QaAccount }) 
         if (error instanceof ApiError && (error.status === 404 || error.status === 409)) return null;
         throw error;
       }
+    },
+    /** `GET /v1/sessions`: 로그인한 계정 본인의 세션 목록(서버가 개수를 자른다). */
+    list: () => getJson<SessionListItem[]>("/v1/sessions"),
+    /** `DELETE /v1/sessions/{id}`: 본인 소유의 세션 하나를 지운다(ADR-0006). */
+    async remove(id: string): Promise<void> {
+      await request("DELETE", sessionPath(id));
     },
     /** `POST /v1/sessions/{id}/close`. 이미 닫혔으면 그대로의 상태를 돌려준다. */
     close: (id: string) => postJson<SessionStateResponse>(`${sessionPath(id)}/close`),

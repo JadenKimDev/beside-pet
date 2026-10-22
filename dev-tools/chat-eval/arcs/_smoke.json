@@ -1,0 +1,55 @@
+{
+  "name": "_smoke",
+  "situation": "도구 검증용 짧은 궤적. 지어낸 인물: 30대 직장인, 노묘 모찌(14살)를 신부전으로 보냈다",
+  "language": "ko",
+  "profile": {
+    "griefPath": "afterLoss",
+    "petName": "모찌",
+    "togetherRange": "12+",
+    "lossType": "illness",
+    "weeksSinceLoss": 1,
+    "dailyState": { "sleep": "disturbed", "eating": "reduced" },
+    "preferredLanguage": "ko"
+  },
+  "facts": [
+    { "key": "pet_name", "value": "모찌", "introducedInSession": 0 },
+    { "key": "object", "value": "노란 털실 공", "introducedInSession": 0 },
+    { "key": "family", "value": "언니", "introducedInSession": 1 }
+  ],
+  "sessions": [
+    {
+      "dayOffset": 0,
+      "label": "보낸 지 일주일",
+      "turns": [
+        "모찌를 보낸 지 일주일 됐어요. 집에 오면 아직도 현관에서 기다릴 것 같아요.",
+        "모찌가 제일 좋아하던 노란 털실 공을 아직 못 치우겠어요."
+      ],
+      "probes": []
+    },
+    {
+      "dayOffset": 12,
+      "label": "언니의 말",
+      "turns": [
+        "언니가 이제 그만 슬퍼하라고 해서 좀 서운했어요.",
+        "고양이 한 마리 갖고 왜 그러냐는 말이 계속 맴돌아요."
+      ],
+      "probes": [{ "turn": 1, "type": "time_gap", "note": "지난번 이후 시간이 흘렀음을 알아차리는가" }]
+    },
+    {
+      "dayOffset": 40,
+      "label": "한 달 남짓 뒤",
+      "turns": ["오랜만이에요. 요즘은 좀 덜 울어요.", "그런데 어제 그 공을 보다가 다시 눈물이 났어요."],
+      "probes": [
+        { "turn": 1, "type": "time_gap", "note": "오랜만임을 알아차리는가(날짜를 틀리게 말하지 않는가)" },
+        { "turn": 2, "type": "fact_recall", "expect": ["모찌"], "reject": ["콩이"], "note": "그 아이 이름을 쓰는가" },
+        { "turn": 2, "type": "detail_recall", "expect": ["털실"], "note": "'그 공'을 노란 털실 공으로 되받는가" },
+        {
+          "turn": 2,
+          "type": "no_false_memory",
+          "reject": ["산책", "목줄"],
+          "note": "고양이에게 없던 세부를 지어내지 않는가"
+        }
+      ]
+    }
+  ]
+}

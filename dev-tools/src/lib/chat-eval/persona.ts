@@ -36,8 +36,8 @@ export type Persona = {
   expect?: PersonaExpect;
 };
 
-type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
-type JsonObject = { [key: string]: Json };
+export type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
+export type JsonObject = { [key: string]: Json };
 
 /** 칸 하나의 허용값. 문자열 목록이면 그중 하나, 그 밖은 종류. */
 type FieldRule = readonly string[] | "string" | "nonNegativeInt" | "object";
@@ -61,16 +61,16 @@ const DAILY_STATE_RULES: Record<string, FieldRule> = {
   eating: ["ok", "reduced"],
 };
 
-function isObject(value: Json | undefined): value is JsonObject {
+export function isObject(value: Json | undefined): value is JsonObject {
   return value !== null && value !== undefined && typeof value === "object" && !Array.isArray(value);
 }
 
-function fail(file: string, field: string, reason: string): never {
+export function fail(file: string, field: string, reason: string): never {
   throw new Error(`${file}: ${field} ${reason}`);
 }
 
 /** 모르는 칸이 있으면 던진다. `prefix` 는 오류에 쓸 칸 경로의 앞부분이다. */
-function rejectUnknown(file: string, data: JsonObject, known: readonly string[], prefix: string): void {
+export function rejectUnknown(file: string, data: JsonObject, known: readonly string[], prefix: string): void {
   for (const key of Object.keys(data)) {
     if (!known.includes(key)) fail(file, `${prefix}${key}`, "는 모르는 칸입니다");
   }
@@ -97,7 +97,7 @@ function checkFields(file: string, data: JsonObject, rules: Record<string, Field
   }
 }
 
-function parseProfile(file: string, value: Json | undefined): GriefProfile | null {
+export function parseProfile(file: string, value: Json | undefined): GriefProfile | null {
   if (value === undefined) fail(file, "profile", "이 없습니다(재개면 null)");
   if (value === null) return null;
   if (!isObject(value)) fail(file, "profile", "는 객체이거나 null 입니다");
@@ -132,7 +132,7 @@ function parseExpect(file: string, value: Json | undefined): PersonaExpect | und
   return expect;
 }
 
-function requiredString(file: string, data: JsonObject, field: string): string {
+export function requiredString(file: string, data: JsonObject, field: string): string {
   const value = data[field];
   if (value === undefined || value === null) fail(file, field, "이 없습니다");
   if (typeof value !== "string" || value.trim() === "") fail(file, field, "는 빈칸 아닌 문자열입니다");

@@ -66,6 +66,8 @@ export type RunOptions = {
   onGreeting?: (greeting: string, latencyMs: number) => void;
   /** 스트림의 토큰이 올 때마다(실시간으로 보여 줄 때). */
   onToken?: (text: string) => void;
+  /** 검사에서 뺄 반려동물 이름. 없으면 인물의 프로필에서 구한다(재개 인물은 빈 배열). */
+  petNames?: string[];
 };
 
 /** 대화 모드에서 끝을 뜻하는 발화. */
@@ -113,7 +115,7 @@ function utterances(persona: Persona, options: RunOptions): () => Promise<string
 export async function runPersona(persona: Persona, options: RunOptions): Promise<RunResult> {
   const { client, stream } = options;
   const language = persona.language;
-  const petNames = petNamesOf(persona);
+  const petNames = options.petNames ?? petNamesOf(persona);
   const sessionId = `chat-eval-${persona.name}-${randomUUID().slice(0, 8)}`;
   const startedAt = new Date().toISOString();
   const next = utterances(persona, options);

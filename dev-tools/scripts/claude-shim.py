@@ -11,13 +11,24 @@
   (`claude -p` 는 사용자 프롬프트 하나만 받는다). 도구는 전부 끈다(`--tools ""`. `--bare` 는 로그인 정보까지 건너뛰어 쓰지 않는다).
 - 응답은 `stream` 값에 따라 한 줄(JSON) 또는 NDJSON(`done:false` 글 한 줄 + `done:true` 토큰 수)이다.
 - 모델 이름은 그대로 `--model` 에 준다(haiku, sonnet, opus, 또는 전체 id).
-- 프롬프트와 답의 본문은 로그에 적지 않는다. 적는 것은 시각, 모델, 지연, 토큰 수, 오류 종류뿐이다.
+- 프롬프트와 답의 본문은 로그에 적지 않는다. 적는 것은 시각, 모델, 지연, 토큰 수(thinking 포함), 오류 종류뿐이다.
+- 이 머신의 사용자 설정(전역 CLAUDE.md, 스킬 목록, MCP 도구 정의. 약 6,700 토큰)이 섞이지 않게
+  `--setting-sources "" --strict-mcp-config` 로 띄우고, production 의 Anthropic 경로(`thinking: disabled`)처럼
+  자식 프로세스에 `MAX_THINKING_TOKENS=0` 을 준다.
+
+배포 환경과 남는 차이:
+1. 하네스의 환경 블록(cwd, OS, 날짜, "untrusted data" 규칙, 사용자 이메일 안내. 약 600 토큰)이 시스템 프롬프트 뒤에 붙는다.
+2. 대화 턴을 역할 메시지가 아니라 `<conversation>` 글 하나로 펴서 보낸다.
+3. 스트림이 가짜다(답을 다 받은 뒤 한 번에 보낸다). 첫 토큰 지연은 뜻이 없다.
+4. `num_predict` 는 글자 수로 근사한다(글자 6개를 토큰 하나로 본다).
+5. 요청마다 프로세스를 띄우므로 지연이 API 보다 몇 초 길다.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -27,6 +38,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 TURN_LABEL = {"user": "User", "assistant": "Assistant"}
 EMPTY_CWD = tempfile.mkdtemp(prefix="claude-shim-")
+# production 의 Anthropic 경로는 thinking 을 늘 끈다. 같게 맞춘다.
+CHILD_ENV = {**os.environ, "MAX_THINKING_TOKENS": "0"}
 
 
 def flatten(messages: list[dict]) -> tuple[str | None, str]:
@@ -48,10 +61,11 @@ def flatten(messages: list[dict]) -> tuple[str | None, str]:
     return system, "\n".join(lines)
 
 
-def ask_claude(model: str, system: str | None, prompt: str, max_tokens: int | None) -> tuple[str, dict]:
+def ask_claude(model: str, system: str | None, prompt: str, max_tokens: int | None) -> tuple[str, dict, int]:
+    """답 글, Ollama 모양의 토큰 수, thinking 토큰 수(로그에만 적는다)."""
     cmd = [
         "claude", "-p", "--model", model, "--output-format", "json", "--tools", "",
-        "--max-turns", "1",
+        "--max-turns", "1", "--setting-sources", "", "--strict-mcp-config",
     ]
     if system:
         cmd += ["--system-prompt", system]
@@ -59,7 +73,9 @@ def ask_claude(model: str, system: str | None, prompt: str, max_tokens: int | No
     # claude 프로세스가 드물게 비정상 종료한다(60여 번에 한 번). 한 번만 다시 시도한다.
     last_error = None
     for attempt in range(2):
-        proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True, timeout=300, cwd=EMPTY_CWD)
+        proc = subprocess.run(
+            cmd, input=prompt, capture_output=True, text=True, timeout=300, cwd=EMPTY_CWD, env=CHILD_ENV
+        )
         if proc.returncode != 0:
             last_error = RuntimeError(f"claude exited {proc.returncode}")
             continue
@@ -79,7 +95,7 @@ def ask_claude(model: str, system: str | None, prompt: str, max_tokens: int | No
         + int(usage.get("cache_read_input_tokens", 0))
         + int(usage.get("cache_creation_input_tokens", 0)),
         "eval_count": int(usage.get("output_tokens", 0)),
-    }
+    }, int((usage.get("output_tokens_details") or {}).get("thinking_tokens", 0))
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -118,13 +134,13 @@ class Handler(BaseHTTPRequestHandler):
         system, prompt = flatten(body.get("messages") or [])
         started = time.monotonic()
         try:
-            text, usage = ask_claude(model, system, prompt, max_tokens)
+            text, usage, thinking_tokens = ask_claude(model, system, prompt, max_tokens)
         except Exception as e:  # noqa: BLE001 — 종류만 적는다
             self._log(model=model, ms=int((time.monotonic() - started) * 1000), error=type(e).__name__)
             self._json(500, {"error": "claude failed"})
             return
         ms = int((time.monotonic() - started) * 1000)
-        self._log(model=model, ms=ms, stream=stream, **usage)
+        self._log(model=model, ms=ms, stream=stream, thinking_tokens=thinking_tokens, **usage)
         now = datetime.now(timezone.utc).isoformat()
         if not stream:
             self._json(200, {"model": model, "created_at": now, "message": {"role": "assistant", "content": text}, "done": True, **usage})

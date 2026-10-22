@@ -34,6 +34,7 @@ const RUN_SUFFIX = ".run.json";
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const CHAT_EVAL_USAGE = `사용법: pnpm chat:eval run (--persona <이름> | --all) [--interactive] [--stream] [--baseline <YYYY-MM-DD>]
+       pnpm chat:eval arc --arc <이름> [--stream] [--out-label <라벨>] [--reset-qa]   (장기기억, arc --help)
 
   --persona <이름>     dev-tools/chat-eval/personas/<이름>.json 하나를 돌린다
   --all                인물 파일을 모두 이름순으로 돌린다
@@ -182,7 +183,7 @@ function row(cells: (string | number)[]): string {
   return `| ${cells.map((c) => cell(String(c))).join(" | ")} |`;
 }
 
-function table(header: string[], rows: (string | number)[][]): string[] {
+export function table(header: string[], rows: (string | number)[][]): string[] {
   return [row(header), `|${header.map(() => "---").join("|")}|`, ...rows.map(row)];
 }
 

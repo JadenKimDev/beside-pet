@@ -162,7 +162,7 @@ pnpm wt:create <이슈>     # prd/<이슈> 브랜치를 main 에서 따고 워�
 ```
 
 - 원장 커밋이 main 에 있어야 워크트리가 원장을 본다. 커밋 전에 만들지 않는다.
-- gitignore 된 로컬 폴더(`data/`, `outputs/`, `docs/prd/`, `docs/research/`, `.env`)는 본 체크아웃의 것을 링크로 같이 쓴다. 워크트리에서도 같은 DB, 같은 PRD 캐시를 본다. 빌드 폴더는 워크트리마다 따로다.
+- gitignore 된 로컬 폴더(`data/`, `outputs/`, `docs/prd/`, `docs/research/`, `.env`)는 본 체크아웃의 것을 링크로 같이 쓴다. 워크트리에서도 같은 DB, 같은 PRD 캐시를 본다. 빌드 폴더는 워크트리마다 따로이고, Rust 의 `target/` 만 `cargo.sh` 가 본 체크아웃의 것으로 모은다.
 - 포커스는 옮기지 않는다. 사용자에게 워크트리(와 herdr workspace)가 열렸다고만 알린다.
 - 워크트리를 만들지 못하면 그 사실을 말하고 멈춘다. main 에서 구현을 시작하지 않는다.
 

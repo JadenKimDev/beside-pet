@@ -3,7 +3,7 @@ id: ADR-0005
 date: 2026-10-16
 status: accepted
 tags: [conversation, orchestrator, llm, architecture]
-related: [ADR-0004, ADR-0008, ADR-0010, DEV-2026-03-14-prompt-driven-session-structure, DEV-2026-03-15-session-guide-agent-pacing]
+related: [ADR-0034, ADR-0004, ADR-0008, ADR-0010, DEV-2026-03-14-prompt-driven-session-structure, DEV-2026-03-15-session-guide-agent-pacing]
 ---
 # 대화의 흐름은 코드가 정하고 모델은 단계 안의 발화만 쓴다. 단계는 애도의 네 과제이고, 깊이 게이트가 맴돌이를 막는다
 
@@ -35,6 +35,7 @@ related: [ADR-0004, ADR-0008, ADR-0010, DEV-2026-03-14-prompt-driven-session-str
 - 진행률이 숫자로 나오므로 화면에 진행 막대를 보여 주고, `turn_analyses` 로 단계 도달률을 SQL 로 셀 수 있다.
 - 모델이 해석할 여지가 남는 곳은 "진솔한 답인가"의 판정과 발화 자체뿐이다. 여기서 품질이 갈린다.
 - Rust 포팅은 이 상수(3, 2, 5)와 단계 번호, 진행률 계산을 그대로 옮긴다.
+- 결정 6 의 재개 규칙(직전 세션의 기준, 7일과 위기 뒤의 과제 1, 매 턴에 들어가는 기억)은 ADR-0034 가 잇는다(2026-10-22).
 
 ## 근거
 

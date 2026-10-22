@@ -1,6 +1,6 @@
 -- sandbox 에 복원한 production 복사본에서 사용자가 쓴 본문을 자리 표시자로 바꾸고, 남은 본문의 수를 센다.
 -- infra/docker/scripts/sandbox-reset.sh 가 sandbox db 에 한 트랜잭션으로 돌린다(psql -1 -v ON_ERROR_STOP=1 -f -).
--- 마지막 줄의 출력은 `<자리 표시자가 아닌 messages.text 수>|<자리 표시자가 아닌 JSONB 문자열 값 수>` 뿐이다.
+-- 마지막 줄의 출력은 `<자리 표시자가 아닌 글 칸(messages.text, memory_notes.text, pets.name) 수>|<자리 표시자가 아닌 JSONB 문자열 값 수>` 뿐이다.
 -- 본문은 출력하지 않는다(루트 CLAUDE.md "읽지 않는 것").
 --
 -- 바꾸는 칸(지금 스키마). 본문 칸을 더하는 마이그레이션은 이 표와 아래 UPDATE, 검사에 그 칸을 더한다(ADR-0021).
@@ -8,6 +8,8 @@
 -- | 칸                         | 바꾸는 법                                  | 그대로 두는 키(코드 값)                                            |
 -- |----------------------------|--------------------------------------------|--------------------------------------------------------------------|
 -- | messages.text              | '[sandbox] ' || role || ' ' || seq          | -                                                                  |
+-- | memory_notes.text          | '[sandbox] ' || kind || ' ' || seq          | -                                                                  |
+-- | pets.name                  | '[sandbox] pet'                             | -                                                                  |
 -- | sessions.grief_profile     | JSONB 의 문자열 값을 '[sandbox]' 로         | griefPath, togetherRange, lossType, situation, preferredLanguage,  |
 -- |                            | (키와 구조, 숫자, 불리언은 둔다)            | sleep, eating (dailyState 아래)                                    |
 -- | sessions.report            | 같음                                        | at, locale, key (sections[].key)                                   |
@@ -90,6 +92,10 @@ INSERT INTO sandbox_skip_keys VALUES
 -- --- 바꾸기 ---
 UPDATE messages SET text = '[sandbox] ' || role || ' ' || seq;
 
+UPDATE memory_notes SET text = '[sandbox] ' || kind || ' ' || seq;
+
+UPDATE pets SET name = '[sandbox] pet';
+
 UPDATE sessions SET
   grief_profile = pg_temp.sandbox_scrub_jsonb(grief_profile, (SELECT keys FROM sandbox_skip_keys WHERE col = 'grief_profile')),
   report = pg_temp.sandbox_scrub_jsonb(report, (SELECT keys FROM sandbox_skip_keys WHERE col = 'report'));
@@ -102,7 +108,11 @@ WHERE supervision IS NOT NULL;
 \pset tuples_only on
 \pset format unaligned
 SELECT
-  (SELECT count(*) FROM messages WHERE left(text, 9) <> '[sandbox]')
+  (
+    (SELECT count(*) FROM messages WHERE left(text, 9) <> '[sandbox]')
+    + (SELECT count(*) FROM memory_notes WHERE left(text, 9) <> '[sandbox]')
+    + (SELECT count(*) FROM pets WHERE left(name, 9) <> '[sandbox]')
+  )
   || '|' ||
   (
     (SELECT coalesce(sum(

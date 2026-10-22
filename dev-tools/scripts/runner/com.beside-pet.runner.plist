@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Beside Pet 의 GitHub Actions self-hosted 러너를 로그인할 때 띄운다(LaunchAgent, 사용자 세션).
-  __HOME__ 은 설치할 때 README 의 명령이 $HOME 으로 바꾼다. 토큰은 여기에 두지 않는다(러너 디렉터리의 .env).
+  __HOME__ 과 __REPO__ 는 설치할 때 README 의 명령이 $HOME 과 레포 루트로 바꾼다. 토큰은 여기에 두지 않는다(러너 디렉터리의 .env).
 -->
 <plist version="1.0">
 <dict>
@@ -10,10 +10,10 @@
   <string>com.beside-pet.runner</string>
   <key>ProgramArguments</key>
   <array>
-    <string>__HOME__/actions-runner-beside-pet/run.sh</string>
+    <string>__REPO__/.runner/run.sh</string>
   </array>
   <key>WorkingDirectory</key>
-  <string>__HOME__/actions-runner-beside-pet</string>
+  <string>__REPO__/.runner</string>
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>

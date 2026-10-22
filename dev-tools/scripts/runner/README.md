@@ -6,7 +6,7 @@
 |---|---|
 | `.github/workflows/implement.yml` | 라벨이 `run:implement` 또는 `run:again` 일 때만 `beside-pet-mac` 러너에서 `implement.sh` 를 부른다. `actions/checkout` 없이 본 체크아웃(`BESIDE_PET_REPO`)을 쓰고, 기본 `GITHUB_TOKEN` 의 권한은 비운다(`permissions: {}`). 한 번에 하나(`concurrency: implement`), 180분에 끊는다 |
 | `implement.sh` | 러너가 부르는 실행 스크립트. 머리 주석에 순서와 환경 변수 |
-| `com.beside-pet.runner.plist` | 로그인할 때 러너(`~/actions-runner-beside-pet/run.sh`)를 띄우는 LaunchAgent 본 |
+| `com.beside-pet.runner.plist` | 로그인할 때 러너(`<레포>/.runner/run.sh`)를 띄우는 LaunchAgent 본 |
 
 ## 설치 (사용자가 한다)
 
@@ -15,10 +15,10 @@
 ### 1. 러너 내려받기와 등록
 
 1. GitHub 에서 `JadenKimDev/beside-pet` → **Settings → Actions → Runners → New self-hosted runner**.
-2. 운영체제 **macOS**, 아키텍처 **ARM64** 를 고른다. 화면의 Download 명령을 전용 디렉터리에서 돌린다. 워크트리 자리(`~/.herdr/worktrees/`, `~/worktrees/`)와 레포 바깥이어야 한다.
+2. 운영체제 **macOS**, 아키텍처 **ARM64** 를 고른다. 화면의 Download 명령을 레포 루트의 `.runner/` 에서 돌린다(gitignore 됨). 홈 디렉터리 등 레포 밖에 흩어 두지 않는다.
 
    ```bash
-   mkdir -p ~/actions-runner-beside-pet && cd ~/actions-runner-beside-pet
+   mkdir -p <레포>/.runner && cd <레포>/.runner
    # 화면의 curl -o actions-runner-osx-arm64-<버전>.tar.gz ... 와 tar xzf ... 를 그대로 붙인다
    ```
 
@@ -33,14 +33,14 @@
 
 ### 2. 러너 환경 변수
 
-러너는 디렉터리의 `.env` 파일(`~/actions-runner-beside-pet/.env`, `KEY=VALUE` 줄)을 작업의 환경 변수로 읽는다. `./config.sh` 가 이 파일에 `LANG` 줄을 먼저 만들어 두므로(2026-10-22 실측) 덮어쓰지(`cat >`) 않고 덧붙인다. 사용자가 직접 쓰고, 권한은 `chmod 600` 으로 둔다.
+러너는 디렉터리의 `.env` 파일(`<레포>/.runner/.env`, `KEY=VALUE` 줄)을 작업의 환경 변수로 읽는다. `./config.sh` 가 이 파일에 `LANG` 줄을 먼저 만들어 두므로(2026-10-22 실측) 덮어쓰지(`cat >`) 않고 덧붙인다. 사용자가 직접 쓰고, 권한은 `chmod 600` 으로 둔다.
 
 ```bash
-cat >> ~/actions-runner-beside-pet/.env <<'EOF'
+cat >> <레포>/.runner/.env <<'EOF'
 GH_TOKEN=<JadenKimDev 의 클래식 토큰>
 BESIDE_PET_REPO=/Users/taehokim/workspace/beside-pet
 EOF
-chmod 600 ~/actions-runner-beside-pet/.env
+chmod 600 <레포>/.runner/.env
 ```
 
 - `GH_TOKEN`: `JadenKimDev` 계정의 **클래식 토큰**(Settings → Developer settings → Personal access tokens → **Tokens (classic)**). scope 는 **`repo`**(이슈 댓글과 라벨, 본 체크아웃의 `git pull`)와 **`project`**(보드 이동) 둘이다. 세분화 토큰(`github_pat_` 형식)을 쓰지 않는 것은 그 토큰이 개인 계정이 소유한 Projects 에 닿지 못하기 때문이다(GitHub 문서 [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) 의 limitations 절, "access Projects owned by a user account" 미지원). 이 레포의 보드 2 는 `JadenKimDev` 개인 계정 소유다. `repo` 는 계정의 모든 레포에 미치는 넓은 권한이므로 토큰은 이 Mac 의 `.env`(600)에만 두고 다른 곳에 적지 않는다. 레포 기본 `GITHUB_TOKEN` 을 쓰지 않는 것은 댓글과 라벨의 작성자가 사람 계정이어야 보드 자동화가 같은 흐름을 타기 때문이다.
@@ -55,7 +55,7 @@ chmod 600 ~/actions-runner-beside-pet/.env
 설치(로그인할 때 자동 시작, 죽으면 30초 뒤 다시 띄움):
 
 ```bash
-sed "s|__HOME__|$HOME|g" dev-tools/scripts/runner/com.beside-pet.runner.plist > ~/Library/LaunchAgents/com.beside-pet.runner.plist
+sed "s|__HOME__|$HOME|g; s|__REPO__|$PWD|g" dev-tools/scripts/runner/com.beside-pet.runner.plist > ~/Library/LaunchAgents/com.beside-pet.runner.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.beside-pet.runner.plist
 launchctl print gui/$(id -u)/com.beside-pet.runner | grep -E 'state|pid'
 ```
@@ -67,7 +67,7 @@ launchctl print gui/$(id -u)/com.beside-pet.runner | grep -E 'state|pid'
 ```bash
 launchctl bootout gui/$(id -u)/com.beside-pet.runner
 rm ~/Library/LaunchAgents/com.beside-pet.runner.plist
-# 계정에서 러너를 지우려면: cd ~/actions-runner-beside-pet && ./config.sh remove --token <Settings 화면의 제거 토큰>
+# 계정에서 러너를 지우려면: cd <레포>/.runner && ./config.sh remove --token <Settings 화면의 제거 토큰>
 ```
 
 GitHub 의 Runners 화면에서 `beside-pet-mac` 이 **Idle** 이면 설치가 끝난 것이다.
@@ -99,7 +99,7 @@ GitHub 의 Runners 화면에서 `beside-pet-mac` 이 **Idle** 이면 설치가 �
 ## 로그
 
 - 실행마다: `outputs/runner/<이슈>/<시각>.log`(`claude -p` 의 JSON 결과), `<시각>-runner.log`(스크립트의 출력, 워크플로 로그와 같음), `<시각>-test.log`(`pnpm test`), `<시각>-report.md`(올린 결과 댓글). `outputs/` 는 gitignore 이고 워크트리도 링크로 같이 쓴다.
-- 러너 자체: `~/Library/Logs/beside-pet-runner.log`, `~/actions-runner-beside-pet/_diag/`.
+- 러너 자체: `~/Library/Logs/beside-pet-runner.log`, `<레포>/.runner/_diag/`.
 
 ## 막혔을 때 사람이 이어 하기
 

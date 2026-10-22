@@ -1,3 +1,6 @@
+mod decisions;
+mod short_and_action;
+
 use super::{QuestionPolicy, TurnStyle};
 use crate::support::rules::ReplyJudgement;
 use crate::support::{ReplyLabel, ReplyPhase};
@@ -301,7 +304,7 @@ fn 지시_줄은_힌트를_순서대로_공백으로_잇는다() {
     );
     assert_eq!(
         s.instruction(),
-        "For this reply: Do not ask any question in this reply. \
+        "For this reply: Keep this reply to one or two sentences, ask no question, and stay with the one thing they said. \
 Do not say their feelings are natural, understandable, or proof of how much they loved the pet; you said that recently. \
 Already said earlier in this chat, so say something else instead: \"천천히\". \
 Refer to what they said in your own words; do not open by repeating their sentence."

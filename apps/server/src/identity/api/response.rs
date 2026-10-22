@@ -28,6 +28,11 @@ pub struct AccountResponse {
     pub last_login_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chat_language: Option<ChatLanguage>,
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        with = "crate::shared::iso_millis_opt"
+    )]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 impl From<Account> for AccountResponse {
@@ -43,6 +48,7 @@ impl From<Account> for AccountResponse {
             created_at: account.created_at,
             last_login_at: account.last_login_at,
             chat_language: account.chat_language,
+            deleted_at: account.deleted_at,
         }
     }
 }

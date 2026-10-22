@@ -2,6 +2,7 @@
 //! DATABASE_URL 이 없으면 이유를 적고 실패한다(건너뛰지 않는다). 아이디와 비밀번호는 지어낸 값이다.
 
 mod admin;
+mod delete;
 mod log_out;
 mod setup;
 mod sign_in;
@@ -93,6 +94,11 @@ fn login_input(username: &str, password: &str) -> LoginInput {
         username: username.to_owned(),
         password: password.to_owned(),
     }
+}
+
+/// 정지 3개월 전의 완전 삭제.
+fn suspension_required() -> ApiError {
+    ApiError::Conflict("Account must be suspended for 3 months before deletion".to_owned())
 }
 
 fn unauthorized(message: &str) -> ApiError {
@@ -212,17 +218,15 @@ async fn setup_로그인_me_승인_정지_삭제_만료의_흐름() {
     let listed = service.list_accounts().await.unwrap();
     assert_eq!(listed.len(), 2);
 
-    // 완전 삭제 → me 는 404, 가드는 401
-    service.delete_account(applied.id.clone()).await.unwrap();
+    // 정지하지 않은 계정의 완전 삭제는 409 이고 계정은 남는다(통과하는 흐름은 `delete` 테스트)
     assert_eq!(
-        service.me(applied.id.clone()).await.unwrap_err(),
-        ApiError::NotFound("Account not found".to_owned())
+        service
+            .delete_account(applied.id.clone())
+            .await
+            .unwrap_err(),
+        suspension_required()
     );
-    assert_eq!(
-        service.authenticate(&viewer.token).await.unwrap_err(),
-        unauthorized("Account is unavailable")
-    );
-    assert_eq!(service.list_accounts().await.unwrap().len(), 1);
+    assert_eq!(service.list_accounts().await.unwrap().len(), 2);
 
     fixture.close().await;
 }

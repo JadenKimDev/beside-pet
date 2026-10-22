@@ -3,9 +3,19 @@
 //! 전이는 지금 상태를 따지지 않고 그대로 바꾼다(TS 애그리게이트와 같다). 어느 상태에서 무엇을 허락할지는
 //! 흐름이 정한다. `expired` 는 저장하지 않고 `now` 에 대해 계산한다.
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Months, Utc};
 
 use super::{Account, AccountStatus, ChatLanguage, Role};
+
+/// 정지한 계정을 완전히 지울 수 있기까지 두는 달 수. 완전 삭제의 가드가 쓰고, 기동 파기는 같은 값을 넘긴다(ADR-0036).
+pub const SUSPENSION_HOLD_MONTHS: u32 = 3;
+
+/// `now` 에서 달력으로 `months` 달 앞의 시각(UTC). 그 달에 같은 날이 없으면 그 달의 마지막 날이다.
+/// 이보다 앞서 정지한 계정이 보관 기간을 지났다.
+pub fn suspension_cutoff(now: DateTime<Utc>, months: u32) -> DateTime<Utc> {
+    now.checked_sub_months(Months::new(months))
+        .unwrap_or(DateTime::<Utc>::MIN_UTC)
+}
 
 /// `accounts` 의 한 줄. 비밀번호는 해시만 담는다.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +32,8 @@ pub struct AccountRecord {
     pub chat_language: Option<ChatLanguage>,
     /// 마지막 로그아웃 시각. 이보다 앞선 초에 발급한 토큰은 받지 않는다. 로그아웃한 적이 없으면 `None`.
     pub tokens_valid_from: Option<DateTime<Utc>>,
+    /// 정지(`Deleted`)한 시각. 정지 상태일 때만 있다. 마이그레이션 전에 정지한 계정은 `None` 이다.
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 관리자(또는 첫 설치)가 계정을 발급할 때 넘기는 값.
@@ -61,6 +73,7 @@ impl AccountRecord {
             expires_at: input.expires_at,
             chat_language: None,
             tokens_valid_from: None,
+            deleted_at: None,
         }
     }
 
@@ -78,23 +91,43 @@ impl AccountRecord {
             expires_at: None,
             chat_language: None,
             tokens_valid_from: None,
+            deleted_at: None,
         }
     }
 
     pub fn approve(&mut self) {
-        self.status = AccountStatus::Active;
+        self.leave_suspension(AccountStatus::Active);
     }
 
     pub fn revoke(&mut self) {
-        self.status = AccountStatus::Revoked;
+        self.leave_suspension(AccountStatus::Revoked);
     }
 
-    pub fn soft_delete(&mut self) {
+    /// 정지한다. 이미 정지한 계정이면 처음 정지한 시각(없으면 없는 대로)을 그대로 둔다.
+    pub fn soft_delete(&mut self, at: DateTime<Utc>) {
+        if self.status != AccountStatus::Deleted {
+            self.deleted_at = Some(at);
+        }
         self.status = AccountStatus::Deleted;
     }
 
     pub fn reactivate(&mut self) {
-        self.status = AccountStatus::Active;
+        self.leave_suspension(AccountStatus::Active);
+    }
+
+    /// 정지가 아닌 상태로 바꾸고 정지 시각을 비운다.
+    fn leave_suspension(&mut self, status: AccountStatus) {
+        self.status = status;
+        self.deleted_at = None;
+    }
+
+    /// 완전히 지울 수 있는가: 정지했고 그 시각이 `now` 의 `months` 달 앞보다 이르다.
+    /// 정지 시각이 없는 정지 계정(마이그레이션 전 정지)은 지울 수 없다.
+    pub fn may_be_deleted(&self, now: DateTime<Utc>, months: u32) -> bool {
+        self.status == AccountStatus::Deleted
+            && self
+                .deleted_at
+                .is_some_and(|deleted_at| deleted_at < suspension_cutoff(now, months))
     }
 
     /// 절대 만료 시각을 정하거나(`Some`) 지운다(`None`).
@@ -135,6 +168,7 @@ impl AccountRecord {
             created_at: self.created_at,
             last_login_at: self.last_login_at,
             chat_language: self.chat_language,
+            deleted_at: self.deleted_at,
         }
     }
 }

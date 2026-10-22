@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
-use super::{AccountRecord, ApplicationInput, IssueInput};
-use crate::identity::{Account, AccountStatus, ChatLanguage, Role};
+use super::{AccountRecord, ApplicationInput, IssueInput, suspension_cutoff};
+use crate::identity::{Account, AccountStatus, ChatLanguage, Role, SUSPENSION_HOLD_MONTHS};
 
 fn at(hour: u32) -> DateTime<Utc> {
     Utc.with_ymd_and_hms(2026, 10, 16, hour, 0, 0).unwrap()
@@ -67,7 +67,7 @@ fn 정지_삭제_재개는_상태를_따지지_않고_바꾼다() {
     let mut record = issued(Role::Viewer, None);
     record.revoke();
     assert_eq!(record.status, AccountStatus::Revoked);
-    record.soft_delete();
+    record.soft_delete(at(3));
     assert_eq!(record.status, AccountStatus::Deleted);
     record.reactivate();
     assert_eq!(record.status, AccountStatus::Active);
@@ -133,6 +133,7 @@ fn 바깥_계정은_해시가_없고_expired_를_지금_시각으로_계산한�
             created_at: at(1),
             last_login_at: Some(at(3)),
             chat_language: Some(ChatLanguage::Ko),
+            deleted_at: None,
         }
     );
     assert!(record.to_account(at(5)).expired);
@@ -166,4 +167,98 @@ fn 로그아웃과_같은_초나_뒤에_발급한_토큰은_받는다() {
     record.tokens_valid_from = Some(second(9, 10, 750));
     assert!(record.accepts_token_issued_at(second(9, 10, 0).timestamp()));
     assert!(record.accepts_token_issued_at(second(9, 11, 0).timestamp()));
+}
+
+fn on(year: i32, month: u32, day: u32) -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(year, month, day, 9, 0, 0).unwrap()
+}
+
+#[test]
+fn 정지하면_그_시각을_적고_되살리면_비운다() {
+    let mut record = issued(Role::Viewer, None);
+    assert_eq!(record.deleted_at, None);
+    record.soft_delete(at(3));
+    assert_eq!(record.deleted_at, Some(at(3)));
+    assert_eq!(record.to_account(at(4)).deleted_at, Some(at(3)));
+    record.reactivate();
+    assert_eq!(record.deleted_at, None);
+    assert_eq!(record.to_account(at(4)).deleted_at, None);
+}
+
+#[test]
+fn 이미_정지한_계정을_다시_정지해도_정지_시각은_그대로다() {
+    let mut record = issued(Role::Viewer, None);
+    record.soft_delete(at(3));
+    record.soft_delete(at(8));
+    assert_eq!(record.deleted_at, Some(at(3)));
+}
+
+#[test]
+fn 정지_시각이_없는_정지_계정은_다시_정지해도_시각이_생기지_않는다() {
+    // 마이그레이션 전에 정지한 계정: 시계는 되살린 뒤 다시 정지해야 시작한다.
+    let mut record = issued(Role::Viewer, None);
+    record.status = AccountStatus::Deleted;
+    record.soft_delete(at(8));
+    assert_eq!(record.deleted_at, None);
+    record.reactivate();
+    record.soft_delete(at(9));
+    assert_eq!(record.deleted_at, Some(at(9)));
+}
+
+#[test]
+fn 정지에서_다른_상태로_가면_정지_시각을_비운다() {
+    let mut record = issued(Role::Viewer, None);
+    record.soft_delete(at(3));
+    record.revoke();
+    assert_eq!(record.status, AccountStatus::Revoked);
+    assert_eq!(record.deleted_at, None);
+
+    let mut pending = applied();
+    pending.soft_delete(at(3));
+    pending.approve();
+    assert_eq!(pending.deleted_at, None);
+}
+
+#[test]
+fn 정지_보관은_3개월이다() {
+    assert_eq!(SUSPENSION_HOLD_MONTHS, 3);
+}
+
+#[test]
+fn 기준_시각은_달력으로_몇_달_앞이다() {
+    assert_eq!(suspension_cutoff(on(2026, 10, 16), 3), on(2026, 7, 16));
+    // 달 끝은 그 달의 마지막 날로 맞춘다.
+    assert_eq!(suspension_cutoff(on(2026, 5, 31), 3), on(2026, 2, 28));
+}
+
+#[test]
+fn 완전_삭제는_정지하고_보관_기간이_지난_계정만_된다() {
+    let now = on(2026, 10, 16);
+    let mut record = issued(Role::Viewer, None);
+    // 정지하지 않은 계정
+    assert!(!record.may_be_deleted(now, 3));
+
+    // 3개월 안
+    record.soft_delete(on(2026, 9, 1));
+    assert!(!record.may_be_deleted(now, 3));
+
+    // 꼭 3개월이면 아직이다(그보다 오래돼야 한다)
+    let mut exact = issued(Role::Viewer, None);
+    exact.soft_delete(on(2026, 7, 16));
+    assert!(!exact.may_be_deleted(now, 3));
+
+    // 3개월이 지남
+    let mut old = issued(Role::Viewer, None);
+    old.soft_delete(on(2026, 7, 16) - Duration::milliseconds(1));
+    assert!(old.may_be_deleted(now, 3));
+
+    // 정지 시각이 없는 정지 계정(마이그레이션 전 정지)
+    let mut legacy = issued(Role::Viewer, None);
+    legacy.status = AccountStatus::Deleted;
+    assert!(!legacy.may_be_deleted(now, 3));
+
+    // 시각은 남았지만 정지가 아닌 상태
+    let mut revoked = old.clone();
+    revoked.status = AccountStatus::Revoked;
+    assert!(!revoked.may_be_deleted(now, 3));
 }

@@ -11,9 +11,9 @@ use sqlx::PgPool;
 
 use super::{
     AccountService, Authenticator, BoxFuture, CreateAccountInput, LoginInput, RegisterInput,
-    SetupInput, SignedIn,
+    SetupInput, SharedOwnedDataPurger, SignedIn, Unimplemented,
 };
-use crate::identity::rules::{AccountRecord, ApplicationInput, IssueInput};
+use crate::identity::rules::{AccountRecord, ApplicationInput, IssueInput, SUSPENSION_HOLD_MONTHS};
 use crate::identity::setup::{self, SetupGate};
 use crate::identity::store::AccountStore;
 use crate::identity::token::{DEFAULT_TTL, TokenClaims, TokenSigner};
@@ -24,11 +24,13 @@ use crate::shared::{ApiError, Message, from_iso};
 const DEFAULT_COMPANY: &str = "Beside Pet";
 
 /// 서버가 끼우는 identity 의 구현. 시계는 함수로 받아 테스트가 고정한다.
+/// 완전 삭제 때 그 사람의 대화·기억을 지우는 곳은 `with_owned_data` 로 끼우고, 끼우지 않으면 `501` 이다.
 pub struct IdentityService {
     store: AccountStore,
     signer: TokenSigner,
     gate: Arc<SetupGate>,
     now: fn() -> DateTime<Utc>,
+    owned_data: SharedOwnedDataPurger,
 }
 
 /// identity 를 띄우지 못한 이유. 문구에 설정 값을 싣지 않는다.
@@ -70,7 +72,13 @@ impl IdentityService {
             signer,
             gate,
             now,
+            owned_data: Arc::new(Unimplemented),
         }
+    }
+
+    /// 완전 삭제 때 그 사람의 대화·기억을 지우는 곳을 끼운다(`app.rs` 가 대화 기능의 구현을 넘긴다).
+    pub fn with_owned_data(self, owned_data: SharedOwnedDataPurger) -> IdentityService {
+        IdentityService { owned_data, ..self }
     }
 
     /// 서버 기동 때: 관리자가 없으면 setup 토큰을 만들어 로그에 찍고 게이트를 연다.
@@ -332,9 +340,18 @@ impl IdentityService {
             .map_err(internal)
     }
 
+    /// 가드(정지 3개월) → 그 사람의 대화·기억 → 계정 행. 대화는 다른 기능의 저장이라 한 트랜잭션이 아니다.
+    /// 대화를 지우다 실패하면 행은 남으므로 다시 부르거나 다음 기동 파기가 잇는다.
     async fn do_delete(&self, id: String) -> Result<(), ApiError> {
         let record = self.target(&id).await?;
-        self.store.delete(&record.id).await.map_err(internal)
+        if !record.may_be_deleted(self.now(), SUSPENSION_HOLD_MONTHS) {
+            return Err(ApiError::Conflict(
+                "Account must be suspended for 3 months before deletion".to_owned(),
+            ));
+        }
+        self.owned_data.delete_owned_by(&record.id).await?;
+        self.store.delete(&record.id).await.map_err(internal)?;
+        Ok(())
     }
 
     /// 토큰을 읽지 못하면 `None`. 읽었지만 계정이 없거나 active 가 아니거나 만료면 `401`.
@@ -428,7 +445,8 @@ impl AccountService for IdentityService {
     }
 
     fn soft_delete(&self, id: String) -> BoxFuture<'_, Result<Account, ApiError>> {
-        Box::pin(self.change_target(id, AccountRecord::soft_delete))
+        let now = self.now();
+        Box::pin(self.change_target(id, move |record| record.soft_delete(now)))
     }
 
     fn reactivate(&self, id: String) -> BoxFuture<'_, Result<Account, ApiError>> {
@@ -506,7 +524,7 @@ fn is_unique_violation(error: &sqlx::Error) -> bool {
 }
 
 /// DB 오류는 `500` 이다. 로그에는 오류의 종류만 남긴다(DB 오류의 상세에는 칸의 값이 실릴 수 있다).
-fn internal(error: sqlx::Error) -> ApiError {
+pub(super) fn internal(error: sqlx::Error) -> ApiError {
     match &error {
         sqlx::Error::Database(db) => tracing::error!(
             code = db.code().as_deref().unwrap_or("unknown"),

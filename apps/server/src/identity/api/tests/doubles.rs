@@ -32,6 +32,7 @@ pub fn bare_account(id: &str) -> Account {
         created_at: at("2026-10-01T09:30:00.5Z"),
         last_login_at: None,
         chat_language: None,
+        deleted_at: None,
     }
 }
 
@@ -44,6 +45,15 @@ pub fn full_account(id: &str) -> Account {
         expired: true,
         last_login_at: Some(at("2026-10-15T23:59:59.999+09:00")),
         chat_language: Some(ChatLanguage::En),
+        ..bare_account(id)
+    }
+}
+
+/// 정지한 계정: 상태가 `Deleted` 이고 정지 시각이 있다.
+pub fn suspended_account(id: &str) -> Account {
+    Account {
+        status: AccountStatus::Deleted,
+        deleted_at: Some(at("2026-10-20T01:02:03.456Z")),
         ..bare_account(id)
     }
 }
@@ -117,7 +127,12 @@ impl AccountService for FakeAccounts {
     }
     fn list_accounts(&self) -> BoxFuture<'_, Result<Vec<Account>, ApiError>> {
         self.record("list_accounts".to_owned());
-        ready(vec![bare_account("a"), full_account("b")])
+        // `b` 는 정지 시각까지 찬 줄이다.
+        let b = Account {
+            deleted_at: Some(at("2026-10-17T18:00:00.25+09:00")),
+            ..full_account("b")
+        };
+        ready(vec![bare_account("a"), b])
     }
     fn approve(&self, id: String) -> BoxFuture<'_, Result<Account, ApiError>> {
         self.record(format!("approve {id}"));
@@ -129,7 +144,7 @@ impl AccountService for FakeAccounts {
     }
     fn soft_delete(&self, id: String) -> BoxFuture<'_, Result<Account, ApiError>> {
         self.record(format!("soft_delete {id}"));
-        ready(bare_account(&id))
+        ready(suspended_account(&id))
     }
     fn reactivate(&self, id: String) -> BoxFuture<'_, Result<Account, ApiError>> {
         self.record(format!("reactivate {id}"));
@@ -149,6 +164,13 @@ impl AccountService for FakeAccounts {
     }
     fn delete_account(&self, id: String) -> BoxFuture<'_, Result<(), ApiError>> {
         self.record(format!("delete_account {id}"));
+        if id == "acc-young" {
+            return Box::pin(async {
+                Err(ApiError::Conflict(
+                    "Account must be suspended for 3 months before deletion".to_owned(),
+                ))
+            });
+        }
         ready(())
     }
 }

@@ -150,6 +150,70 @@ async fn 계정_목록은_배열이다() {
 }
 
 #[tokio::test]
+async fn 계정_목록의_정지_시각은_있을_때만_칸이_있다() {
+    let h = Harness::new(false);
+    let reply = h
+        .send(
+            Method::GET,
+            "/v1/admin/accounts",
+            Some(&token("admin")),
+            None,
+        )
+        .await;
+    assert!(reply.body[0].get("deletedAt").is_none());
+    assert_eq!(reply.body[1]["deletedAt"], "2026-10-17T09:00:00.250Z");
+}
+
+#[tokio::test]
+async fn 정지와_되살리기의_응답에_정지_시각이_실린다() {
+    let h = Harness::new(false);
+    let admin = token("admin");
+    let reply = h
+        .send(
+            Method::POST,
+            "/v1/admin/accounts/acc-7/soft-delete",
+            Some(&admin),
+            None,
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK);
+    assert_eq!(reply.body["status"], "deleted");
+    assert_eq!(reply.body["deletedAt"], "2026-10-20T01:02:03.456Z");
+    let reply = h
+        .send(
+            Method::POST,
+            "/v1/admin/accounts/acc-7/reactivate",
+            Some(&admin),
+            None,
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::OK);
+    assert!(reply.body.get("deletedAt").is_none());
+}
+
+#[tokio::test]
+async fn 정지_3개월_전의_계정_삭제는_409_다() {
+    let h = Harness::new(false);
+    let reply = h
+        .send(
+            Method::DELETE,
+            "/v1/admin/accounts/acc-young",
+            Some(&token("admin")),
+            None,
+        )
+        .await;
+    assert_eq!(reply.status, StatusCode::CONFLICT);
+    assert_eq!(
+        reply.body,
+        json!({
+            "statusCode": 409,
+            "message": "Account must be suspended for 3 months before deletion",
+            "error": "Conflict"
+        })
+    );
+}
+
+#[tokio::test]
 async fn 계정_목록의_항목에_세션_수와_마지막_활동_시각이_붙는다() {
     let h = Harness::new(false);
     let reply = h

@@ -63,6 +63,8 @@ pub struct Account {
     pub created_at: DateTime<Utc>,
     pub last_login_at: Option<DateTime<Utc>>,
     pub chat_language: Option<ChatLanguage>,
+    /// 정지한 시각. 정지 상태가 아니거나 마이그레이션 전에 정지했으면 `None`.
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// 인증 추출기가 핸들러에 넘기는 계정. 요청 본문이 아니라 확인한 토큰에서 온다.

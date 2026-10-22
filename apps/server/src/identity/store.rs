@@ -10,7 +10,7 @@ use super::rules::AccountRecord;
 use super::{AccountStatus, ChatLanguage, Role};
 
 const COLUMNS: &str = "id, username, password_hash, company, role, status, created_at, \
-                       last_login_at, expires_at, chat_language, tokens_valid_from";
+                       last_login_at, expires_at, chat_language, tokens_valid_from, deleted_at";
 
 /// `accounts` 를 읽고 쓰는 곳. 풀을 복제해 들고 다닌다.
 #[derive(Debug, Clone)]
@@ -31,6 +31,7 @@ struct AccountRow {
     expires_at: Option<DateTime<Utc>>,
     chat_language: Option<String>,
     tokens_valid_from: Option<DateTime<Utc>>,
+    deleted_at: Option<DateTime<Utc>>,
 }
 
 impl AccountStore {
@@ -44,13 +45,15 @@ impl AccountStore {
     pub async fn save(&self, record: &AccountRecord) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT INTO accounts (id, username, password_hash, company, role, status, created_at, \
-                                   last_login_at, expires_at, chat_language, tokens_valid_from) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+                                   last_login_at, expires_at, chat_language, tokens_valid_from, \
+                                   deleted_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
              ON CONFLICT (id) DO UPDATE SET \
                username = EXCLUDED.username, password_hash = EXCLUDED.password_hash, \
                company = EXCLUDED.company, role = EXCLUDED.role, status = EXCLUDED.status, \
                created_at = EXCLUDED.created_at, last_login_at = EXCLUDED.last_login_at, \
-               expires_at = EXCLUDED.expires_at, chat_language = EXCLUDED.chat_language",
+               expires_at = EXCLUDED.expires_at, chat_language = EXCLUDED.chat_language, \
+               deleted_at = EXCLUDED.deleted_at",
         )
         .bind(&record.id)
         .bind(&record.username)
@@ -63,6 +66,7 @@ impl AccountStore {
         .bind(record.expires_at)
         .bind(record.chat_language.map(language_text))
         .bind(record.tokens_valid_from)
+        .bind(record.deleted_at)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -103,13 +107,26 @@ impl AccountStore {
         rows.into_iter().map(AccountRow::into_record).collect()
     }
 
-    /// 줄을 완전히 지운다. 없는 id 는 아무것도 하지 않는다.
-    pub async fn delete(&self, id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM accounts WHERE id = $1")
+    /// 줄을 완전히 지운다. 지웠으면 참이고, 없는 id 는 아무것도 하지 않는다(거짓).
+    pub async fn delete(&self, id: &str) -> Result<bool, sqlx::Error> {
+        let done = sqlx::query("DELETE FROM accounts WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await?;
-        Ok(())
+        Ok(done.rows_affected() > 0)
+    }
+
+    /// 상태가 정지(`deleted`)이고 정지 시각이 `cutoff` 보다 이른 계정의 id. 정지 시각이 없는 줄은 고르지 않는다.
+    pub async fn suspended_before(
+        &self,
+        cutoff: DateTime<Utc>,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar(
+            "SELECT id FROM accounts WHERE status = 'deleted' AND deleted_at < $1 ORDER BY id",
+        )
+        .bind(cutoff)
+        .fetch_all(&self.pool)
+        .await
     }
 
     /// `column` 은 이 파일의 상수 이름만 넘긴다(바깥 글이 SQL 에 들어가지 않는다).
@@ -147,6 +164,7 @@ impl AccountRow {
             last_login_at: self.last_login_at,
             expires_at: self.expires_at,
             tokens_valid_from: self.tokens_valid_from,
+            deleted_at: self.deleted_at,
         })
     }
 }

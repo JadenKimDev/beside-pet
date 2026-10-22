@@ -84,7 +84,11 @@
         "apps/server/src/support/response.rs",
         "apps/server/src/support/flow/tests/",
         "apps/server/tests/routes.rs",
-        "apps/server/tests/routes/"
+        "apps/server/tests/routes/",
+        "apps/server/src/support/service.rs",
+        "apps/server/src/support/mod.rs",
+        "apps/server/src/support/session/view.rs",
+        "apps/server/src/support/response/"
       ],
       "depends_on": [
         "S2"
@@ -94,10 +98,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-22T08:53:32.656Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -122,10 +126,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-22T08:54:54.841Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null

@@ -156,11 +156,11 @@ async fn 지우면_찾을_수_없다() {
         .unwrap();
     store.save(&applicant("acc-2", "willow", 2)).await.unwrap();
 
-    store.delete("acc-1").await.unwrap();
+    assert!(store.delete("acc-1").await.unwrap());
     assert_eq!(store.find_by_id("acc-1").await.unwrap(), None);
     assert_eq!(store.list().await.unwrap().len(), 1);
-    // 없는 id 를 지워도 오류가 아니다.
-    store.delete("acc-1").await.unwrap();
+    // 없는 id 를 지워도 오류가 아니다(지운 것이 없다).
+    assert!(!store.delete("acc-1").await.unwrap());
     db.close().await;
 }
 
@@ -246,5 +246,69 @@ async fn 다른_칸을_저장해도_로그아웃_시각은_그대로다() {
     let found = store.find_by_id("acc-1").await.unwrap().unwrap();
     assert_eq!(found.chat_language, Some(ChatLanguage::En));
     assert_eq!(found.tokens_valid_from, Some(at(7)));
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 정지_시각을_적고_비운다() {
+    let db = AccountsSchema::open().await;
+    let store = db.store();
+    let mut record = applicant("acc-2", "willow", 2);
+    store.save(&record).await.unwrap();
+    assert_eq!(
+        store.find_by_id("acc-2").await.unwrap().unwrap().deleted_at,
+        None
+    );
+
+    record.soft_delete(at(4));
+    store.save(&record).await.unwrap();
+    let found = store.find_by_id("acc-2").await.unwrap().unwrap();
+    assert_eq!(found.deleted_at, Some(at(4)));
+    assert_eq!(found, record);
+
+    record.reactivate();
+    store.save(&record).await.unwrap();
+    assert_eq!(
+        store.find_by_id("acc-2").await.unwrap().unwrap().deleted_at,
+        None
+    );
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 기준보다_앞서_정지한_계정의_id_만_고른다() {
+    let db = AccountsSchema::open().await;
+    let store = db.store();
+    let cutoff = at(10);
+
+    let mut old = applicant("acc-old", "oak", 1);
+    old.soft_delete(at(9));
+    let mut older = applicant("acc-older", "elm", 2);
+    older.soft_delete(at(5));
+    let mut exact = applicant("acc-exact", "ash", 3);
+    exact.soft_delete(cutoff);
+    let mut recent = applicant("acc-recent", "fir", 4);
+    recent.soft_delete(at(11));
+    // 마이그레이션 전 정지: 시각이 없다
+    let mut legacy = applicant("acc-legacy", "yew", 5);
+    legacy.status = AccountStatus::Deleted;
+    // 정지했다가 되살린 계정
+    let mut revived = applicant("acc-revived", "lime", 6);
+    revived.soft_delete(at(1));
+    revived.reactivate();
+    let active = admin_record("acc-active", "pine", 7);
+    for record in [&old, &older, &exact, &recent, &legacy, &revived, &active] {
+        store.save(record).await.unwrap();
+    }
+    // 상태는 정지가 아닌데 시각이 남은 줄(직접 넣은 것)도 고르지 않는다.
+    sqlx::query("UPDATE accounts SET deleted_at = $1 WHERE id = 'acc-active'")
+        .bind(at(1))
+        .execute(&db.pool)
+        .await
+        .unwrap();
+
+    let mut ids = store.suspended_before(cutoff).await.unwrap();
+    ids.sort();
+    assert_eq!(ids, ["acc-old", "acc-older"]);
     db.close().await;
 }

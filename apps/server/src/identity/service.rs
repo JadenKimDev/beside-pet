@@ -11,6 +11,7 @@ use super::{Account, AuthenticatedAccount, ChatLanguage, Role};
 use crate::shared::ApiError;
 
 mod live;
+pub(super) mod suspended;
 
 pub use live::{IdentityService, StartError};
 
@@ -88,7 +89,8 @@ pub trait AccountService {
         id: String,
         expires_at: Option<String>,
     ) -> BoxFuture<'_, Result<Account, ApiError>>;
-    /// 완전히 지운다.
+    /// 완전히 지운다. 정지한 지 `SUSPENSION_HOLD_MONTHS` 달이 지난 계정만 되고 아니면 `409` 다.
+    /// 그 계정의 대화와 기억을 `OwnedDataPurger` 로 먼저 지운 뒤 계정 행을 지운다.
     fn delete_account(&self, id: String) -> BoxFuture<'_, Result<(), ApiError>>;
 }
 
@@ -122,11 +124,33 @@ pub trait SessionPresence {
     ) -> BoxFuture<'a, Result<HashMap<String, AccountActivity>, ApiError>>;
 }
 
+/// 계정을 완전히 지울 때 그 사람이 가진 대화·기억을 지우는 곳. 대화는 대화 기능의 것이라
+/// identity 는 부르기만 하고, 구현은 대화 기능이 하고 `app.rs` 가 끼운다.
+pub trait OwnedDataPurger {
+    /// `owner_id` 의 세션(메시지·턴·분석 포함)과 기억을 지우고 지운 세션 수를 돌려준다. 계정 행은 지우지 않는다.
+    fn delete_owned_by<'a>(&'a self, owner_id: &'a str) -> BoxFuture<'a, Result<u64, ApiError>>;
+}
+
+/// 기동 파기가 identity 에 묻는 것: 보관 기간이 지난 정지 계정과 그 행 지우기.
+/// 부르는 쪽이 그 사람의 대화·기억을 먼저 지우고 행을 지운다.
+pub trait SuspendedAccounts {
+    /// 상태가 정지이고 정지 시각이 `at` 의 `older_than_months` 달 앞보다 이른 계정의 id(정지 시각이 없는 계정은 빠진다).
+    fn suspended_before(
+        &self,
+        at: DateTime<Utc>,
+        older_than_months: u32,
+    ) -> BoxFuture<'_, Result<Vec<String>, ApiError>>;
+    /// 계정 행을 지운다. 지웠으면 참, 없는 id 면 거짓.
+    fn delete_account_row<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>>;
+}
+
 pub type SharedAccountService = Arc<dyn AccountService + Send + Sync>;
+pub type SharedOwnedDataPurger = Arc<dyn OwnedDataPurger + Send + Sync>;
+pub type SharedSuspendedAccounts = Arc<dyn SuspendedAccounts + Send + Sync>;
 pub type SharedSessionPresence = Arc<dyn SessionPresence + Send + Sync>;
 pub type SharedAuthenticator = Arc<dyn Authenticator + Send + Sync>;
 
-/// 구현이 아직 없다: `AccountService` 와 `SessionPresence` 는 모두 `501`, `Authenticator` 는 늘 `None`(→ 401).
+/// 구현이 아직 없다: `AccountService`, `SessionPresence`, `OwnedDataPurger` 는 모두 `501`, `Authenticator` 는 늘 `None`(→ 401).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Unimplemented;
 
@@ -203,6 +227,12 @@ impl SessionPresence for Unimplemented {
         &'a self,
         _: &'a [String],
     ) -> BoxFuture<'a, Result<HashMap<String, AccountActivity>, ApiError>> {
+        not_implemented()
+    }
+}
+
+impl OwnedDataPurger for Unimplemented {
+    fn delete_owned_by<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<u64, ApiError>> {
         not_implemented()
     }
 }

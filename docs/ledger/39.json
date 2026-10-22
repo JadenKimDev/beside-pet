@@ -1,0 +1,52 @@
+{
+  "issue": 39,
+  "title": "러너와 개발노트의 GitHub 토큰 안내를 고친다 — 개인 계정 소유 보드는 fine-grained 토큰으로 닿지 못하므로 클래식 토큰(repo, project)으로 적는다",
+  "prd": "docs/prd/39-runner-token-classic.md",
+  "depends_on": [],
+  "created_at": "2026-10-22T03:30:17.070Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "러너 README, 워크플로 주석, ADR-0032 의 토큰 안내를 클래식 토큰(repo, project)으로 고친다",
+      "scope": [
+        "dev-tools/scripts/runner/README.md",
+        ".github/workflows/implement.yml",
+        "docs/adr/0032-self-hosted-runner-implements-on-label.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "! grep -q 'fine-grained' dev-tools/scripts/runner/README.md .github/workflows/implement.yml docs/adr/0032-self-hosted-runner-implements-on-label.md && grep -q 'project' dev-tools/scripts/runner/README.md && pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "운영 화면 README 와 `.env.example` 의 `GITHUB_TOKEN` 안내를 클래식 토큰으로 고친다",
+      "scope": [
+        "apps/backoffice/README.md",
+        "apps/backoffice/.env.example"
+      ],
+      "depends_on": [],
+      "verify": [
+        "! grep -q 'fine-grained' apps/backoffice/README.md apps/backoffice/.env.example && grep -q 'project' apps/backoffice/.env.example"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

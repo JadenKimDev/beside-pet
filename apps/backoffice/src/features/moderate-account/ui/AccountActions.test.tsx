@@ -128,7 +128,7 @@ describe.each([
 
 describe('완전 삭제', () => {
   it('keeps the confirm button off until the username is typed exactly, then deletes', async () => {
-    const onChanged = render(account({ status: 'deleted' }));
+    const onChanged = render(account({ status: 'deleted', deletedAt: '2026-01-01T00:00:00.000Z' }));
 
     await click(button('완전 삭제'));
     expect(fetchMock).not.toHaveBeenCalled();
@@ -150,5 +150,55 @@ describe('완전 삭제', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/v1/admin/accounts/acc-7');
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'DELETE' });
     expect(onChanged).toHaveBeenCalledWith({ kind: 'purged', id: 'acc-7' });
+  });
+
+  it('keeps the button off with the days left as its title within three months of suspension', async () => {
+    const deletedAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    render(account({ status: 'deleted', deletedAt }));
+
+    const purge = button('완전 삭제');
+    expect(purge.disabled).toBe(true);
+    expect(purge.title).toMatch(/\d+/);
+    await click(purge);
+    expect(container.querySelector('dialog')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('shows when the account was suspended', () => {
+    render(account({ status: 'deleted', deletedAt: '2026-01-01T00:00:00.000Z' }));
+    expect(container.textContent).toContain('2026-01-01');
+  });
+
+  it('shows the server 409 through the error path', async () => {
+    fetchMock.mockImplementation(async () =>
+      Response.json(
+        {
+          statusCode: 409,
+          message: 'Account must be suspended for 3 months before deletion',
+          error: 'Conflict',
+        },
+        { status: 409 },
+      ),
+    );
+    const onError = vi.fn();
+    act(() =>
+      root.render(
+        <AccountActions
+          account={account({ status: 'deleted', deletedAt: '2026-01-01T00:00:00.000Z' })}
+          onChanged={vi.fn()}
+          onError={onError}
+        />,
+      ),
+    );
+
+    await click(button('완전 삭제'));
+    const input = dialog().querySelector('input');
+    if (!input) throw new Error('no username input');
+    type(input, 'demo-viewer');
+    await click(button('완전 삭제', dialog()));
+
+    expect(onError).toHaveBeenCalledWith(
+      '처리하지 못했어요: Account must be suspended for 3 months before deletion',
+    );
   });
 });

@@ -10,6 +10,12 @@ export {
 } from './api/accounts';
 export { ACCOUNT_STATE_LABELS, ACCOUNT_STATE_TONES, ROLE_LABELS } from './model/labels';
 export {
+  isPurgeable,
+  purgeableAt,
+  purgeDaysLeft,
+  TRASH_RETENTION_MONTHS,
+} from './model/retention';
+export {
   type AccountFilter,
   type AccountState,
   accountState,

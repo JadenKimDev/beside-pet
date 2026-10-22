@@ -17,6 +17,8 @@ export type AccountRecord = {
   createdAt: string;
   lastLoginAt?: string;
   chatLanguage?: 'ko' | 'en';
+  /** 정지(소프트 삭제) 시각. 재개하면 빠진다. ISO-8601. */
+  deletedAt?: string;
 };
 
 /** `AdminAccountResponse`: 목록의 항목. 지금 남은 대화 수와 그 대화들의 마지막 메시지 시각을 더한다. */

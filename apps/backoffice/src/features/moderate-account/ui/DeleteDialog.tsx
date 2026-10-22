@@ -7,7 +7,7 @@ import { canPurge } from '../model/actions';
 import { CONFIRM_TEXT, DIALOG_TEXT } from '../model/texts';
 
 export type DeleteDialogProps = {
-  account: Pick<Account, 'username' | 'status'>;
+  account: Pick<Account, 'username' | 'status' | 'deletedAt'>;
   open: boolean;
   busy: boolean;
   onClose: () => void;

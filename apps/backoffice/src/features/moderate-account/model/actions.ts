@@ -1,5 +1,13 @@
 // 계정 행의 동작(화면 안 8절 "행 동작"). 보이는 상태가 버튼을 정하고, 관리자 행에는 동작을 두지 않는다(스스로 잠그는 사고를 막는다).
-import { type Account, type AccountState, accountState } from '@/entities/account';
+import {
+  type Account,
+  type AccountState,
+  accountState,
+  isPurgeable,
+  purgeDaysLeft,
+} from '@/entities/account';
+import { toLocalInput } from './expiry';
+import { PURGE_TEXT } from './texts';
 
 export type ModerationAction =
   | 'approve'
@@ -40,7 +48,31 @@ export function needsConfirm(action: ModerationAction): boolean {
   return action === 'revoke' || action === 'softDelete' || action === 'purge';
 }
 
-/** 완전 삭제는 소프트 삭제된 계정에만, 아이디를 그대로 입력했을 때만. */
-export function canPurge(account: Pick<Account, 'status' | 'username'>, typed: string): boolean {
-  return account.status === 'deleted' && typed === account.username;
+/** 완전 삭제는 정지 3개월이 지난 계정에만, 아이디를 그대로 입력했을 때만. */
+export function canPurge(
+  account: Pick<Account, 'status' | 'username' | 'deletedAt'>,
+  typed: string,
+  now: Date = new Date(),
+): boolean {
+  return isPurgeable(account, now) && typed === account.username;
+}
+
+export type PurgeAvailability = { allowed: true } | { allowed: false; reason: string };
+
+/** "완전 삭제" 버튼을 켤지, 끈다면 그 까닭(버튼의 title). */
+export function purgeAvailability(
+  account: Pick<Account, 'status' | 'deletedAt'>,
+  now: Date = new Date(),
+): PurgeAvailability {
+  if (isPurgeable(account, now)) return { allowed: true };
+  if (account.deletedAt === undefined) return { allowed: false, reason: PURGE_TEXT.noSuspendedAt };
+  return { allowed: false, reason: PURGE_TEXT.daysLeft(purgeDaysLeft(account.deletedAt, now)) };
+}
+
+/** 정지된 계정의 정지 시각(로컬, 분까지). 아니면 undefined. */
+export function suspendedAtText(
+  account: Pick<Account, 'status' | 'deletedAt'>,
+): string | undefined {
+  if (account.status !== 'deleted' || account.deletedAt === undefined) return undefined;
+  return PURGE_TEXT.suspendedAt(toLocalInput(account.deletedAt).replace('T', ' '));
 }

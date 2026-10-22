@@ -3,7 +3,12 @@
 import { useState } from 'react';
 import type { Account } from '@/entities/account';
 import { Button, type ButtonVariant } from '@/shared/ui';
-import { MODERATION_LABELS, type ModerationAction } from '../model/actions';
+import {
+  MODERATION_LABELS,
+  type ModerationAction,
+  purgeAvailability,
+  suspendedAtText,
+} from '../model/actions';
 import type { ModerationRequest } from '../model/moderation';
 import { DIALOG_TEXT } from '../model/texts';
 import { type ModerateAccountOptions, useModerateAccount } from '../model/useModerateAccount';
@@ -59,21 +64,30 @@ export function AccountActions({ account, onChanged, onError }: AccountActionsPr
   }
 
   const close = () => setDialog(null);
+  const purge = purgeAvailability(account);
+  const suspendedAt = suspendedAtText(account);
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {actions.map((action) => (
-        <Button
-          key={action}
-          size="sm"
-          variant={VARIANTS[action]}
-          disabled={busy !== null}
-          busy={busy !== null && DIRECT[action]?.kind === busy}
-          onClick={() => press(action)}
-        >
-          {MODERATION_LABELS[action]}
-        </Button>
-      ))}
+    <div className="flex flex-wrap items-center gap-2">
+      {actions.map((action) => {
+        const blocked = action === 'purge' && !purge.allowed;
+        return (
+          <Button
+            key={action}
+            size="sm"
+            variant={VARIANTS[action]}
+            disabled={busy !== null || blocked}
+            title={action === 'purge' && !purge.allowed ? purge.reason : undefined}
+            busy={busy !== null && DIRECT[action]?.kind === busy}
+            onClick={() => press(action)}
+          >
+            {MODERATION_LABELS[action]}
+          </Button>
+        );
+      })}
+      {suspendedAt !== undefined && (
+        <span className="text-xs whitespace-nowrap text-fg-muted">{suspendedAt}</span>
+      )}
       {(dialog === 'revoke' || dialog === 'softDelete') && (
         <ConfirmDialog
           account={account}

@@ -4,6 +4,9 @@ export {
   MODERATION_LABELS,
   type ModerationAction,
   needsConfirm,
+  type PurgeAvailability,
+  purgeAvailability,
+  suspendedAtText,
 } from './model/actions';
 export { EXPIRY_QUICK_DAYS, fromLocalInput, quickExpiry, toLocalInput } from './model/expiry';
 export {
@@ -14,7 +17,7 @@ export {
   type ModerationState,
   type ModerationStore,
 } from './model/moderation';
-export { CONFIRM_TEXT, type ConfirmAction, DIALOG_TEXT } from './model/texts';
+export { CONFIRM_TEXT, type ConfirmAction, DIALOG_TEXT, PURGE_TEXT } from './model/texts';
 export {
   type ModerateAccount,
   type ModerateAccountOptions,

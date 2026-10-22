@@ -11,11 +11,11 @@ use chrono::{DateTime, Utc};
 
 use super::response::{
     KnowledgeRefResponse, MessageRole, ReplyPhase, RiskDetector, SessionSummaryResponse,
-    SupportPlanResponse,
+    SupportPlanResponse, TurnTrace,
 };
 use super::rules::{
-    GriefProfile, MindReport, RiskAssessment, SupportLevel, Task, TaskTransition,
-    TurnAnalysis, evaluate, is_report_available, plan, review, should_review, summarize,
+    GriefProfile, MindReport, RiskAssessment, SupportLevel, Task, TaskTransition, TurnAnalysis,
+    evaluate, is_report_available, plan, review, should_review, summarize,
 };
 use crate::identity::ChatLanguage;
 
@@ -253,7 +253,15 @@ impl Session {
             knowledge,
             supervision,
             reply: None,
+            trace: None,
         });
+    }
+
+    /// 방금 끝낸 턴(`complete_turn`)의 분석에 발화 프롬프트의 추적을 단다(sandbox 전용). 분석이 없으면 버린다.
+    pub fn trace_last_turn(&mut self, trace: TurnTrace) {
+        if let Some(analysis) = self.analyses.last_mut() {
+            analysis.trace = Some(trace);
+        }
     }
 
     /// 닫는다. 이미 닫혔으면 그대로다.

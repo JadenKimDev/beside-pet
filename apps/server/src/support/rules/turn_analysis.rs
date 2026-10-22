@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 
 use super::super::response::{
     KnowledgeRefResponse, ReplyPhase, RiskAssessmentResponse, RiskDetector, SupervisionResponse,
-    TaskTransitionResponse, TurnAnalysisResponse,
+    TaskTransitionResponse, TurnAnalysisResponse, TurnTrace,
 };
 use super::{SupportLevel, Task};
 use crate::safety::{self, RiskVerdict};
@@ -71,6 +71,8 @@ pub struct TurnAnalysis {
     pub supervision: Option<SupervisionResponse>,
     /// 답의 판정. 판정기를 껐거나 판정이 실패했거나 아직 적지 않았으면 `None`(`turn_analyses` 의 NULL).
     pub reply: Option<ReplyJudgement>,
+    /// 발화 프롬프트의 추적. sandbox 의 답한 턴에만 있고 production, 위기 턴, 저장 전의 옛 행은 `None`.
+    pub trace: Option<TurnTrace>,
 }
 
 impl TurnAnalysis {
@@ -100,6 +102,7 @@ impl TurnAnalysis {
                 .as_ref()
                 .and_then(|reply| reply.label_probability),
             reply_judge: self.reply.as_ref().map(|reply| reply.judge.clone()),
+            trace: self.trace.clone(),
         }
     }
 }

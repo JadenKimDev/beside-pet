@@ -172,6 +172,7 @@ fn 분석의_없는_칸은_빠진다() {
             reply_label: None,
             reply_label_probability: None,
             reply_judge: None,
+            trace: None,
         }],
         summary: None,
         history: vec![],
@@ -233,6 +234,7 @@ fn 분석의_모든_칸() {
             reply_label: Some("generic_comfort".to_owned()),
             reply_label_probability: Some(0.75),
             reply_judge: Some("systemone@0.1.0".to_owned()),
+            trace: None,
         }],
         summary: Some(SessionSummaryResponse {
             at: at(),

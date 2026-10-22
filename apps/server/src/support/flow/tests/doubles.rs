@@ -531,11 +531,28 @@ impl Harness {
 
     /// 답 판정기를 끼운다(후보 수와 임계값도). 도중에 끼어드는 턴도 쓰도록 제한은 넉넉히(`SLOW_LIMITS`) 둔다.
     pub fn judged(model: ScriptedModel, judging: Judging) -> Harness {
-        Harness::build(model, FixedLanguages::default(), SLOW_LIMITS, judging)
+        Harness::build(
+            model,
+            FixedLanguages::default(),
+            SLOW_LIMITS,
+            judging,
+            false,
+        )
+    }
+
+    /// sandbox 처럼 답한 턴마다 발화 프롬프트의 추적을 남긴다.
+    pub fn traced(model: ScriptedModel) -> Harness {
+        Harness::build(
+            model,
+            FixedLanguages::default(),
+            TEST_LIMITS,
+            Judging::off(),
+            true,
+        )
     }
 
     fn assemble(model: ScriptedModel, languages: FixedLanguages, limits: CallLimits) -> Harness {
-        Harness::build(model, languages, limits, Judging::off())
+        Harness::build(model, languages, limits, Judging::off(), false)
     }
 
     fn build(
@@ -543,6 +560,7 @@ impl Harness {
         languages: FixedLanguages,
         limits: CallLimits,
         judging: Judging,
+        trace_turns: bool,
     ) -> Harness {
         let model = Arc::new(model);
         let sessions = Arc::new(MemorySessions::default());
@@ -565,6 +583,7 @@ impl Harness {
                 ticks: AtomicI64::new(0),
             }),
             judging,
+            trace_turns,
         });
         Harness {
             flow,

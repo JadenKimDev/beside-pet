@@ -23,8 +23,10 @@ use crate::safety::{assess_risk_verdict, crisis_reply};
 use crate::shared::ApiError;
 use crate::support::knowledge::{KNOWLEDGE_LIMIT, KnowledgeChunk};
 use crate::support::prompt::{
-    PreviousSession, REPLY_PROMPT_VERSION, ReplyContext, reply_messages, reply_system_prompt,
+    PreviousSession, PromptBlock, REPLY_PROMPT_VERSION, ReplyContext, reply_messages,
+    reply_prompt_blocks, reply_system_prompt,
 };
+use crate::support::response::{TraceBlock, TurnTrace};
 use crate::support::rules::{RiskAssessment, TurnStyle};
 use crate::support::session::{Message, Session, TurnStep};
 use crate::support::{
@@ -69,7 +71,8 @@ pub async fn greet(
     };
     let knowledge = parts.knowledge.retrieve(session.task(), KNOWLEDGE_LIMIT);
     voice.announce(session.meta_event()).await;
-    let request = reply_request(parts, &session, phase, &knowledge, previous);
+    // 첫 인사는 턴 분석이 없어 추적을 남길 자리가 없다.
+    let (request, _) = reply_request(parts, &session, phase, &knowledge, previous);
     // 첫 인사는 받은 사용자 말이 없어 중단 대상이 아니다(등록부에 오르지 않는다).
     let Composed::Reply(reply) = voice.compose(parts.model.as_ref(), request, None).await? else {
         // 등록부에 없는 턴은 중단될 수 없다.
@@ -175,7 +178,7 @@ async fn answer(
     voice.announce(meta_for(&session, &step)).await;
     // 4) 지식 검색, 5) 발화(시작을 저장한 뒤).
     let knowledge = parts.knowledge.retrieve(step.to, KNOWLEDGE_LIMIT);
-    let request = reply_request(parts, &session, step.phase, &knowledge, None);
+    let (request, trace) = reply_request(parts, &session, step.phase, &knowledge, None);
     session
         .start_streaming(turn_id, parts.clock.now())
         .map_err(|error| conflict(&session, error))?;
@@ -231,6 +234,9 @@ async fn answer(
             parts.clock.now(),
         )
         .map_err(|error| conflict(&session, error))?;
+    if let Some(trace) = trace {
+        session.trace_last_turn(trace);
+    }
     match voice {
         Voice::Whole => {
             // 7) 동기 턴은 저장 전에 판정을 적는다(저장은 한 번).
@@ -285,13 +291,14 @@ fn meta_for(session: &Session, step: &TurnStep) -> StreamEvent {
     }
 }
 
+/// 발화 요청과, 턴 추적을 켰으면(sandbox) 그 요청의 추적.
 fn reply_request(
     parts: &FlowParts,
     session: &Session,
     phase: ReplyPhase,
     knowledge: &[KnowledgeChunk],
     previous: Option<&Previous>,
-) -> GenerationRequest {
+) -> (GenerationRequest, Option<TurnTrace>) {
     let profile = session.grief_profile();
     let turn_style = turn_style(phase, session.history())
         .after_judgement(session.last_reply_judgement(), parts.judging.threshold);
@@ -307,8 +314,12 @@ fn reply_request(
         }),
         turn_style: &turn_style,
     };
-    GenerationRequest {
-        system: Some(reply_system_prompt(&context)),
+    let system = reply_system_prompt(&context);
+    let trace = parts
+        .trace_turns
+        .then(|| turn_trace(reply_prompt_blocks(&context), &turn_style, &system));
+    let request = GenerationRequest {
+        system: Some(system),
         messages: reply_messages(&context),
         max_tokens: REPLY_MAX_TOKENS,
         context: CallContext {
@@ -316,6 +327,23 @@ fn reply_request(
             prompt_version: REPLY_PROMPT_VERSION,
             session_id: Some(session.id().to_owned()),
         },
+    };
+    (request, trace)
+}
+
+/// 발화 요청의 추적: 지시문 버전, 조립 순서의 블록 이름과 글자 수, 화법 결정, 모델에 준 시스템 프롬프트 전문.
+fn turn_trace(blocks: Vec<PromptBlock>, turn_style: &TurnStyle, system: &str) -> TurnTrace {
+    TurnTrace {
+        prompt_version: REPLY_PROMPT_VERSION.to_owned(),
+        blocks: blocks
+            .into_iter()
+            .map(|block| TraceBlock {
+                name: block.name.to_owned(),
+                chars: block.text.chars().count(),
+            })
+            .collect(),
+        turn_style: turn_style.decisions(),
+        system_prompt: system.to_owned(),
     }
 }
 

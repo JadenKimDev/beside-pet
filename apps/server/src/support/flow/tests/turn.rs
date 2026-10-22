@@ -173,5 +173,6 @@ async fn 질문_좀_그만해요_다음_턴에도_질문_금지_줄이_실린다
 
     let line = style_line(&h);
     assert!(line.starts_with("For this reply:"), "{line}");
-    assert!(line.contains("Do not ask any question"), "{line}");
+    // 15자 이하의 말이라 짧은 말 줄이 질문 금지 줄의 자리를 대신한다(#37 S3).
+    assert!(line.contains("ask no question"), "{line}");
 }

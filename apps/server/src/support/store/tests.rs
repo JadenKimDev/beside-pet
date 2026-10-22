@@ -2,6 +2,7 @@
 //! 테스트마다 새 스키마에 마이그레이션을 돌리고 끝나면 지운다. 값은 모두 지어낸 것이다.
 
 mod reply_judgement;
+mod trace;
 mod turn_states;
 
 use std::str::FromStr;
@@ -191,6 +192,7 @@ fn analysis(at: i64, from: u8, to: u8, supervised: bool) -> TurnAnalysis {
             note: Some("made-up note".to_owned()),
         }),
         reply: None,
+        trace: None,
     }
 }
 

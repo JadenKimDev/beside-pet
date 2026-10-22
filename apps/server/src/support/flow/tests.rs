@@ -16,4 +16,5 @@ mod report;
 mod retry;
 mod start;
 mod stream;
+mod trace;
 mod turn;

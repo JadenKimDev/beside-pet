@@ -52,7 +52,7 @@ impl SupportFlow {
     }
 
     /// 서버의 조립: Postgres 저장, 작업 디렉터리의 지식 파일, 계정 서비스의 대화 언어, 시스템 시계,
-    /// 설정이 고른 답 판정기(`judge`)와 동기 턴의 후보 수, 직전 답의 임계값.
+    /// 설정이 고른 답 판정기(`judge`)와 동기 턴의 후보 수, 직전 답의 임계값, 턴 추적 여부(`Config::traces_turns`).
     pub fn live(
         db: PgPool,
         model: SharedTextModel,
@@ -60,6 +60,7 @@ impl SupportFlow {
         judge: SharedReplyJudge,
         candidates: u8,
         threshold: f32,
+        trace_turns: bool,
     ) -> SharedSupportService {
         Arc::new(SupportFlow::new(FlowParts {
             model,
@@ -72,6 +73,7 @@ impl SupportFlow {
                 candidates,
                 threshold,
             },
+            trace_turns,
         }))
     }
 

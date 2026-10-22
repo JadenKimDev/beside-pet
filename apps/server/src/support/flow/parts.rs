@@ -13,4 +13,6 @@ pub struct FlowParts {
     pub languages: SharedChatLanguages,
     pub clock: SharedClock,
     pub judging: Judging,
+    /// 답한 턴의 분석에 발화 프롬프트의 추적을 남기는가(`APP_ENV=sandbox` 일 때만 참).
+    pub trace_turns: bool,
 }

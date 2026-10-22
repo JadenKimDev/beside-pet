@@ -128,6 +128,7 @@ impl AppState {
             judge,
             config.judge.candidates,
             config.judge.threshold,
+            config.traces_turns(),
         );
         Ok(AppState {
             services: Services {

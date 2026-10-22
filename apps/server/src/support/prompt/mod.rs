@@ -8,8 +8,8 @@ mod report;
 mod transcript;
 
 pub use reply::{
-    PROMPT_VERSION as REPLY_PROMPT_VERSION, PreviousSession, ReplyContext, reply_messages,
-    reply_system_prompt,
+    PROMPT_VERSION as REPLY_PROMPT_VERSION, PreviousSession, PromptBlock, ReplyContext,
+    reply_messages, reply_prompt_blocks, reply_system_prompt,
 };
 pub use report::{
     PROMPT_VERSION as REPORT_PROMPT_VERSION, ReportContext, parse_report_bodies,

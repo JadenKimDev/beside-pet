@@ -346,6 +346,11 @@ impl Config {
         self.app_env == AppEnv::Production
     }
 
+    /// 답한 턴마다 발화 프롬프트의 추적(`turn_analyses.trace`)을 남기는가. `APP_ENV=sandbox` 일 때만 참이다.
+    pub fn traces_turns(&self) -> bool {
+        self.app_env == AppEnv::Sandbox
+    }
+
     /// 로그인 쿠키에 Secure 를 붙이는가. `COOKIE_SECURE` 가 있으면 그 값, 없으면 `APP_ENV=production` 일 때 참이다.
     /// http 루프백의 컨테이너(`compose --profile full`)는 `COOKIE_SECURE=false` 로 로그인을 유지한다.
     pub fn secure_cookies(&self) -> bool {

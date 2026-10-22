@@ -138,7 +138,8 @@ fn a_forbidding_style_puts_the_no_question_line_last() {
     let prompt = reply_system_prompt(&ctx);
     let line = last_line(&prompt);
     assert!(line.starts_with("For this reply:"), "{line}");
-    assert!(line.contains("Do not ask any question"), "{line}");
+    // "질문 그만 해요" 는 15자 이하라 짧은 말 줄이 질문 금지 줄의 자리를 대신한다(#37 S3).
+    assert!(line.contains("ask no question"), "{line}");
 }
 
 #[test]

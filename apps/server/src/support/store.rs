@@ -1,6 +1,6 @@
 //! 대화 저장: `sessions`·`messages`·`turn_analyses`·`turns` 의 SQL.
 //!
-//! 스냅샷 하나는 세션 행 하나, 메시지 행(순번 = 전사의 자리), 턴 분석 행(순번 = 분석의 자리, 답의 판정 칸 포함), 턴 행(id = 클라이언트의
+//! 스냅샷 하나는 세션 행 하나, 메시지 행(순번 = 전사의 자리), 턴 분석 행(순번 = 분석의 자리, 답의 판정 칸과 sandbox 의 추적 칸 포함), 턴 행(id = 클라이언트의
 //! 멱등 키, ADR-0028)이다. 저장은 한 트랜잭션의 upsert 라 두 번 해도 같고, 턴의 상태 전이도 upsert 로 덮인다. 턴은 일어난
 //! 사실이라 스냅샷에서 빠져도 지우지 않는다. 계획·요약·진행률은 규칙으로 다시 구하므로 저장하지 않는다. 삭제는 한
 //! 트랜잭션으로 turn_analyses → messages → turns → sessions 순서로 지운다(ADR-0006). 시각은 timestamptz 라 마이크로초까지
@@ -278,7 +278,7 @@ impl SessionStore {
             "SELECT session_id, at, task, phase, risk_level, risk_detected_by, from_task, to_task, \
                     advanced, retry_count, knowledge::text AS knowledge, \
                     supervision::text AS supervision, reply_label, reply_label_probability, \
-                    reply_judge \
+                    reply_judge, trace::text AS trace \
              FROM turn_analyses WHERE session_id = ANY($1) ORDER BY session_id, seq",
         )
         .bind(&ids)
@@ -380,16 +380,17 @@ async fn save_analyses(
     sqlx::query(
         "INSERT INTO turn_analyses (session_id, seq, at, task, phase, risk_level, risk_detected_by, \
                                     from_task, to_task, advanced, retry_count, knowledge, supervision, \
-                                    reply_label, reply_label_probability, reply_judge) \
+                                    reply_label, reply_label_probability, reply_judge, trace) \
          SELECT $1, seq, at, task, phase, risk_level, risk_detected_by, from_task, to_task, \
                 advanced, retry_count, knowledge::jsonb, supervision::jsonb, \
-                reply_label, reply_label_probability, reply_judge \
+                reply_label, reply_label_probability, reply_judge, trace::jsonb \
          FROM UNNEST($2::int4[], $3::timestamptz[], $4::int4[], $5::varchar[], $6::int4[], \
                      $7::varchar[], $8::int4[], $9::int4[], $10::bool[], $11::int4[], \
-                     $12::text[], $13::text[], $14::varchar[], $15::float4[], $16::varchar[]) \
+                     $12::text[], $13::text[], $14::varchar[], $15::float4[], $16::varchar[], \
+                     $17::text[]) \
            AS t(seq, at, task, phase, risk_level, risk_detected_by, from_task, to_task, \
                 advanced, retry_count, knowledge, supervision, \
-                reply_label, reply_label_probability, reply_judge) \
+                reply_label, reply_label_probability, reply_judge, trace) \
          ON CONFLICT (session_id, seq) DO UPDATE SET \
            at = EXCLUDED.at, task = EXCLUDED.task, phase = EXCLUDED.phase, \
            risk_level = EXCLUDED.risk_level, risk_detected_by = EXCLUDED.risk_detected_by, \
@@ -398,7 +399,7 @@ async fn save_analyses(
            knowledge = EXCLUDED.knowledge, supervision = EXCLUDED.supervision, \
            reply_label = EXCLUDED.reply_label, \
            reply_label_probability = EXCLUDED.reply_label_probability, \
-           reply_judge = EXCLUDED.reply_judge",
+           reply_judge = EXCLUDED.reply_judge, trace = EXCLUDED.trace",
     )
     .bind(session_id)
     .bind(&columns.seq)
@@ -416,6 +417,7 @@ async fn save_analyses(
     .bind(&columns.reply_label)
     .bind(&columns.reply_label_probability)
     .bind(&columns.reply_judge)
+    .bind(&columns.trace)
     .execute(&mut **tx)
     .await?;
     Ok(())

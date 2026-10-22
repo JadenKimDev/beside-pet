@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Utc};
 
+use super::super::response::TurnTrace;
 use super::super::rules::{ReplyJudgement, RiskAssessment, TaskTransition, TurnAnalysis};
 use super::super::session::{Message, MessageActivity, SessionSnapshot, Turn};
 use super::codec::{
@@ -95,6 +96,7 @@ pub(super) struct AnalysisColumns {
     pub reply_label: Vec<Option<&'static str>>,
     pub reply_label_probability: Vec<Option<f32>>,
     pub reply_judge: Vec<Option<String>>,
+    pub trace: Vec<Option<String>>,
 }
 
 impl AnalysisColumns {
@@ -144,6 +146,11 @@ impl AnalysisColumns {
             columns
                 .reply_judge
                 .push(reply.map(|reply| reply.judge.clone()));
+            let trace = match &analysis.trace {
+                Some(trace) => Some(to_document("turn_analyses.trace", trace)?),
+                None => None,
+            };
+            columns.trace.push(trace);
         }
         Ok(columns)
     }
@@ -220,6 +227,7 @@ pub(super) struct AnalysisRow {
     reply_label: Option<String>,
     reply_label_probability: Option<f32>,
     reply_judge: Option<String>,
+    trace: Option<String>,
 }
 
 /// 세션 하나의 메시지 집계 행(`GROUP BY session_id`). 메시지가 있는 세션만 행이 있다.
@@ -301,6 +309,11 @@ impl AnalysisRow {
             }),
             None => None,
         };
+        // 추적은 sandbox 의 턴에만 있다. SQL NULL 이 없음이다.
+        let trace = match self.trace.as_deref() {
+            Some(text) => Some(from_document::<TurnTrace>("turn_analyses.trace", text)?),
+            None => None,
+        };
         Ok(TurnAnalysis {
             at: self.at,
             task: parse_task("turn_analyses.task", self.task)?,
@@ -321,6 +334,7 @@ impl AnalysisRow {
                 .collect(),
             supervision,
             reply,
+            trace,
         })
     }
 }

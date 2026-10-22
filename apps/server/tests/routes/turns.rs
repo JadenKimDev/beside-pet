@@ -86,6 +86,7 @@ pub async fn fixture() -> Fixture {
             Arc::new(support::UnimplementedJudge),
             1,
             0.5,
+            false,
         ),
         ..Services::unimplemented()
     });

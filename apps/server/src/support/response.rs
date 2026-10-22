@@ -6,6 +6,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use super::rules::TurnStyleDecisions;
 use crate::identity::ChatLanguage;
 
 /// 한 턴의 결과.
@@ -212,6 +213,28 @@ pub struct TurnAnalysisResponse {
     /// 판정기와 그 버전(`<이름>@<x.y.z>`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reply_judge: Option<String>,
+    /// 이 턴에 발화 모델에 준 것(sandbox 전용 턴 추적). production 은 늘 없어 칸이 빠진다.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trace: Option<TurnTrace>,
+}
+
+/// 한 턴의 발화 프롬프트 추적: 지시문 버전, 조립한 블록의 이름과 길이, 이번 턴의 화법 결정, 시스템 프롬프트 전문.
+/// `APP_ENV=sandbox` 에서만 만든다(sandbox 의 세션은 QA 계정과 지어낸 인물뿐이다). `turn_analyses.trace` 에 그대로 저장된다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnTrace {
+    pub prompt_version: String,
+    /// 시스템 프롬프트를 이룬 블록, 조립 순서대로.
+    pub blocks: Vec<TraceBlock>,
+    pub turn_style: TurnStyleDecisions,
+    pub system_prompt: String,
+}
+
+/// 시스템 프롬프트의 블록 하나: 이름과 글자 수(유니코드 스칼라 수).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TraceBlock {
+    pub name: String,
+    pub chars: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

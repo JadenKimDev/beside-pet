@@ -4,7 +4,7 @@
 //! 저장하지 않는다(ADR-0027). 매 턴 세션 기록에서 다시 구한다. `decisions()` 는 sandbox 의 턴 추적에 남기는 관찰 기록용이다. 패턴은 이 모듈 한 곳에만 두고,
 //! 영어 패턴은 소문자로 바꾼 본문에 맞춘다. 한국어 패턴은 영어 대화에 맞지 않을 뿐 규칙은 같다.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::ReplyJudgement;
 use crate::support::{ReplyLabel, ReplyPhase};
@@ -128,7 +128,7 @@ const SHORT_CHARS: usize = 15;
 const REASSURE_WINDOW: usize = 4;
 const ENDING_CHARS: usize = 4;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum QuestionPolicy {
     Forbid,
@@ -137,7 +137,7 @@ pub enum QuestionPolicy {
 }
 
 /// 직전 답이 한 동작. 순서는 감지와 기록의 순서다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ActionKind {
     FeelingGuess,
@@ -162,14 +162,14 @@ impl ActionKind {
 }
 
 /// 이번 턴의 화법 결정. sandbox 의 턴 추적(`trace.turnStyle`)에 그대로 남는다.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnStyleDecisions {
     pub question_policy: QuestionPolicy,
     pub reassure_cooldown: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ending_avoid: Option<String>,
-    pub stock_passed: Vec<&'static str>,
+    pub stock_passed: Vec<String>,
     pub judge_line: bool,
     pub short_rule: bool,
     pub action_rule: Vec<ActionKind>,
@@ -224,7 +224,7 @@ impl TurnStyle {
             question_policy: self.question,
             reassure_cooldown: self.avoid_reassure,
             ending_avoid: self.repeated_ending.clone(),
-            stock_passed: self.used_stock.clone(),
+            stock_passed: self.used_stock.iter().map(|s| (*s).to_owned()).collect(),
             judge_line: self.after_generic,
             short_rule: self.short_reply,
             action_rule: self.after_action.clone(),

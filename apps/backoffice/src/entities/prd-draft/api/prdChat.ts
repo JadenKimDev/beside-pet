@@ -42,7 +42,7 @@ function parseJson(body: string): unknown {
 
 async function* events<Event>(
   response: Response,
-  isEvent: (value: unknown) => value is Event,
+  isEvent: (body: unknown) => body is Event,
 ): AsyncGenerator<Event> {
   if (!response.body) return;
   for await (const value of readNdjson(response.body)) {
@@ -74,13 +74,15 @@ function isChatEvent(value: unknown): value is ChatEvent {
   }
 }
 
-const STEP_SET: ReadonlySet<unknown> = new Set(PUBLISH_STEPS);
-const STATUS_SET: ReadonlySet<unknown> = new Set(['running', 'ok', 'failed']);
+const STEP_SET: ReadonlySet<string> = new Set(PUBLISH_STEPS);
+const STATUS_SET: ReadonlySet<string> = new Set(['running', 'ok', 'failed']);
 
 function isPublishEvent(value: unknown): value is PublishEvent {
   return (
     isObject(value) &&
+    typeof value.step === 'string' &&
     STEP_SET.has(value.step) &&
+    typeof value.status === 'string' &&
     STATUS_SET.has(value.status) &&
     typeof value.output === 'string'
   );

@@ -12,9 +12,7 @@ function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
 }
 
 async function collect(body: ReadableStream<Uint8Array>): Promise<unknown[]> {
-  const out: unknown[] = [];
-  for await (const value of readNdjson(body)) out.push(value);
-  return out;
+  return Array.fromAsync(readNdjson(body));
 }
 
 describe('readNdjson', () => {

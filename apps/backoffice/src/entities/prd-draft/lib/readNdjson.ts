@@ -23,8 +23,9 @@ export async function* readNdjson(body: ReadableStream<Uint8Array>): AsyncGenera
   }
 }
 
-function parseLine(line: string): unknown {
-  const text = line.trim();
+/** NDJSON 의 한 줄(바깥에서 온 JSON). */
+function parseLine(body: string): unknown {
+  const text = body.trim();
   if (!text) return undefined;
   try {
     return JSON.parse(text);

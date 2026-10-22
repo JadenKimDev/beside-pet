@@ -15,3 +15,6 @@ mod daily;
 
 #[path = "schema/reply_labels.rs"]
 mod reply_labels;
+
+#[path = "schema/turn_trace.rs"]
+mod turn_trace;

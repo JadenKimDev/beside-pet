@@ -18,14 +18,14 @@
         "dev-tools/scripts/cargo.sh test -p beside-pet-server --test schema"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-22T01:29:39.863Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-22T01:27:24.479Z",
+      "finished_at": "2026-10-22T01:29:46.728Z",
+      "active_ms": 142249,
+      "verify_ms": 2274
     },
     {
       "id": "S2",
@@ -39,11 +39,11 @@
         "dev-tools/scripts/cargo.sh test -p beside-pet-server -- prompt::reply"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
+      "red_at": "2026-10-22T01:30:28.021Z",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-22T01:27:31.542Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -61,10 +61,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-22T01:27:31.846Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -113,10 +113,10 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-22T01:27:32.172Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null

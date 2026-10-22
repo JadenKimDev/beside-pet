@@ -66,7 +66,7 @@ export function PreviewPanel({
   const running = publish.status === 'running';
   return (
     <section className="flex min-w-0 flex-col rounded-lg border border-border bg-surface md:h-[calc(100vh-12rem)]">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2">
+      <header className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-fg">{T.previewTitle}</h2>
           {ready && file && (

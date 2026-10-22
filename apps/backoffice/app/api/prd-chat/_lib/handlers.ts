@@ -36,7 +36,10 @@ const ERROR_MAX = 500;
 
 /** 테스트용 주입. 기본은 이 프로세스의 레포 루트와 env, PATH 의 `claude`. */
 export type PrdChatDeps = {
-  /** `claude -p` 의 cwd 와 초안을 읽는 자리. 기본 `repoRoot()`. */
+  /**
+   * `claude -p` 의 cwd 와 초안을 읽는 자리. 기본은 본 체크아웃(`mainCheckout(repoRoot())`)이다. 워크트리에서 띄우면
+   * `docs/prd/` 가 본 체크아웃으로 가는 링크라 claude 가 바깥 경로로 보고 쓰지 않으므로, 처음부터 본 체크아웃에서 띄운다.
+   */
   root?: string;
   /** 올리기의 cwd(본 체크아웃). 기본 `mainCheckout(repoRoot())`. */
   publishRoot?: string;
@@ -118,7 +121,7 @@ async function chat(
     proc = await spawnClaude({
       message,
       ...session,
-      cwd: deps.root ?? repoRoot(),
+      cwd: deps.root ?? (await mainCheckout(repoRoot())),
       env: deps.env,
       executable: deps.executable,
     });
@@ -167,7 +170,7 @@ export async function draftResponse(
 ): Promise<Response> {
   const denied = await forbidden(request);
   if (denied) return denied;
-  const path = draftPath(file, deps.root ?? repoRoot());
+  const path = draftPath(file, deps.root ?? (await mainCheckout(repoRoot())));
   if (path === null) return failure(400, INVALID_DRAFT);
   const mtime = await mtimeOf(path);
   if (mtime === null) return failure(404, DRAFT_MISSING);

@@ -84,7 +84,7 @@ export function ChatPanel({ messages, status, error, onSend, onReset }: ChatPane
 
   return (
     <section className="flex h-[60vh] min-h-80 min-w-0 flex-col rounded-lg border border-border bg-surface md:h-[calc(100vh-12rem)]">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
+      <header className="flex min-h-12 items-center justify-between gap-3 border-b border-border px-4 py-2">
         <h2 className="text-sm font-semibold text-fg">{T.chatTitle}</h2>
         <Button
           variant="ghost"

@@ -140,3 +140,20 @@ test("greetingOverlap: 모두 다르면 1/전체, 인물이 하나면 null", () 
   assert.equal(greetingOverlap([{ name: "a", greeting: "안녕하세요.", petNames: [] }]), null);
   assert.equal(greetingOverlapText(null), "-");
 });
+
+test("greetingOverlap: 인사 한 마디(8자 미만)는 겹침 후보가 아니다", () => {
+  const overlap = greetingOverlap([
+    { name: "a", greeting: "안녕하세요. 나비는 어떤 아이였나요?", petNames: ["나비"] },
+    { name: "b", greeting: "안녕하세요. 오늘 여기 와 주셔서 고마워요.", petNames: ["초코"] },
+    { name: "c", greeting: "안녕하세요. 단풍과 함께한 시간이 궁금해요.", petNames: ["단풍"] },
+    { name: "d", greeting: "안녕하세요. 지금 마음이 어떤지 들려주세요.", petNames: ["보리"] },
+    { name: "e", greeting: "안녕하세요. 천천히 말씀하셔도 괜찮아요.", petNames: ["두부"] },
+    { name: "f", greeting: "안녕하세요. 콩이 이야기를 함께 나눠요.", petNames: ["콩이"] },
+    { name: "g", greeting: "안녕하세요. 많이 보고 싶으시겠어요.", petNames: ["모모"] },
+  ]);
+  assert.equal(overlap?.shared, 1);
+  assert.equal(overlap?.total, 7);
+  assert.notEqual(overlap?.sentence, "안녕하세요.");
+  assert.equal(overlap?.sentence, "나비는 어떤 아이였나요?");
+  assert.equal(greetingOverlapText(overlap), "1/7");
+});

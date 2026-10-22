@@ -180,6 +180,12 @@ const NAME_SLOT = "{이름}";
 /** 두 문장의 글자 3-gram 다이스 계수가 이 이상이면 같은 문장으로 본다("글자까지 거의 같음"). */
 const SAME_SENTENCE = 0.8;
 
+/**
+ * 정규화한 키가 이보다 짧은 문장은 겹침 후보에서 뺀다. "안녕하세요", "반갑습니다" 같은 인사 한 마디는
+ * 내용이 아니어서, 모든 인물이 같은 한 마디로 시작하면 내용 문장의 겹침을 가린다.
+ */
+const MIN_GREETING_KEY = 8;
+
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** 인사 한 문장을 견줄 꼴로: 이름과 조사를 자리 표시로, 공백과 문장부호를 뺀다. */
@@ -242,7 +248,7 @@ export function greetingOverlap(inputs: GreetingInput[]): GreetingOverlap | null
   let best: GreetingOverlap = { sentence: "", shared: 0, total: people.length, names: [] };
   for (const person of people) {
     for (const sentence of person.sentences) {
-      if (sentence.key === "") continue;
+      if ([...sentence.key].length < MIN_GREETING_KEY) continue;
       const names = people
         .filter((other) => other.sentences.some((s) => trigramDice(s.key, sentence.key) >= SAME_SENTENCE))
         .map((other) => other.name);

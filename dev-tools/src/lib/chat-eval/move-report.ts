@@ -82,7 +82,7 @@ export function greetingSection(runs: RunResult[], baselineRuns: RunResult[] | n
   const lines = [
     "## 첫 인사 겹침 (greetingOverlap)",
     "",
-    `가장 많은 인물이 공유한 첫 인사 문장(반려동물 이름은 자리 표시로 바꾸고, 글자 3-gram 다이스 0.8 이상을 같은 문장으로 본다): ${text}`,
+    `가장 많은 인물이 공유한 첫 인사 문장(반려동물 이름은 자리 표시로 바꾸고, 글자 3-gram 다이스 0.8 이상을 같은 문장으로 본다. 인사 한 마디(8자 미만)는 뺀다): ${text}`,
   ];
   if (now !== null && now.shared > 1) lines.push("", `- 문장: ${now.sentence}`, `- 인물: ${now.names.join(", ")}`);
   return lines;

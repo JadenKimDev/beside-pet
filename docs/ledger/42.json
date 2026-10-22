@@ -125,14 +125,14 @@
         "cd apps/server && APP_ENV=sandbox ../../dev-tools/scripts/cargo.sh test --test purge && ../../dev-tools/scripts/cargo.sh clippy --all-targets -- -D warnings"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "doing",
-      "passes": false,
-      "retries": 0,
+      "red_at": "2026-10-22T08:57:49.780Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
       "started_at": "2026-10-22T08:54:54.841Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-22T08:58:52.569Z",
+      "active_ms": 237728,
+      "verify_ms": 3813
     },
     {
       "id": "S6",

@@ -28,7 +28,7 @@ mod rows;
 mod trash;
 
 pub use memory::PgMemoryStore;
-pub use purge::TrashPurge;
+pub use purge::{TRASH_RETENTION_MONTHS, TrashPurge};
 pub use trash::DeletedSession;
 
 const SESSION_COLUMNS: &str = "id, owner_id, task, retry_count, support_level, closed, \

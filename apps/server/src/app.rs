@@ -115,10 +115,11 @@ impl AppState {
                 config.jwt_ttl.as_deref(),
             )
             .await
-            .map_err(ConnectError::Identity)?,
+            .map_err(ConnectError::Identity)?
+            .with_owned_data(support::owned_data_purger(db.clone())),
         );
         close_unfinished_turns(db.clone()).await;
-        purge_stale_memory(db.clone()).await;
+        purge_on_startup(db.clone()).await;
         let usage: llm::SharedUsageSink = Arc::new(llm::PostgresUsageSink::spawn(db.clone()));
         let base = Services::with_usage(&config, usage);
         let judge = reply_judge(&config.judge, &base.text_model);
@@ -188,12 +189,20 @@ async fn close_unfinished_turns(db: PgPool) {
     }
 }
 
-/// 마지막 대화가 보존 기간보다 오래된 계정의 기억을 지운다(ADR-0034). 지운 행 수만 로그에 남기고, 실패해도 기동은 잇는다
-/// (남은 기억은 다음 기동이 지운다).
-async fn purge_stale_memory(db: PgPool) {
-    match support::purge_stale_memory(db, Utc::now()).await {
-        Ok(purged) => tracing::info!(purged, "purged memory past its retention"),
-        Err(_) => tracing::warn!("could not purge memory past its retention"),
+/// 보관 기간이 지난 지운 리포트·세션, 정지 보관 기간이 지난 계정(대화·기억 연쇄), 보존 기간이 지난 기억을 지운다
+/// (ADR-0036, ADR-0034). 지운 행 수만 로그에 남기고(id 와 본문 없음), 실패해도 기동은 잇는다(남은 것은 다음 기동이 지운다).
+async fn purge_on_startup(db: PgPool) {
+    let accounts = identity::suspended_accounts(db.clone());
+    match support::purge_on_startup(db, &*accounts, Utc::now()).await {
+        Ok(purged) => tracing::info!(
+            reports = purged.reports,
+            sessions = purged.sessions,
+            accounts = purged.accounts,
+            account_sessions = purged.account_sessions,
+            memory = purged.memory,
+            "purged data past its retention"
+        ),
+        Err(_) => tracing::warn!("could not purge data past its retention"),
     }
 }
 

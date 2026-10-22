@@ -20,7 +20,9 @@ mod start;
 mod stream;
 mod voice;
 
-pub use adapters::{fail_pending_turns, purge_stale_memory, session_presence};
+pub use adapters::{
+    StartupPurge, fail_pending_turns, owned_data_purger, purge_on_startup, session_presence,
+};
 pub use judge::{
     HaikuReplyJudge, JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge,
     SystemOneReplyJudge, Unimplemented as UnimplementedJudge,

@@ -5,6 +5,7 @@ mod latest;
 mod memory;
 mod reply_judgement;
 mod trace;
+mod trash;
 mod turn_states;
 
 use std::str::FromStr;
@@ -627,10 +628,12 @@ async fn 계획과_요약과_전사_칸은_세션_행에_없다() {
         vec![
             "closed",
             "created_at",
+            "deleted_at",
             "grief_profile",
             "id",
             "owner_id",
             "report",
+            "report_deleted_at",
             "retry_count",
             "support_level",
             "task",

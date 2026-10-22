@@ -4,7 +4,8 @@
 //! 멱등 키, ADR-0028)이다. 저장은 한 트랜잭션의 upsert 라 두 번 해도 같고, 턴의 상태 전이도 upsert 로 덮인다. 턴은 일어난
 //! 사실이라 스냅샷에서 빠져도 지우지 않는다. 계획·요약·진행률은 규칙으로 다시 구하므로 저장하지 않는다. 삭제는 한
 //! 트랜잭션으로 그 세션의 기억(memory_optouts → memory_notes → pets) → turn_analyses → messages → turns → sessions
-//! 순서로 지운다(ADR-0006). 시각은 timestamptz 라 마이크로초까지 남는다.
+//! 순서로 지운다. 사용자의 삭제는 `deleted_at` 만 적고(`trash`), 행을 지우는 것은 기동 때의 파기(`purge`)뿐이다(ADR-0036).
+//! 세션을 읽는 길은 지운 세션과 지운 리포트를 없음으로 본다. 시각은 timestamptz 라 마이크로초까지 남는다.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -22,12 +23,18 @@ use rows::{
 
 mod codec;
 mod memory;
+mod purge;
 mod rows;
+mod trash;
 
 pub use memory::PgMemoryStore;
+pub use purge::TrashPurge;
+pub use trash::DeletedSession;
 
 const SESSION_COLUMNS: &str = "id, owner_id, task, retry_count, support_level, closed, \
-                               grief_profile::text AS grief_profile, report::text AS report, created_at";
+                               grief_profile::text AS grief_profile, \
+                               CASE WHEN report_deleted_at IS NULL THEN report::text END AS report, \
+                               created_at";
 
 /// 저장의 오류. 문구에 본문과 식별 정보를 싣지 않는다.
 #[derive(Debug)]
@@ -77,7 +84,7 @@ impl SessionStore {
 
     /// 세션 행을 넣거나 갱신하고, 턴을 id 로, 메시지와 턴 분석을 순번으로 upsert 한다. 한 트랜잭션이다.
     /// 턴은 메시지보다 먼저 쓴다(`messages.turn_id` 의 FK). 전사가 줄었으면 새 길이 뒤의 메시지 행을 지운다.
-    /// 소유자와 시작 시각은 처음 쓴 값이 남는다. 같은 id 가 다른 소유자의 것이면 `OwnerMismatch`, 턴 id 가 다른 세션의
+    /// 지운 리포트(읽기에서 없음으로 보인 것)는 덮지 않는다. 소유자와 시작 시각은 처음 쓴 값이 남는다. 같은 id 가 다른 소유자의 것이면 `OwnerMismatch`, 턴 id 가 다른 세션의
     /// 것이면 `TurnIdTaken` 이고 둘 다 아무것도 쓰지 않는다.
     pub async fn save(&self, snapshot: &SessionSnapshot) -> Result<(), StoreError> {
         let mut tx = self.pool.begin().await?;
@@ -88,7 +95,9 @@ impl SessionStore {
              ON CONFLICT (id) DO UPDATE SET \
                task = EXCLUDED.task, retry_count = EXCLUDED.retry_count, \
                support_level = EXCLUDED.support_level, closed = EXCLUDED.closed, \
-               grief_profile = EXCLUDED.grief_profile, report = EXCLUDED.report, \
+               grief_profile = EXCLUDED.grief_profile, \
+               report = CASE WHEN sessions.report_deleted_at IS NULL THEN EXCLUDED.report \
+                             ELSE sessions.report END, \
                updated_at = now() \
              WHERE sessions.owner_id = EXCLUDED.owner_id",
         )
@@ -147,11 +156,12 @@ impl SessionStore {
         Ok(closed.rows_affected())
     }
 
+    /// 살아 있는 세션 하나. 지운 세션은 없음과 같다.
     pub async fn find(&self, id: &str) -> Result<Option<SessionSnapshot>, StoreError> {
         let mut snapshots = self
             .read(
                 AssertSqlSafe(format!(
-                    "SELECT {SESSION_COLUMNS} FROM sessions WHERE id = $1"
+                    "SELECT {SESSION_COLUMNS} FROM sessions WHERE id = $1 AND deleted_at IS NULL"
                 )),
                 id,
                 None,
@@ -160,7 +170,7 @@ impl SessionStore {
         Ok(snapshots.pop())
     }
 
-    /// 소유자의 세션을 시작이 늦은 것부터 `limit` 개까지.
+    /// 소유자의 살아 있는 세션을 시작이 늦은 것부터 `limit` 개까지.
     pub async fn find_by_owner(
         &self,
         owner_id: &str,
@@ -168,7 +178,7 @@ impl SessionStore {
     ) -> Result<Vec<SessionSnapshot>, StoreError> {
         self.read(
             AssertSqlSafe(format!(
-                "SELECT {SESSION_COLUMNS} FROM sessions WHERE owner_id = $1 \
+                "SELECT {SESSION_COLUMNS} FROM sessions WHERE owner_id = $1 AND deleted_at IS NULL \
                  ORDER BY created_at DESC, id DESC LIMIT $2"
             )),
             owner_id,
@@ -178,7 +188,7 @@ impl SessionStore {
     }
 
     /// 소유자의 직전 세션과 그 마지막 활동 시각: 마지막 메시지 시각(`messages` 의 `max(at)`, 메시지가 없으면
-    /// `sessions.created_at`)이 가장 늦은 세션이다. 같으면 시작이 늦은 것, 그다음 id 가 큰 것. 세션이 없으면 `None`.
+    /// `sessions.created_at`)이 가장 늦은 살아 있는 세션이다. 같으면 시작이 늦은 것, 그다음 id 가 큰 것. 없으면 `None`.
     pub async fn latest_by_owner(
         &self,
         owner_id: &str,
@@ -187,7 +197,7 @@ impl SessionStore {
             "SELECT s.id, coalesce(m.last_at, s.created_at) AS last_active_at \
              FROM sessions s \
              LEFT JOIN LATERAL (SELECT max(at) AS last_at FROM messages WHERE session_id = s.id) m ON true \
-             WHERE s.owner_id = $1 \
+             WHERE s.owner_id = $1 AND s.deleted_at IS NULL \
              ORDER BY last_active_at DESC, s.created_at DESC, s.id DESC LIMIT 1",
         )
         .bind(owner_id)
@@ -251,32 +261,22 @@ impl SessionStore {
             .collect()
     }
 
-    /// 소유자에게 지금 남아 있는 세션이 있는가.
+    /// 소유자에게 살아 있는(지우지 않은) 세션이 있는가.
     pub async fn has_sessions(&self, owner_id: &str) -> Result<bool, StoreError> {
-        let (exists,): (bool,) =
-            sqlx::query_as("SELECT EXISTS (SELECT 1 FROM sessions WHERE owner_id = $1)")
-                .bind(owner_id)
-                .fetch_one(&self.pool)
-                .await?;
+        let (exists,): (bool,) = sqlx::query_as(
+            "SELECT EXISTS (SELECT 1 FROM sessions WHERE owner_id = $1 AND deleted_at IS NULL)",
+        )
+        .bind(owner_id)
+        .fetch_one(&self.pool)
+        .await?;
         Ok(exists)
     }
 
-    /// 그 세션이 출처인 기억(사실, 옵트아웃, 아이), 턴 분석, 메시지, 턴, 세션 행을 한 트랜잭션으로 지운다. 기억 테이블의
-    /// FK 연쇄가 같은 일을 하지만 여기서도 명시한다(ADR-0006). 다른 세션의 사실이 지운 아이나 사실을 가리키면 FK 가 그
-    /// 칸만 비운다. 없는 id 는 아무것도 하지 않는다.
+    /// 그 세션이 출처인 기억(사실, 옵트아웃, 아이), 턴 분석, 메시지, 턴, 세션 행을 한 트랜잭션으로 지운다(`cascade`).
+    /// 없는 id 는 아무것도 하지 않는다.
     pub async fn delete(&self, id: &str) -> Result<(), StoreError> {
         let mut tx = self.pool.begin().await?;
-        for statement in [
-            "DELETE FROM memory_optouts WHERE session_id = $1",
-            "DELETE FROM memory_notes WHERE session_id = $1",
-            "DELETE FROM pets WHERE source_session_id = $1",
-            "DELETE FROM turn_analyses WHERE session_id = $1",
-            "DELETE FROM messages WHERE session_id = $1",
-            "DELETE FROM turns WHERE session_id = $1",
-            "DELETE FROM sessions WHERE id = $1",
-        ] {
-            sqlx::query(statement).bind(id).execute(&mut *tx).await?;
-        }
+        cascade(&mut tx, &[id.to_owned()]).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -332,6 +332,30 @@ impl SessionStore {
             .map(|row| transcripts.snapshot(row))
             .collect::<Result<_, _>>()?)
     }
+}
+
+/// 세션들이 출처인 기억(memory_optouts → memory_notes → pets), 턴 분석, 메시지, 턴, 세션 행을 이 트랜잭션에서 지운다.
+/// 기억 테이블의 FK 연쇄가 같은 일을 하지만 여기서도 명시한다. 다른 세션의 사실이 지운 아이나 사실을 가리키면 FK 가
+/// 그 칸만 비운다. 지운 세션 행 수를 돌려준다.
+async fn cascade(tx: &mut Transaction<'_, Postgres>, ids: &[String]) -> Result<u64, sqlx::Error> {
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    for statement in [
+        "DELETE FROM memory_optouts WHERE session_id = ANY($1)",
+        "DELETE FROM memory_notes WHERE session_id = ANY($1)",
+        "DELETE FROM pets WHERE source_session_id = ANY($1)",
+        "DELETE FROM turn_analyses WHERE session_id = ANY($1)",
+        "DELETE FROM messages WHERE session_id = ANY($1)",
+        "DELETE FROM turns WHERE session_id = ANY($1)",
+    ] {
+        sqlx::query(statement).bind(ids).execute(&mut **tx).await?;
+    }
+    let sessions = sqlx::query("DELETE FROM sessions WHERE id = ANY($1)")
+        .bind(ids)
+        .execute(&mut **tx)
+        .await?;
+    Ok(sessions.rows_affected())
 }
 
 /// 턴을 id 로 upsert 한다. 이미 있는 턴은 상태·끝 시각·오류 종류만 덮고 시작 시각은 처음 값이 남는다.

@@ -91,13 +91,18 @@ impl PgMemoryStore {
     }
 
     /// 소유자의 아이들(먼저 말한 순)과 지금 유효한 사실(`current_memory`, 최근 말한 순). 두 읽기는 같은 시점을 본다.
+    /// 지운 세션의 것은 빼되, 지운 세션이 출처인 아이라도 살아 있는 사실이 가리키면 낸다(다른 세션에서 다시 말했다).
     pub async fn view(&self, owner_id: &str) -> Result<MemoryView, StoreError> {
         let mut tx = self
             .pool
             .begin_with("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY")
             .await?;
         let pets: Vec<PetRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
-            "SELECT {PET_COLUMNS} FROM pets WHERE owner_id = $1 ORDER BY said_at, created_at, id"
+            "SELECT {PET_COLUMNS} FROM pets p WHERE p.owner_id = $1 \
+               AND (EXISTS (SELECT 1 FROM sessions s \
+                            WHERE s.id = p.source_session_id AND s.deleted_at IS NULL) \
+                    OR EXISTS (SELECT 1 FROM current_memory c WHERE c.pet_id = p.id)) \
+             ORDER BY said_at, created_at, id"
         )))
         .bind(owner_id)
         .fetch_all(&mut *tx)

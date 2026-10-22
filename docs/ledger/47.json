@@ -1,0 +1,27 @@
+{
+  "issue": 47,
+  "title": "[러너 실측용 테스트] needs_spec 막힘이 Actions success 와 실행 요약으로 보이는지 본다 (#46 QA)",
+  "prd": "docs/prd/47-runner-qa-test-46.md",
+  "depends_on": [],
+  "created_at": "2026-10-22T10:39:24.795Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "러너 실측용 일지 한 편을 더한다(검증 칸을 일부러 비움)",
+      "scope": [
+        "docs/devlog/"
+      ],
+      "depends_on": [],
+      "verify": [],
+      "tdd": false,
+      "red_at": null,
+      "status": "needs_spec",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

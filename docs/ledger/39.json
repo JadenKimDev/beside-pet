@@ -19,13 +19,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-22T03:30:59.082Z",
+      "finished_at": "2026-10-22T03:32:03.108Z",
+      "active_ms": 64026,
+      "verify_ms": 1493
     },
     {
       "id": "S2",
@@ -40,13 +40,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-22T03:31:04.747Z",
+      "finished_at": "2026-10-22T03:32:01.256Z",
+      "active_ms": 56509,
+      "verify_ms": 8
     }
   ]
 }

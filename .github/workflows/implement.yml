@@ -3,7 +3,7 @@
 #
 # - actions/checkout 은 쓰지 않는다. 러너 머신의 본 체크아웃(BESIDE_PET_REPO)에서 스크립트와 작업 대장 CLI 를 부른다.
 #   스크립트가 본 체크아웃을 git pull --ff-only 로 갱신하고 prd/<이슈> 워크트리에서 구현한다.
-# - GH_TOKEN 은 러너 환경(~/actions-runner-beside-pet/.env)의 JadenKimDev fine-grained 토큰을 쓴다. 이 워크플로의
+# - GH_TOKEN 은 러너 환경(~/actions-runner-beside-pet/.env)의 JadenKimDev 클래식 토큰(repo, project)을 쓴다. 이 워크플로의
 #   secrets 나 기본 GITHUB_TOKEN 이 아니다. 그래서 기본 GITHUB_TOKEN 의 권한은 비워 둔다.
 # - 한 번에 하나만 돈다(이 Mac 의 CPU 와 구독 한도). 기다리는 실행은 취소하지 않는다.
 

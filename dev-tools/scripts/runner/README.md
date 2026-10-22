@@ -33,14 +33,17 @@
 
 ### 2. 러너 환경 변수
 
-러너는 디렉터리의 `.env` 파일(`~/actions-runner-beside-pet/.env`, `KEY=VALUE` 줄)을 작업의 환경 변수로 읽는다. 사용자가 직접 쓰고, 권한은 `chmod 600` 으로 둔다.
+러너는 디렉터리의 `.env` 파일(`~/actions-runner-beside-pet/.env`, `KEY=VALUE` 줄)을 작업의 환경 변수로 읽는다. `./config.sh` 가 이 파일에 `LANG` 줄을 먼저 만들어 두므로(2026-10-22 실측) 덮어쓰지(`cat >`) 않고 덧붙인다. 사용자가 직접 쓰고, 권한은 `chmod 600` 으로 둔다.
 
-```
-GH_TOKEN=<JadenKimDev 의 fine-grained 토큰>
+```bash
+cat >> ~/actions-runner-beside-pet/.env <<'EOF'
+GH_TOKEN=<JadenKimDev 의 클래식 토큰>
 BESIDE_PET_REPO=/Users/taehokim/workspace/beside-pet
+EOF
+chmod 600 ~/actions-runner-beside-pet/.env
 ```
 
-- `GH_TOKEN`: `JadenKimDev` 계정의 fine-grained personal access token. 레포 `JadenKimDev/beside-pet` 만, 권한은 **Issues: Read and write**, **Metadata: Read**, **Contents: Read**(본 체크아웃의 `git pull`), 계정의 **Projects: Read and write**(보드 이동). 레포 기본 `GITHUB_TOKEN` 을 쓰지 않는 것은 댓글과 라벨의 작성자가 사람 계정이어야 보드 자동화가 같은 흐름을 타기 때문이다.
+- `GH_TOKEN`: `JadenKimDev` 계정의 **클래식 토큰**(Settings → Developer settings → Personal access tokens → **Tokens (classic)**). scope 는 **`repo`**(이슈 댓글과 라벨, 본 체크아웃의 `git pull`)와 **`project`**(보드 이동) 둘이다. 세분화 토큰(`github_pat_` 형식)을 쓰지 않는 것은 그 토큰이 개인 계정이 소유한 Projects 에 닿지 못하기 때문이다(GitHub 문서 [Managing your personal access tokens](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) 의 limitations 절, "access Projects owned by a user account" 미지원). 이 레포의 보드 2 는 `JadenKimDev` 개인 계정 소유다. `repo` 는 계정의 모든 레포에 미치는 넓은 권한이므로 토큰은 이 Mac 의 `.env`(600)에만 두고 다른 곳에 적지 않는다. 레포 기본 `GITHUB_TOKEN` 을 쓰지 않는 것은 댓글과 라벨의 작성자가 사람 계정이어야 보드 자동화가 같은 흐름을 타기 때문이다.
 - `BESIDE_PET_REPO`: 본 체크아웃 경로. 러너가 받은 소스가 아니라 이 체크아웃에서 `implement.sh` 와 작업 대장 CLI 를 부른다.
 - 고를 수 있는 것: `RUNNER_MAX_TURNS`(`claude -p` 의 `--max-turns`, 기본 400).
 - `gh` 는 2.99 이상이어야 QA 스크린샷을 올린다(`brew upgrade gh`, 아래 "스크린샷").
@@ -88,7 +91,7 @@ GitHub 의 Runners 화면에서 `beside-pet-mac` 이 **Idle** 이면 설치가 �
 
 결과 댓글을 단 뒤 `implement.sh` 가 `outputs/qa/<이슈>/` 바로 아래의 이미지(png, jpg, gif, webp, 50장까지)를 `gh issue comment --attach` 로 댓글 하나에 올린다. GitHub 의 REST, GraphQL API 에는 이슈 댓글에 파일을 올리는 공개 엔드포인트가 없고, `gh` 2.99.0(2026-09-01)의 `--attach` 가 공식으로 이 일을 한다.
 
-- 조건: `gh` 2.99 이상, 토큰의 사용자가 레포에 쓰기 권한(WRITE, MAINTAIN, ADMIN). `gh` 는 fine-grained 토큰(`github_pat_`)도 받는다. fine-grained 토큰의 어느 권한이 필요한지는 문서에 없고 아직 재지 않았다. 올리기가 실패하면 토큰에 **Contents: Read and write** 를 더해 본다.
+- 조건: `gh` 2.99 이상, 토큰의 사용자가 레포에 쓰기 권한(WRITE, MAINTAIN, ADMIN). 위의 클래식 토큰이면 `repo` scope 가 쓰기 권한을 포함한다.
 - 올린 이미지는 공개 이슈에서 누구나 볼 수 있다. QA 계정의 지어낸 데이터만 찍히므로 괜찮지만, 실제 사용자의 화면이 찍힌 이미지는 그 폴더에 두지 않는다.
 - 안 되는 경우(`gh` 가 낡았거나 올리기 실패)에는 판정을 바꾸지 않고 러너 로그에만 남긴다. 스크린샷은 이 Mac 의 `outputs/qa/<이슈>/` 에 그대로 있고, 결과 댓글의 QA 표는 레포 기준 상대 경로(`outputs/qa/<이슈>/<파일>`)만 적는다. 댓글의 다른 경로도 홈 디렉터리를 `~` 로 가려 이 Mac 의 사용자 이름을 공개 이슈에 싣지 않는다.
 - 레포에 이미지를 커밋하는 길(브랜치, 릴리스 자산)은 쓰지 않는다.

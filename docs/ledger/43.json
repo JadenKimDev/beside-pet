@@ -17,13 +17,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-22T09:36:06.853Z",
+      "finished_at": "2026-10-22T09:36:18.857Z",
+      "active_ms": 12004,
+      "verify_ms": 4
     }
   ]
 }

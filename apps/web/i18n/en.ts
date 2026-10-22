@@ -301,7 +301,7 @@ export const en: Messages = {
     signature: '— Maeumi',
     print: 'Print',
     writeOnce:
-      'This report is written once, the first time you open it, and is never rewritten. Deleting the conversation deletes it too.',
+      'This report is written once, the first time you open it, and is never rewritten. Deleting the conversation moves it to the deleted conversations too, and you can delete just the report.',
     writingHint: 'The first time takes a little while. After that it opens right away.',
     writingTitle: 'Writing your report',
     notReadyTitle: 'Not quite enough of the path for a report yet',

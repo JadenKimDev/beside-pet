@@ -71,6 +71,8 @@ const RULES: Rule[] = [
       protected: true,
     },
   },
+  // 지운 대화 보관함은 목록과 같은 머리·바닥이다(아래 접두 규칙과 같지만 경로를 표에 드러내 둔다).
+  { path: '/sessions/trash', chrome: APP },
   { path: '/sessions', prefix: true, chrome: APP },
   { path: '/settings', prefix: true, chrome: APP },
 ];

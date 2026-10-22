@@ -8,13 +8,18 @@
  * 로그인 없이 연 경우와 서버가 세션을 거절한 경우의 첫 화면 이동은 레이아웃과 auth 의 처리기가 맡는다.
  * 상태: 불러오는 중(스켈레톤) / 실패(다시 불러오기, 온보딩으로 보내지 않는다: 대화가 있는 사람에게
  * 프로필을 다시 만들게 하지 않으려고) / 빈 목록(온보딩으로. "처음 온 사람"과 "다 지운 사람"을 가르지 않는다.
- * 서버는 지운 대화의 흔적을 두지 않으므로 둘을 가를 값이 없다, ADR-0020) / 목록.
+ * 목록은 살아 있는 대화만 받으므로 둘을 가를 값이 없다, ADR-0020) / 목록. 목록 바닥에 지운 대화 보관함 링크.
+ *
+ * 다른 화면에서 한 일의 알림은 주소의 `?notice=` 로 받아 토스트로 보이고 주소에서 지운다
+ * (리포트 화면에서 리포트를 지우고 돌아온 경우).
  */
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 import {
   Badge,
   Button,
+  buttonClass,
   EmptyState,
   Icon,
   Journey,
@@ -35,7 +40,9 @@ import { SessionsSkeleton } from './SessionsSkeleton';
 type Notice =
   | { kind: 'deleted' }
   | { kind: 'deleteFailed'; sessionId: string }
-  | { kind: 'endFailed' };
+  | { kind: 'endFailed' }
+  | { kind: 'reportDeleted' }
+  | { kind: 'reportRestoreFailed'; sessionId: string };
 
 export function SessionsScreen() {
   const t = useTranslations();
@@ -50,6 +57,7 @@ export function SessionsScreen() {
   const loadList = useSessionArchiveStore((state) => state.loadList);
   const endSession = useSessionArchiveStore((state) => state.endSession);
   const removeSession = useSessionArchiveStore((state) => state.removeSession);
+  const restoreReport = useSessionArchiveStore((state) => state.restoreReport);
   const items = useSessionArchiveStore((state) => state.items);
   const status = useSessionArchiveStore((state) => state.listStatus);
   const busy = useSessionArchiveStore((state) => state.busy);
@@ -62,6 +70,13 @@ export function SessionsScreen() {
   useEffect(() => {
     void loadList();
   }, [loadList]);
+
+  // 리포트 화면에서 리포트를 지우고 온 경우. 새로 고쳐도 다시 뜨지 않게 주소에서 지운다.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('notice') !== 'reportDeleted') return;
+    setNotice({ kind: 'reportDeleted' });
+    window.history.replaceState(window.history.state, '', window.location.pathname);
+  }, []);
 
   // 인사에 부를 이름. 로그인 직후면 이미 있고, 새로 고친 뒤면 다시 묻는다.
   useEffect(() => {
@@ -95,6 +110,16 @@ export function SessionsScreen() {
       setNotice({ kind: 'deleteFailed', sessionId });
     } finally {
       setDeleting(undefined);
+    }
+  };
+
+  // 되살린 리포트는 서버가 다시 쓰지 않고 같은 것을 준다(ADR-0008). 리포트 화면이 알림을 띄운다.
+  const reviveReport = async (sessionId: string) => {
+    try {
+      await restoreReport(sessionId);
+      router.push(`/sessions/${sessionId}/report?notice=reportRestored`);
+    } catch {
+      setNotice({ kind: 'reportRestoreFailed', sessionId });
     }
   };
 
@@ -198,11 +223,19 @@ export function SessionsScreen() {
                   item={item}
                   onView={() => router.push(`/sessions/${item.sessionId}`)}
                   onDelete={() => setDeleting(item)}
+                  onRestoreReport={() => void reviveReport(item.sessionId)}
                 />
               ))}
             </ul>
           </section>
         )}
+
+        <div className="mt-10 flex justify-center">
+          <Link href="/sessions/trash" className={buttonClass({ variant: 'ghost', size: 'sm' })}>
+            <Icon name="trash" />
+            {t.sessionList.trashLink}
+          </Link>
+        </div>
       </>
     );
   }
@@ -248,6 +281,21 @@ export function SessionsScreen() {
           onRetry={() => {
             setNotice(undefined);
             void remove(notice.sessionId);
+          }}
+          onDismiss={() => setNotice(undefined)}
+        />
+      )}
+      {notice?.kind === 'reportDeleted' && (
+        <Toast message={t.toast.reportDeleted} onDismiss={() => setNotice(undefined)} />
+      )}
+      {notice?.kind === 'reportRestoreFailed' && (
+        <Toast
+          tone="error"
+          message={t.toast.reportRestoreFailed}
+          retryLabel={t.common.retry}
+          onRetry={() => {
+            setNotice(undefined);
+            void reviveReport(notice.sessionId);
           }}
           onDismiss={() => setNotice(undefined)}
         />

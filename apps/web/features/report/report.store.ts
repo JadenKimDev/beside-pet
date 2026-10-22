@@ -17,8 +17,12 @@ interface ReportState {
   sessionId?: string;
   phase: ReportPhase;
   report?: MindReport;
+  /** 리포트를 지우는 중. */
+  deleting: boolean;
   /** 리포트를 불러온다. 다시 시도도 같은 동작이다. */
   load: (sessionId: string) => Promise<void>;
+  /** 리포트를 지운다(대화는 남는다, ADR-0036). 실패는 던지고, 칸은 그대로 둔다. 이동은 화면이 한다. */
+  remove: (sessionId: string) => Promise<void>;
 }
 
 let loadToken = 0;
@@ -27,6 +31,7 @@ export const useReportStore = create<ReportState>((set) => ({
   sessionId: undefined,
   phase: 'idle',
   report: undefined,
+  deleting: false,
 
   async load(sessionId) {
     const token = ++loadToken;
@@ -45,6 +50,19 @@ export const useReportStore = create<ReportState>((set) => ({
     } catch {
       if (token !== loadToken) return;
       set({ phase: 'failed' });
+    }
+  },
+
+  async remove(sessionId) {
+    set({ deleting: true });
+    try {
+      await data.deleteReport(sessionId);
+      // 화면은 곧 목록으로 가므로 칸은 비우지 않는다(비우면 가는 동안 "쓰는 중"이 깜박인다).
+      // 다시 열면 load 가 칸을 새로 채우고, 서버는 지운 리포트를 404 로 준다.
+      // 늦게 온 불러오기가 이 뒤에 칸을 덮지 않게 표만 넘긴다.
+      loadToken++;
+    } finally {
+      set({ deleting: false });
     }
   },
 }));

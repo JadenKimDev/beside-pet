@@ -9,16 +9,19 @@ import { dateBox, weekdayTime } from '../list-dates';
 /**
  * 지난 대화 한 줄: 날짜 상자, "도달한 단계 + 까지", 보조 줄, 작은 디딤돌, [다시 보기] [마음 리포트] […].
  * 삭제는 더보기 메뉴 안에만 둔다. 마음 리포트는 열 수 없으면 이유를 툴팁으로 단 비활성 버튼이다(ADR-0008).
+ * 지운 리포트는 이유가 "지운 리포트"이고, 더보기 메뉴에 "리포트 되살리기"가 생긴다(ADR-0036).
  * 보조 줄의 대화 시간과 메시지 수는 메시지가 없는 대화(서버가 시간 칸을 주지 않는다)면 뺀다.
  */
 export function PastSessionItem({
   item,
   onView,
   onDelete,
+  onRestoreReport,
 }: {
   item: SessionListItem;
   onView: () => void;
   onDelete: () => void;
+  onRestoreReport: () => void;
 }) {
   const t = useTranslations();
   const { locale } = useLocale();
@@ -78,7 +81,9 @@ export function PastSessionItem({
             size="sm"
             disabled
             className="max-sm:w-full"
-            disabledReason={t.sessionList.reportLocked}
+            disabledReason={
+              item.reportDeleted ? t.sessionList.reportDeleted : t.sessionList.reportLocked
+            }
             iconStart={<Icon name="book" />}
           >
             {t.sessionList.viewReport}
@@ -89,6 +94,15 @@ export function PastSessionItem({
           icon={<Icon name="more" />}
           items={[
             { label: t.sessionList.menuView, icon: <Icon name="chat" />, onSelect: onView },
+            ...(item.reportDeleted
+              ? [
+                  {
+                    label: t.sessionList.restoreReport,
+                    icon: <Icon name="book" />,
+                    onSelect: onRestoreReport,
+                  },
+                ]
+              : []),
             {
               label: t.sessionList.deleteConversation,
               icon: <Icon name="trash" />,

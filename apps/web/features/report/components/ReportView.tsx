@@ -20,7 +20,16 @@ const VESSEL: Record<ReportSectionKey, { variant: CardVariant; icon: IconName }>
 /** 도달한 걸음(1..4). 마무리(5)는 네 걸음을 다 걸은 것이다. */
 const reachedStep = (task: number): number => Math.min(Math.max(Math.floor(task), 1), 4);
 
-export function ReportView({ sessionId, report }: { sessionId: string; report: MindReport }) {
+export function ReportView({
+  sessionId,
+  report,
+  onDelete,
+}: {
+  sessionId: string;
+  report: MindReport;
+  /** "리포트 지우기": 확인창은 화면(ReportScreen)이 연다. */
+  onDelete: () => void;
+}) {
   const t = useTranslations();
   const { locale } = useLocale();
   const theme = useDocumentTheme();
@@ -115,6 +124,9 @@ export function ReportView({ sessionId, report }: { sessionId: string; report: M
         <Link href="/sessions" className={buttonClass({ variant: 'ghost' })}>
           {t.report.toList}
         </Link>
+        <Button variant="danger-ghost" iconStart={<Icon name="trash" />} onClick={onDelete}>
+          {t.report.deleteReport}
+        </Button>
       </div>
       <p className="mx-auto mt-6 max-w-[440px] text-center text-small text-fg-muted">
         {t.report.writeOnce}

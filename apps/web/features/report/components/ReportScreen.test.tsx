@@ -7,6 +7,12 @@ import { ko } from '@/i18n/ko';
 import type { MindReport, SessionStateView } from '@/lib/api';
 import { ReportScreen } from './ReportScreen';
 
+const router = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => router,
+  usePathname: () => '/sessions/s/report',
+}));
+
 // 지어낸 값이다. 실제 사용자의 대화나 리포트가 아니다.
 const REPORT: MindReport = {
   at: '2026-10-12T09:00:00.000Z',
@@ -57,6 +63,9 @@ let mounted: Mounted | undefined;
 afterEach(() => {
   mounted?.unmount();
   mounted = undefined;
+  document.body.innerHTML = '';
+  window.history.replaceState(null, '', '/');
+  router.push.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -195,5 +204,94 @@ describe('ReportScreen 표지와 감정 칩', () => {
     await flush();
     expect(sectionKeys(container)).toEqual(['journey', 'emotions', 'keepsake', 'encouragement']);
     expect(container.querySelector('[data-emotion-tags]')).toBeNull();
+  });
+});
+
+describe('ReportScreen 리포트 지우기', () => {
+  /** 방법과 경로로 답을 고르는 가짜 fetch. 답이 함수면 그 약속을 기다린다. */
+  function stubServer(routes: Record<string, Route>) {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const route = routes[`${init?.method ?? 'GET'} ${new URL(url).pathname}`];
+      return route ? route() : json(404, { message: 'Not found' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+  const ready = (sessionId: string) => ({
+    [`GET /v1/sessions/${sessionId}`]: () => json(200, state(sessionId, true)),
+    [`GET /v1/sessions/${sessionId}/report`]: () => json(200, REPORT),
+  });
+  const named = (root: ParentNode, name: string) =>
+    Array.from(root.querySelectorAll('button')).find((button) => button.textContent === name);
+  const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]');
+  const toastText = (role: 'status' | 'alert') =>
+    Array.from(document.querySelectorAll(`[role="${role}"]`), (node) => node.textContent).join('|');
+
+  it('취소하면 확인창이 닫히고 포커스가 "리포트 지우기"로 돌아온다', async () => {
+    stubServer(ready('s-del'));
+    const container = render('s-del');
+    await flush();
+    const remove = named(container, ko.report.deleteReport);
+    expect(remove).toBeDefined();
+    remove?.focus();
+    if (remove) click(remove);
+    expect(dialog()?.textContent).toContain(ko.report.confirmDeleteTitle);
+    expect(dialog()?.textContent).toContain(ko.report.confirmDeleteBody);
+
+    const cancel = dialog() && named(dialog() as HTMLElement, ko.report.cancel);
+    if (cancel) click(cancel);
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(remove);
+  });
+
+  it('확인하면 지우는 동안 busy, 끝나면 목록으로 간다', async () => {
+    let finish: (response: Response) => void = () => undefined;
+    stubServer({
+      ...ready('s-del'),
+      'DELETE /v1/sessions/s-del/report': () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const container = render('s-del');
+    await flush();
+    const remove = named(container, ko.report.deleteReport);
+    if (remove) click(remove);
+    const confirm = dialog() && named(dialog() as HTMLElement, ko.report.confirmDelete);
+    if (confirm) click(confirm);
+    await flush();
+    expect(confirm?.getAttribute('aria-busy')).toBe('true');
+    expect(router.push).not.toHaveBeenCalled();
+
+    await act(async () => finish(new Response(null, { status: 204 })));
+    await flush();
+    expect(router.push).toHaveBeenCalledWith('/sessions?notice=reportDeleted');
+  });
+
+  it('지우지 못하면 확인창을 닫고 오류 토스트가 머문다', async () => {
+    stubServer({
+      ...ready('s-del'),
+      'DELETE /v1/sessions/s-del/report': () => json(500, { message: 'boom' }),
+    });
+    const container = render('s-del');
+    await flush();
+    const remove = named(container, ko.report.deleteReport);
+    if (remove) click(remove);
+    const confirm = dialog() && named(dialog() as HTMLElement, ko.report.confirmDelete);
+    if (confirm) click(confirm);
+    await flush();
+    expect(dialog()).toBeNull();
+    expect(toastText('alert')).toContain(ko.toast.reportDeleteFailed);
+    expect(router.push).not.toHaveBeenCalled();
+    expect(sectionKeys(container)).toEqual(['journey', 'emotions', 'keepsake', 'encouragement']);
+  });
+
+  it('목록에서 되살려 오면 토스트를 보이고 주소의 표시를 지운다', async () => {
+    window.history.replaceState(null, '', '/sessions/s-back/report?notice=reportRestored');
+    stubServer(ready('s-back'));
+    render('s-back');
+    await flush();
+    expect(toastText('status')).toContain(ko.toast.reportRestored);
+    expect(window.location.search).toBe('');
   });
 });

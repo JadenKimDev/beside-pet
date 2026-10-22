@@ -28,10 +28,10 @@ const fakeFetch = vi.fn(
     }),
 );
 
-async function answer(status: number, body?: unknown) {
+async function answer(status: number, body?: unknown, path: RegExp = /\/v1\/sessions$/) {
   const next = pending.shift();
   if (!next) throw new Error('no request waiting');
-  expect(next.url).toMatch(/\/v1\/sessions$/);
+  expect(next.url).toMatch(path);
   await act(async () => {
     next.resolve(
       new Response(body === undefined ? null : JSON.stringify(body), {
@@ -87,6 +87,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  window.history.replaceState(null, '', '/');
   mounted?.unmount();
   mounted = undefined;
   document.body.innerHTML = '';
@@ -101,6 +102,10 @@ function render() {
   );
   return mounted.container;
 }
+
+/** 토스트(또는 같은 역할의 알림)들의 글을 이어 붙인다. 스켈레톤도 status 라 하나만 고르지 않는다. */
+const toastText = (role: 'status' | 'alert') =>
+  Array.from(document.querySelectorAll(`[role="${role}"]`), (node) => node.textContent).join('|');
 
 function buttonNamed(container: HTMLElement, name: string): HTMLButtonElement | undefined {
   return Array.from(container.querySelectorAll('button')).find((b) => b.textContent === name);
@@ -163,6 +168,78 @@ describe('SessionsScreen 상태', () => {
     expect(container.querySelector('[data-last-active]')).toBeNull();
     const meta = container.querySelector('[data-past-session="sess-closed-0"] [data-past-meta]');
     expect(meta?.textContent).toBe([weekdayTime(closed.startedAt, 'ko'), '보리'].join(' · '));
+  });
+});
+
+describe('SessionsScreen 지운 리포트', () => {
+  const gone: SessionListItem = {
+    ...closed,
+    sessionId: 'sess-report-gone',
+    reportAvailable: false,
+    reportDeleted: true,
+  };
+  const report = {
+    at: '2026-10-12T13:00:00Z',
+    startedAt: closed.startedAt,
+    petName: '보리',
+    reachedTask: 2,
+    progress: 0.25,
+    locale: 'ko',
+    sections: [{ key: 'journey', body: '지어낸 걸어온 길' }],
+  };
+
+  it('리포트 버튼은 비활성에 "지운 리포트" 툴팁이고, 더보기의 되살리기는 리포트 화면으로 간다', async () => {
+    const container = render();
+    await answer(200, [gone]);
+    const row = container.querySelector('[data-past-session="sess-report-gone"]');
+    const reportButton = Array.from(row?.querySelectorAll('button') ?? []).find(
+      (b) => b.textContent === ko.sessionList.viewReport,
+    );
+    expect(reportButton?.getAttribute('aria-disabled')).toBe('true');
+    const tip = document.getElementById(reportButton?.getAttribute('aria-describedby') ?? '');
+    expect(tip?.textContent).toBe(ko.sessionList.reportDeleted);
+    expect(row?.querySelector('a[href$="/report"]')).toBeNull();
+
+    const more = row?.querySelector<HTMLButtonElement>(
+      `button[aria-label="${ko.sessionList.more}"]`,
+    );
+    if (more) click(more);
+    const restore = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
+      (node) => node.textContent === ko.sessionList.restoreReport,
+    );
+    expect(restore).toBeDefined();
+    if (restore) click(restore);
+
+    await answer(200, report, /\/v1\/sessions\/sess-report-gone\/report\/restore$/);
+    await answer(200, [{ ...gone, reportAvailable: true, reportDeleted: false }]);
+    expect(router.push).toHaveBeenCalledWith(
+      '/sessions/sess-report-gone/report?notice=reportRestored',
+    );
+  });
+
+  it('리포트를 되살리지 못하면 오류 토스트가 머물고 이동하지 않는다', async () => {
+    const container = render();
+    await answer(200, [gone]);
+    const more = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${ko.sessionList.more}"]`,
+    );
+    if (more) click(more);
+    const restore = Array.from(document.querySelectorAll('[role="menuitem"]')).find(
+      (node) => node.textContent === ko.sessionList.restoreReport,
+    );
+    if (restore) click(restore);
+    await answer(500, { message: 'boom' }, /\/report\/restore$/);
+    expect(toastText('alert')).toContain(ko.toast.reportRestoreFailed);
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('리포트 화면에서 지우고 오면 토스트를 보이고 주소의 표시를 지운다', async () => {
+    window.history.replaceState(null, '', '/sessions?notice=reportDeleted');
+    const container = render();
+    await answer(200, [gone]);
+    expect(toastText('status')).toContain(ko.toast.reportDeleted);
+    expect(window.location.search).toBe('');
+    expect(container.querySelector('a[href="/sessions/trash"]')).not.toBeNull();
   });
 });
 

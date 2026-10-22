@@ -35,6 +35,8 @@ PRD 를 승인한 뒤의 일(워크트리, 구현 세션, 마감, QA 보고서)�
 - 사용자가 러너를 등록하기 전에는 라벨을 붙여도 아무 일이 없다. 절차는 `dev-tools/scripts/runner/README.md`.
 - 루트 `CLAUDE.md` "작업 흐름"에 라벨로 구현을 시킬 수 있고 결과는 이슈 댓글이라는 두 줄을 둔다. `implement-prd` 0단계에 러너 세션의 분기를 둔다.
 - 라벨 넷(`run:implement`, `run:again`, `run:blocked`, `review:ready`)이 레포에 생긴다.
+- Actions 의 결론에서 막힘(결정 3)은 **success** 다. `implement.sh` 는 막힘을 `exit 0` 으로 끝내고 실행 요약에 "막힘: <이유>" 를 적으므로, **failure** 는 러너 스크립트가 터진 고장 하나만 뜻한다(2026-10-22, #46).
+- 라벨 이벤트마다 **skipped** 실행이 하나씩 생긴다. `issues: labeled` 는 라벨 이름으로 거를 수 없어 러너가 결과 라벨을 붙이는 것도 워크플로를 깨운다. 러너를 쓰지 않아 비용이 없고 정상이다.
 
 ## 근거
 

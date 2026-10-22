@@ -18,14 +18,14 @@
         "cd apps/server && APP_ENV=sandbox ../../dev-tools/scripts/cargo.sh test --test schema"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-22T08:42:17.728Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-22T08:40:09.777Z",
+      "finished_at": "2026-10-22T08:42:32.937Z",
+      "active_ms": 143160,
+      "verify_ms": 3086
     },
     {
       "id": "S2",
@@ -145,10 +145,10 @@
       ],
       "tdd": true,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-22T08:40:16.004Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -190,11 +190,11 @@
         "pnpm -F @beside-pet/backoffice typecheck && pnpm -F @beside-pet/backoffice test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
+      "red_at": "2026-10-22T08:42:59.961Z",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-22T08:40:16.331Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -212,13 +212,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-22T08:40:16.651Z",
+      "finished_at": "2026-10-22T08:43:20.648Z",
+      "active_ms": 183997,
+      "verify_ms": 1276
     }
   ]
 }

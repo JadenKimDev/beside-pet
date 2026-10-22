@@ -1,11 +1,13 @@
 ---
 id: ADR-0006
 date: 2026-10-16
-status: accepted
+status: superseded
 tags: [privacy, data, deletion, security]
 related: [ADR-0034, ADR-0007, ADR-0008, ADR-0012]
 ---
 # 대화 기록은 본인만 읽고, 대화를 지우면 전사와 리포트와 턴 분석을 한꺼번에 지운다. 계정 삭제의 연쇄는 아직 없다
+
+> 2026-10-22 기준 `superseded`. 삭제는 소프트 삭제와 3개월 보관함, 기동 때 파기로 바뀌었고 계정 연쇄도 채워졌다(ADR-0036). 옛 선과 비어 있던 곳의 기록으로 남긴다.
 
 ## 맥락
 

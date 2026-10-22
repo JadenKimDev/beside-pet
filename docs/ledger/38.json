@@ -1,0 +1,209 @@
+{
+  "issue": 38,
+  "title": "장기기억 — 사용자가 말한 사실을 계정 단위로 저장해 매 턴의 프롬프트에 넣고, 턴 뒤 비동기 추출과 검증 게이트, 경과 시간과 위기 뒤 재개를 둔다",
+  "prd": "docs/prd/38-long-term-memory-facts.md",
+  "depends_on": [
+    37
+  ],
+  "created_at": "2026-10-22T01:26:21.162Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "마이그레이션: `pets`, `memory_notes`, `memory_optouts`, 뷰 `current_memory`, `llm_calls.purpose` 에 `memory_extract`, 스키마 테스트; scrub 목록",
+      "scope": [
+        "apps/server/migrations/",
+        "apps/server/tests/schema.rs",
+        "apps/server/tests/schema/",
+        "infra/docker/scripts/sandbox-scrub.sql"
+      ],
+      "depends_on": [],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server --test schema"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "기억 하위 기능: 타입, `NoteKind`, `MemoryStore` trait, 온보딩 프로필의 규칙 추출, 검증 게이트(순수), 프롬프트 블록 `prompt/memory.rs`",
+      "scope": [
+        "apps/server/src/support/memory.rs",
+        "apps/server/src/support/memory/",
+        "apps/server/src/support/prompt/memory.rs",
+        "apps/server/src/support/prompt/memory/",
+        "apps/server/src/support/prompt/mod.rs",
+        "apps/server/src/support/mod.rs"
+      ],
+      "depends_on": [],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server -- support::memory support::prompt::memory"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "저장 구현: `MemoryStore` 의 Postgres 구현, 세션 삭제 트랜잭션의 연쇄, 직전 세션을 마지막 메시지 기준으로, 기동 때 12개월 파기, 저장 테스트",
+      "scope": [
+        "apps/server/src/support/store.rs",
+        "apps/server/src/support/store/",
+        "apps/server/src/support/flow/outside.rs"
+      ],
+      "depends_on": [
+        "S1",
+        "S2"
+      ],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server -- support::store"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S4",
+      "title": "추출 구현: `MemoryExtractor` trait(support)와 `llm` 의 JSON 추출(두 경로), 프롬프트 버전, `CallPurpose::MemoryExtract`, 가짜 모델 테스트(펜스 벗기기, 파싱 실패)",
+      "scope": [
+        "apps/server/src/llm/memory_extract.rs",
+        "apps/server/src/llm/memory_extract/",
+        "apps/server/src/llm/mod.rs",
+        "apps/server/src/llm/usage.rs",
+        "apps/server/src/support/memory/extractor.rs"
+      ],
+      "depends_on": [
+        "S2"
+      ],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server -- llm::memory_extract"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S5",
+      "title": "흐름: 매 턴 기억 블록 조립, 재개의 `Previous`(경과 일수, 끝의 종류), 과제 규칙(7일·위기), 재개 블록의 경과·위기 줄, 발화 프롬프트 버전 올림, 흐름 테스트",
+      "scope": [
+        "apps/server/src/support/flow/start.rs",
+        "apps/server/src/support/flow/orchestrator.rs",
+        "apps/server/src/support/flow/parts.rs",
+        "apps/server/src/support/flow/tests/",
+        "apps/server/src/support/prompt/reply.rs",
+        "apps/server/src/support/prompt/reply/"
+      ],
+      "depends_on": [
+        "S2"
+      ],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server -- support::flow support::prompt::reply"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S6",
+      "title": "턴 뒤 비동기 추출 `flow/remembering.rs`(게이트 적용, 옵트아웃, 무효화), 온보딩 때 `pets` 행, `app.rs` 조립, 통합 테스트",
+      "scope": [
+        "apps/server/src/support/flow/remembering.rs",
+        "apps/server/src/support/flow/remembering/",
+        "apps/server/src/support/flow/stream.rs",
+        "apps/server/src/support/flow/service.rs",
+        "apps/server/src/support/flow/mod.rs",
+        "apps/server/src/app.rs",
+        "apps/server/tests/"
+      ],
+      "depends_on": [
+        "S3",
+        "S4",
+        "S5"
+      ],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S7",
+      "title": "chat-eval arc: 세션별 기억 행 수(건수만), `time_gap` 의 경과 일수 검사",
+      "scope": [
+        "dev-tools/src/lib/chat-eval/"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S8",
+      "title": "새 ADR, `apps/server/CLAUDE.md` 설계 결정 한 줄, 루트 `CLAUDE.md` \"읽지 않는 것\" 한 줄",
+      "scope": [
+        "docs/adr/",
+        "apps/server/CLAUDE.md",
+        "CLAUDE.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

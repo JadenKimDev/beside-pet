@@ -19,6 +19,7 @@
  */
 import type {
   CancelledTurn,
+  DeletedSessionItem,
   GriefProfile,
   HistoryMessage,
   MindReport,
@@ -103,8 +104,35 @@ export async function closeSession(sessionId: string): Promise<SessionStateView>
   return state;
 }
 
-/** Erases a session everywhere, including any copy of its report held here. */
+// The two lists (sessions, trash) are not cached: every mutation below moves a row
+// between them or flips its report flag, so a fresh read is the only correct one.
+
+/** Moves a session to the trash and drops any copy of its report held here. */
 export async function deleteSession(sessionId: string): Promise<void> {
   await api.deleteSession(sessionId);
   reportCache.invalidate(sessionId);
+}
+
+export function listDeletedSessions(): Promise<DeletedSessionItem[]> {
+  return api.listDeletedSessions();
+}
+
+/** Brings a session back from the trash; its report is read fresh next time. */
+export async function restoreSession(sessionId: string): Promise<SessionStateView> {
+  const state = await api.restoreSession(sessionId);
+  reportCache.invalidate(sessionId);
+  return state;
+}
+
+/** Deletes a session's report (the conversation stays) and drops the copy held here. */
+export async function deleteReport(sessionId: string): Promise<void> {
+  await api.deleteReport(sessionId);
+  reportCache.invalidate(sessionId);
+}
+
+/** Brings a deleted report back; the returned report is the cached copy from now on. */
+export async function restoreReport(sessionId: string): Promise<MindReport> {
+  const report = await api.restoreReport(sessionId);
+  reportCache.set(sessionId, report);
+  return report;
 }

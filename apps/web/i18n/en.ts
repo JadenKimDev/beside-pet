@@ -212,10 +212,13 @@ export const en: Messages = {
     deleteConversation: 'Delete conversation',
     confirmDeleteTitle: 'Delete this conversation?',
     confirmDeleteBody:
-      'The transcript and its mind report are erased for good, and later conversations will no longer draw on it.',
+      'It stays in the deleted conversations for 3 months and is erased after that. Until then you can restore it. Later conversations will no longer draw on it.',
     confirmDeleteBodyDated: (date) =>
-      `The ${date} conversation and its mind report are erased for good, and later conversations will no longer draw on it.`,
+      `The ${date} conversation stays in the deleted conversations for 3 months and is erased after that. Until then you can restore it. Later conversations will no longer draw on it.`,
     confirmDelete: 'Delete',
+    trashLink: 'Deleted conversations',
+    reportDeleted: 'Report deleted',
+    restoreReport: 'Restore report',
     greeting: (name) => `Welcome back, ${name}`,
     currentTitle: (petName, step) => `Step ${step} with ${petName}`,
     stepOf: (step) => `Step ${step} of 4`,
@@ -239,6 +242,23 @@ export const en: Messages = {
     emptyCta: 'Start your first conversation',
     failedTitle: 'We could not load your list',
     failedBody: 'The connection seems to have dropped. Your conversations are still safe.',
+  },
+  sessionTrash: {
+    title: 'Deleted conversations',
+    subtitle:
+      'Deleted conversations stay here for 3 months before they are erased. Until then you can restore them.',
+    toList: 'Back to conversations',
+    deletedOn: (date) => `Deleted ${date}`,
+    daysLeft: (days) => (days === 1 ? 'Erased in 1 day' : `Erased in ${days} days`),
+    lastDay: 'Erased today',
+    restore: 'Restore',
+    loading: 'Loading…',
+    emptyTitle: 'No deleted conversations',
+    emptyBody:
+      'When you delete a conversation, it stays here for 3 months. You can restore it anytime until then.',
+    failedTitle: 'We could not load the deleted conversations',
+    failedBody:
+      'The connection seems to have dropped for a moment. Your deleted conversations are still kept.',
   },
   sessionDetail: {
     back: 'Back to sessions',
@@ -295,6 +315,12 @@ export const en: Messages = {
     retry: 'Try again',
     revisit: 'Revisit the conversation',
     toList: 'Back to the list',
+    deleteReport: 'Delete report',
+    confirmDeleteTitle: 'Delete this report?',
+    confirmDeleteBody:
+      'The conversation stays and only the report is deleted. For 3 months you can restore it from the more menu in the list.',
+    confirmDelete: 'Delete',
+    cancel: 'Cancel',
   },
   safety: {
     title: 'If things feel heavy right now, you are not alone.',
@@ -367,6 +393,12 @@ export const en: Messages = {
   toast: {
     deleted: 'Conversation deleted',
     deleteFailed: 'We could not delete that conversation. Please try again in a moment.',
+    restored: 'Conversation restored',
+    restoreFailed: 'We could not restore that conversation. Please try again in a moment.',
+    reportDeleted: 'Report deleted',
+    reportDeleteFailed: 'We could not delete that report. Please try again in a moment.',
+    reportRestored: 'Report restored',
+    reportRestoreFailed: 'We could not restore that report. Please try again in a moment.',
     endFailed: 'We could not wrap up the current conversation. Please try again in a moment.',
     chatLanguageSaved: (language) =>
       `Conversation language set to ${language}. It applies from the next reply.`,

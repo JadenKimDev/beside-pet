@@ -209,10 +209,13 @@ export const ko: Messages = {
     deleteConversation: '대화 삭제',
     confirmDeleteTitle: '이 대화를 삭제할까요?',
     confirmDeleteBody:
-      '대화 내용과 마음 리포트가 모두 지워지고 되돌릴 수 없어요. 앞으로의 대화에서도 이 이야기를 참고하지 않아요.',
+      '지운 대화 보관함에 3개월 동안 두고, 그 뒤에 지워요. 그동안 되살릴 수 있어요. 앞으로의 대화에서는 이 이야기를 참고하지 않아요.',
     confirmDeleteBodyDated: (date) =>
-      `${date}의 대화 내용과 마음 리포트가 모두 지워지고 되돌릴 수 없어요. 앞으로의 대화에서도 이 이야기를 참고하지 않아요.`,
+      `${date}의 대화를 지운 대화 보관함에 3개월 동안 두고, 그 뒤에 지워요. 그동안 되살릴 수 있어요. 앞으로의 대화에서는 이 이야기를 참고하지 않아요.`,
     confirmDelete: '삭제하기',
+    trashLink: '지운 대화 보관함',
+    reportDeleted: '지운 리포트',
+    restoreReport: '리포트 되살리기',
     greeting: (name) => `다시 오셨네요, ${name} 님`,
     currentTitle: (petName, step) => `${petName}${p(petName, '와/과')}의 ${step}번째 걸음`,
     stepOf: (step) => `네 걸음 중 ${step}번째`,
@@ -235,6 +238,20 @@ export const ko: Messages = {
     emptyCta: '첫 이야기 시작하기',
     failedTitle: '목록을 불러오지 못했어요',
     failedBody: '연결이 잠시 끊긴 것 같아요. 대화는 그대로 안전하게 남아 있어요.',
+  },
+  sessionTrash: {
+    title: '지운 대화 보관함',
+    subtitle: '지운 대화는 3개월 동안 여기 두었다가 지워요. 그동안 되살릴 수 있어요.',
+    toList: '대화 목록으로',
+    deletedOn: (date) => `${date}에 지웠어요`,
+    daysLeft: (days) => `${days}일 뒤에 지워요`,
+    lastDay: '오늘 지워요',
+    restore: '되살리기',
+    loading: '불러오는 중…',
+    emptyTitle: '지운 대화가 없어요',
+    emptyBody: '대화를 지우면 3개월 동안 여기 두어요. 그동안 언제든 되살릴 수 있어요.',
+    failedTitle: '보관함을 불러오지 못했어요',
+    failedBody: '연결이 잠시 끊긴 것 같아요. 지운 대화는 그대로 남아 있어요.',
   },
   sessionDetail: {
     back: '목록으로',
@@ -288,6 +305,12 @@ export const ko: Messages = {
     retry: '다시 시도',
     revisit: '대화 다시 보기',
     toList: '목록으로',
+    deleteReport: '리포트 지우기',
+    confirmDeleteTitle: '이 리포트를 지울까요?',
+    confirmDeleteBody:
+      '대화는 그대로 남고 리포트만 지워요. 3개월 동안은 목록의 더 보기 메뉴에서 되살릴 수 있어요.',
+    confirmDelete: '지우기',
+    cancel: '취소',
   },
   safety: {
     title: '지금 많이 힘드시다면, 혼자가 아니에요.',
@@ -360,6 +383,12 @@ export const ko: Messages = {
   toast: {
     deleted: '대화를 삭제했어요',
     deleteFailed: '대화를 삭제하지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+    restored: '대화를 되살렸어요',
+    restoreFailed: '대화를 되살리지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+    reportDeleted: '리포트를 지웠어요',
+    reportDeleteFailed: '리포트를 지우지 못했어요. 잠시 뒤 다시 시도해 주세요.',
+    reportRestored: '리포트를 되살렸어요',
+    reportRestoreFailed: '리포트를 되살리지 못했어요. 잠시 뒤 다시 시도해 주세요.',
     endFailed: '지금 대화를 마치지 못했어요. 잠시 뒤 다시 시도해 주세요.',
     chatLanguageSaved: (language) =>
       `대화 언어를 ${language}${p(language, '로/으로')} 바꿨어요. 다음 답변부터 적용돼요.`,

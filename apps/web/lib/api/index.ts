@@ -16,6 +16,7 @@ export type {
   CancelledEvent,
   CancelledTurn,
   DailyState,
+  DeletedSessionItem,
   DoneEvent,
   EatingState,
   GriefPath,

@@ -191,6 +191,12 @@ export interface Messages {
     confirmDeleteBody: string;
     confirmDeleteBodyDated: (date: string) => string;
     confirmDelete: string;
+    /** Link at the bottom of the list to the trash (`/sessions/trash`). */
+    trashLink: string;
+    /** Tooltip on the disabled report button of a conversation whose report was deleted. */
+    reportDeleted: string;
+    /** More-menu item: bring a deleted report back. */
+    restoreReport: string;
     greeting: (name: string) => string;
     currentTitle: (petName: string, step: number) => string;
     stepOf: (step: number) => string;
@@ -210,6 +216,24 @@ export interface Messages {
     emptyTitle: string;
     emptyBody: string;
     emptyCta: string;
+    failedTitle: string;
+    failedBody: string;
+  };
+  /** The trash of deleted conversations (`/sessions/trash`). */
+  sessionTrash: {
+    title: string;
+    subtitle: string;
+    toList: string;
+    /** `date` is the deletion date, already formatted. */
+    deletedOn: (date: string) => string;
+    /** Whole days until the server erases it for good (1 or more). */
+    daysLeft: (days: number) => string;
+    /** Shown instead of `daysLeft` when less than a day is left. */
+    lastDay: string;
+    restore: string;
+    loading: string;
+    emptyTitle: string;
+    emptyBody: string;
     failedTitle: string;
     failedBody: string;
   };
@@ -268,6 +292,12 @@ export interface Messages {
     retry: string;
     revisit: string;
     toList: string;
+    /** Deleting the report keeps the conversation (it can be restored from the list's more-menu). */
+    deleteReport: string;
+    confirmDeleteTitle: string;
+    confirmDeleteBody: string;
+    confirmDelete: string;
+    cancel: string;
   };
   /** Fixed helpline copy shared by the help page, crisis card and footer (ADR-0004). */
   safety: {
@@ -336,6 +366,12 @@ export interface Messages {
   toast: {
     deleted: string;
     deleteFailed: string;
+    restored: string;
+    restoreFailed: string;
+    reportDeleted: string;
+    reportDeleteFailed: string;
+    reportRestored: string;
+    reportRestoreFailed: string;
     endFailed: string;
     chatLanguageSaved: (language: string) => string;
     saveFailed: string;

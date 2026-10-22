@@ -51,6 +51,7 @@ const closed: SessionListItem = {
   petName: '보리',
   preferredLanguage: 'ko',
   reportAvailable: true,
+  reportDeleted: false,
   lastMessageAt: '2026-10-12T12:54:00Z',
   durationMinutes: 42,
   messageCount: 31,

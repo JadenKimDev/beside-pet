@@ -157,14 +157,29 @@ export interface SessionListItem {
   petName?: string;
   /** The session's conversation language — used to restore the returning user's UI locale. */
   preferredLanguage: Locale;
-  /** Whether the mind report can be viewed (wrapped up with enough progress). */
+  /** Whether the mind report can be viewed (wrapped up with enough progress). False while it is deleted. */
   reportAvailable: boolean;
+  /** The session has a report the user deleted (in the trash, restorable). */
+  reportDeleted: boolean;
   /** Last message instant (ISO-8601). Absent when the session has no messages. */
   lastMessageAt?: string;
   /** Whole minutes between the first and last message. Absent when the session has no messages. */
   durationMinutes?: number;
   /** Messages in the session (0 possible). */
   messageCount: number;
+}
+
+/** One row of the deleted-conversation trash (newest deletion first, as the server orders it). */
+export interface DeletedSessionItem {
+  sessionId: string;
+  /** UTC instant the conversation began (ISO-8601). */
+  startedAt: string;
+  /** When the user deleted it (ISO-8601). */
+  deletedAt: string;
+  /** When the server will erase it for good (ISO-8601, `deletedAt` + the retention the server holds). */
+  purgeAt: string;
+  petName?: string;
+  preferredLanguage: Locale;
 }
 
 /** The single data-layer abstraction the http adapter implements.
@@ -197,6 +212,14 @@ export interface Api {
   getReport(sessionId: string): Promise<MindReport>;
   /** Ends an ongoing session (idempotent) and returns the resulting state. */
   closeSession(sessionId: string): Promise<SessionStateView>;
-  /** Erases a session, its report, and its analyses. Irreversible. */
+  /** Moves a session to the trash (soft delete, idempotent). It can be restored until purged. */
   deleteSession(sessionId: string): Promise<void>;
+  /** The signed-in owner's deleted sessions (the trash). */
+  listDeletedSessions(): Promise<DeletedSessionItem[]>;
+  /** Brings a deleted session back (idempotent) and returns its state. */
+  restoreSession(sessionId: string): Promise<SessionStateView>;
+  /** Deletes a session's mind report, keeping the conversation. No report answers 404. */
+  deleteReport(sessionId: string): Promise<void>;
+  /** Brings a deleted report back as it was (not written again) and returns it. */
+  restoreReport(sessionId: string): Promise<MindReport>;
 }

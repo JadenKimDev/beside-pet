@@ -9,6 +9,7 @@ import { http } from '@/lib/http';
 import type {
   Api,
   CancelledTurn,
+  DeletedSessionItem,
   HistoryMessage,
   MindReport,
   SessionListItem,
@@ -106,5 +107,21 @@ export const httpApi: Api = {
 
   deleteSession(sessionId: string): Promise<void> {
     return http.delete(`/v1/sessions/${sessionId}`);
+  },
+
+  listDeletedSessions(): Promise<DeletedSessionItem[]> {
+    return http.get('/v1/sessions/deleted');
+  },
+
+  restoreSession(sessionId: string): Promise<SessionStateView> {
+    return http.post(`/v1/sessions/${sessionId}/restore`);
+  },
+
+  deleteReport(sessionId: string): Promise<void> {
+    return http.delete(`/v1/sessions/${sessionId}/report`);
+  },
+
+  restoreReport(sessionId: string): Promise<MindReport> {
+    return http.post(`/v1/sessions/${sessionId}/report/restore`);
   },
 };

@@ -1,4 +1,4 @@
-// 기억 블록: 머리 지시, 아이의 순서, 종류별 줄, 50개 자르기, 빈 기억. 픽스처는 지어낸 아이와 사실이다.
+// 기억 블록: 머리 지시, 아이의 순서, 종류별 줄, 다른 아이의 줄, 50개 자르기(다른 아이 것부터), 빈 기억. 픽스처는 지어낸 아이와 사실이다.
 
 use chrono::{DateTime, Duration, TimeZone, Utc};
 
@@ -92,7 +92,7 @@ fn block_is_named_memory_and_starts_with_the_instruction() {
 }
 
 #[test]
-fn session_pet_comes_first_and_other_pets_get_name_and_status_only() {
+fn session_pet_comes_first_and_other_pets_follow_with_their_facts() {
     let text = memory_block(&two_pets(), Some("bori"))
         .expect("a block")
         .text;
@@ -100,9 +100,151 @@ fn session_pet_comes_first_and_other_pets_get_name_and_status_only() {
     let cheese = text.find("Cheese (living)").expect("other pet line");
     assert!(bori < cheese, "{text}");
     assert!(
-        !text.contains("treat at night"),
-        "other pet's facts stay out: {text}"
+        text.lines()
+            .any(|line| line == "About Cheese (living): Cheese gets a treat at night"),
+        "other pet's facts go on its own line: {text}"
     );
+    assert!(
+        !text.contains("- ritual:"),
+        "other pet's facts stay off the kind lines: {text}"
+    );
+}
+
+#[test]
+fn session_pet_facts_come_before_other_pets_facts() {
+    let text = memory_block(&two_pets(), Some("Bori"))
+        .expect("a block")
+        .text;
+    let lines: Vec<&str> = text.lines().collect();
+    let last_kind_line = lines
+        .iter()
+        .rposition(|line| line.starts_with("- "))
+        .expect("kind lines");
+    let about = text
+        .lines()
+        .position(|line| line.starts_with("About Cheese"))
+        .expect("other pet line");
+    assert!(last_kind_line < about, "{text}");
+}
+
+#[test]
+fn other_pet_line_lists_facts_most_recent_first() {
+    let mut view = two_pets();
+    view.notes.push(note(
+        "n5",
+        NoteKind::Place,
+        Some("p-cheese"),
+        "Cheese threw up and went to the vet",
+        9,
+    ));
+    let text = memory_block(&view, Some("Bori")).expect("a block").text;
+    assert!(
+        text.lines().any(|line| line
+            == "About Cheese (living): Cheese threw up and went to the vet; Cheese gets a treat at night"),
+        "{text}"
+    );
+}
+
+#[test]
+fn other_pet_without_facts_keeps_name_and_status_only() {
+    let mut view = two_pets();
+    view.notes
+        .retain(|note| note.pet_id.as_deref() != Some("p-cheese"));
+    let text = memory_block(&view, Some("Bori")).expect("a block").text;
+    assert!(text.contains("Other pets: Cheese (living)"), "{text}");
+    assert!(!text.contains("About Cheese"), "{text}");
+}
+
+#[test]
+fn only_other_pets_facts_still_make_a_block() {
+    let mut view = two_pets();
+    view.notes
+        .retain(|note| note.pet_id.as_deref() == Some("p-cheese"));
+    let text = memory_block(&view, Some("Bori")).expect("a block").text;
+    assert!(
+        text.contains("About Cheese (living): Cheese gets a treat at night"),
+        "{text}"
+    );
+}
+
+#[test]
+fn over_the_cap_other_pets_facts_are_dropped_first_oldest_first() {
+    // 지금 세션의 아이 사실 45개(오래된 것), 다른 아이 사실 10개(더 최근). 상한 50 이면 다른 아이 것 5개만 남는다.
+    let mut notes: Vec<MemoryNote> = (0..45)
+        .map(|i| {
+            note(
+                &format!("b{i}"),
+                NoteKind::Ritual,
+                Some("p-bori"),
+                &format!("bori fact {i:03}"),
+                i,
+            )
+        })
+        .collect();
+    notes.extend((0..10).map(|i| {
+        note(
+            &format!("c{i}"),
+            NoteKind::Ritual,
+            Some("p-cheese"),
+            &format!("cheese fact {i:03}"),
+            100 + i,
+        )
+    }));
+    let view = MemoryView {
+        pets: two_pets().pets,
+        notes,
+    };
+    let text = memory_block(&view, Some("Bori")).expect("a block").text;
+    for i in 0..45 {
+        assert!(text.contains(&format!("bori fact {i:03}")), "kept bori {i}");
+    }
+    for i in 0..5 {
+        assert!(
+            !text.contains(&format!("cheese fact {i:03}")),
+            "oldest cheese {i} dropped: {text}"
+        );
+    }
+    for i in 5..10 {
+        assert!(
+            text.contains(&format!("cheese fact {i:03}")),
+            "kept cheese {i}"
+        );
+    }
+}
+
+#[test]
+fn session_pet_facts_alone_over_the_cap_leave_no_room_for_other_pets() {
+    let mut notes: Vec<MemoryNote> = (0..(MAX_FACTS as i64 + 3))
+        .map(|i| {
+            note(
+                &format!("b{i}"),
+                NoteKind::Ritual,
+                Some("p-bori"),
+                &format!("bori fact {i:03}"),
+                i,
+            )
+        })
+        .collect();
+    notes.push(note(
+        "c-new",
+        NoteKind::Ritual,
+        Some("p-cheese"),
+        "cheese newest fact",
+        1000,
+    ));
+    let view = MemoryView {
+        pets: two_pets().pets,
+        notes,
+    };
+    let text = memory_block(&view, Some("Bori")).expect("a block").text;
+    assert!(!text.contains("cheese newest fact"), "{text}");
+    assert!(text.contains("Other pets: Cheese (living)"), "{text}");
+    for i in 0..3 {
+        assert!(
+            !text.contains(&format!("bori fact {i:03}")),
+            "oldest bori {i} dropped"
+        );
+    }
 }
 
 #[test]

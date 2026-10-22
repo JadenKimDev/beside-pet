@@ -5,3 +5,4 @@ export {
   IssueDetailPanel,
   type IssueDetailPanelProps,
 } from './ui/IssueDetailPanel';
+export { IssueMarkdown } from './ui/IssueMarkdown';

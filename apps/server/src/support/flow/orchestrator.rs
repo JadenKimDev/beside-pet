@@ -1,4 +1,4 @@
-//! 한 턴의 순서: 안전 확인 → 받기와 저장 → `meta` → 지식 검색 → 발화 → 끝내기(전이, 턴 분석)와 저장(ADR-0005, ADR-0028), 그리고 세션의 첫 인사.
+//! 한 턴의 순서: 안전 확인 → 받기와 저장 → `meta` → 지식 검색과 기억 읽기 → 발화 → 끝내기(전이, 턴 분석)와 저장(ADR-0005, ADR-0028), 그리고 세션의 첫 인사.
 //!
 //! 구조(과제, 진행률, 지원 수준)는 세션 규칙이 정하고 모델은 글만 쓴다. 사용자 메시지는 답보다 먼저 `pending` 턴으로 저장하고,
 //! 답이 실패하면 턴을 `failed` 로 닫아 저장한다(사용자 메시지는 남고 상태는 그대로다). 위기면 발화 모델을 부르지 않고 `safety` 의
@@ -16,11 +16,13 @@ use super::judge::Judgement;
 use super::judging::{choose, judge_input, judge_once, record_after_stream};
 use super::live::LiveTurn;
 use super::parts::FlowParts;
+use super::start::is_long_gap;
 use super::voice::{Composed, Voice, compose_candidates, failed_turn_kind};
 use crate::identity::ChatLanguage;
 use crate::llm::{CallContext, CallPurpose, GenerationRequest};
 use crate::safety::{assess_risk_verdict, crisis_reply};
 use crate::shared::ApiError;
+use crate::support::MemoryView;
 use crate::support::knowledge::{KNOWLEDGE_LIMIT, KnowledgeChunk};
 use crate::support::prompt::{
     PreviousSession, PromptBlock, REPLY_PROMPT_VERSION, ReplyContext, reply_messages,
@@ -37,11 +39,25 @@ use crate::support::{
 /// 발화 한 번의 출력 상한(TS 의 `MAX_TOKENS`).
 pub const REPLY_MAX_TOKENS: u32 = 320;
 
-/// 재개 인사가 잇는 직전 세션: 닫혔을 때의 요약과 전사의 꼬리.
+/// 재개 인사가 잇는 직전 세션: 닫혔을 때의 요약, 전사의 꼬리, 마지막 메시지부터 지난 날 수, 끝난 모양.
 #[derive(Debug, Clone)]
 pub struct Previous {
     pub summary: Option<SessionSummaryResponse>,
     pub recent_history: Vec<Message>,
+    /// 직전 세션의 마지막 메시지(없으면 시작)부터 지금까지 지난 날 수(내림).
+    pub days_since: i64,
+    pub ending: PreviousEnding,
+}
+
+/// 직전 세션이 끝난 모양.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreviousEnding {
+    /// 위기로 닫혔다(닫힘 ∧ 지원 수준 3).
+    Crisis,
+    /// 보통으로 닫혔다.
+    Closed,
+    /// 열린 채다.
+    Open,
 }
 
 /// 사용자 턴이 끝난 모양: 답이 끝났거나, 도중에 중단됐다.
@@ -72,7 +88,15 @@ pub async fn greet(
     let knowledge = parts.knowledge.retrieve(session.task(), KNOWLEDGE_LIMIT);
     voice.announce(session.meta_event()).await;
     // 첫 인사는 턴 분석이 없어 추적을 남길 자리가 없다.
-    let (request, _) = reply_request(parts, &session, phase, &knowledge, previous);
+    let memory = remembered(parts, &session).await;
+    let (request, _) = reply_request(
+        parts,
+        &session,
+        phase,
+        &knowledge,
+        previous,
+        memory.as_ref(),
+    );
     // 첫 인사는 받은 사용자 말이 없어 중단 대상이 아니다(등록부에 오르지 않는다).
     let Composed::Reply(reply) = voice.compose(parts.model.as_ref(), request, None).await? else {
         // 등록부에 없는 턴은 중단될 수 없다.
@@ -178,7 +202,15 @@ async fn answer(
     voice.announce(meta_for(&session, &step)).await;
     // 4) 지식 검색, 5) 발화(시작을 저장한 뒤).
     let knowledge = parts.knowledge.retrieve(step.to, KNOWLEDGE_LIMIT);
-    let (request, trace) = reply_request(parts, &session, step.phase, &knowledge, None);
+    let memory = remembered(parts, &session).await;
+    let (request, trace) = reply_request(
+        parts,
+        &session,
+        step.phase,
+        &knowledge,
+        None,
+        memory.as_ref(),
+    );
     session
         .start_streaming(turn_id, parts.clock.now())
         .map_err(|error| conflict(&session, error))?;
@@ -291,6 +323,17 @@ fn meta_for(session: &Session, step: &TurnStep) -> StreamEvent {
     }
 }
 
+/// 소유자의 현재 기억. 읽지 못하면 기억 없이 답한다(본문 없이 로그 한 줄).
+async fn remembered(parts: &FlowParts, session: &Session) -> Option<MemoryView> {
+    match parts.memory.view(session.owner_id()).await {
+        Ok(view) => Some(view),
+        Err(_) => {
+            tracing::warn!("the memory could not be read; the reply goes without it");
+            None
+        }
+    }
+}
+
 /// 발화 요청과, 턴 추적을 켰으면(sandbox) 그 요청의 추적.
 fn reply_request(
     parts: &FlowParts,
@@ -298,6 +341,7 @@ fn reply_request(
     phase: ReplyPhase,
     knowledge: &[KnowledgeChunk],
     previous: Option<&Previous>,
+    memory: Option<&MemoryView>,
 ) -> (GenerationRequest, Option<TurnTrace>) {
     let profile = session.grief_profile();
     let turn_style = turn_style(phase, session.history())
@@ -311,7 +355,11 @@ fn reply_request(
         previous: previous.map(|previous| PreviousSession {
             summary: previous.summary.as_ref(),
             recent_history: &previous.recent_history,
+            days_since: previous.days_since,
+            long_gap: is_long_gap(previous.days_since),
+            ended_in_crisis: previous.ending == PreviousEnding::Crisis,
         }),
+        memory,
         turn_style: &turn_style,
     };
     let system = reply_system_prompt(&context);

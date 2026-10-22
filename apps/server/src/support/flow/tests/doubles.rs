@@ -13,7 +13,7 @@ use futures_util::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
 
 use super::super::judging::Judging;
-use super::super::outside::{ChatLanguages, Clock, SessionRepository};
+use super::super::outside::{ChatLanguages, Clock, LatestSession, SessionRepository};
 use super::super::{FlowParts, SupportFlow};
 use crate::identity::ChatLanguage;
 use crate::llm::{
@@ -30,6 +30,7 @@ use crate::support::{
     GriefPath, Requester, SendMessageRequest, StartSessionRequest, StreamEvent, SupportService,
     TurnStream,
 };
+use crate::support::{MemoryNote, MemoryOptout, MemoryStore, MemoryView, NewNote, NewPet, Pet};
 
 pub const SESSION_ID: &str = "s-1";
 pub const OWNER_ID: &str = "acct-owner";
@@ -424,6 +425,36 @@ impl SessionRepository for MemorySessions {
         Box::pin(async move { Ok(found) })
     }
 
+    /// 저장의 질의와 같은 규칙: 마지막 메시지 시각(없으면 시작)이 가장 늦은 세션, 동률은 시작과 id 가 큰 쪽.
+    fn latest_by_owner<'a>(
+        &'a self,
+        owner_id: &'a str,
+    ) -> BoxFuture<'a, Result<Option<LatestSession>, ApiError>> {
+        let found = self
+            .rows
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|snapshot| snapshot.owner_id == owner_id)
+            .map(|snapshot| LatestSession {
+                last_active_at: snapshot
+                    .history
+                    .iter()
+                    .map(|message| message.at)
+                    .max()
+                    .unwrap_or(snapshot.started_at),
+                snapshot: snapshot.clone(),
+            })
+            .max_by(|a, b| {
+                (a.last_active_at, a.snapshot.started_at, &a.snapshot.id).cmp(&(
+                    b.last_active_at,
+                    b.snapshot.started_at,
+                    &b.snapshot.id,
+                ))
+            });
+        Box::pin(async move { Ok(found) })
+    }
+
     /// 저장이 질의로 구하는 집계를 전사에서 같은 규칙(마지막 시각, 첫·마지막 사이의 분 내림, 수)으로 구한다.
     fn message_activity<'a>(
         &'a self,
@@ -451,6 +482,90 @@ impl SessionRepository for MemorySessions {
 
     fn delete<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<(), ApiError>> {
         self.rows.lock().unwrap().remove(id);
+        Box::pin(async { Ok(()) })
+    }
+}
+
+/// 소유자마다 현재 기억을 들고 있는 저장. 테스트가 `set` 으로 놓고, 아이와 사실 쓰기는 그 목록에 더한다(옵트아웃은 버린다).
+#[derive(Default)]
+pub struct MemoryNotes {
+    views: Mutex<HashMap<String, MemoryView>>,
+    /// 참이면 `view` 가 저장 오류를 낸다.
+    failing: std::sync::atomic::AtomicBool,
+}
+
+impl MemoryNotes {
+    pub fn set(&self, owner_id: &str, view: MemoryView) {
+        self.views.lock().unwrap().insert(owner_id.to_owned(), view);
+    }
+
+    pub fn fail_reads(&self) {
+        self.failing.store(true, Ordering::SeqCst);
+    }
+}
+
+impl MemoryStore for MemoryNotes {
+    fn view<'a>(&'a self, owner_id: &'a str) -> BoxFuture<'a, Result<MemoryView, ApiError>> {
+        let found = if self.failing.load(Ordering::SeqCst) {
+            Err(ApiError::Internal)
+        } else {
+            Ok(self
+                .views
+                .lock()
+                .unwrap()
+                .get(owner_id)
+                .cloned()
+                .unwrap_or_default())
+        };
+        Box::pin(async move { found })
+    }
+
+    fn upsert_pet<'a>(&'a self, pet: &'a NewPet) -> BoxFuture<'a, Result<Pet, ApiError>> {
+        let mut views = self.views.lock().unwrap();
+        let view = views.entry(pet.owner_id.clone()).or_default();
+        let found = match view.pets.iter().find(|row| row.name == pet.name) {
+            Some(row) => row.clone(),
+            None => {
+                let row = Pet {
+                    id: format!("pet-{}", view.pets.len() + 1),
+                    name: pet.name.clone(),
+                    status: pet.status,
+                    loss_type: pet.loss_type,
+                    source_session_id: pet.source_session_id.clone(),
+                    said_at: pet.said_at,
+                };
+                view.pets.push(row.clone());
+                row
+            }
+        };
+        Box::pin(async move { Ok(found) })
+    }
+
+    fn insert_note<'a>(
+        &'a self,
+        note: &'a NewNote,
+        supersedes: &'a [String],
+    ) -> BoxFuture<'a, Result<MemoryNote, ApiError>> {
+        let mut views = self.views.lock().unwrap();
+        let view = views.entry(note.owner_id.clone()).or_default();
+        view.notes.retain(|row| !supersedes.contains(&row.id));
+        let row = MemoryNote {
+            id: format!("note-{}-{}", note.session_id, note.seq),
+            session_id: note.session_id.clone(),
+            seq: note.seq,
+            kind: note.kind,
+            pet_id: note.pet_id.clone(),
+            text: note.text.clone(),
+            said_at: note.said_at,
+        };
+        view.notes.insert(0, row.clone());
+        Box::pin(async move { Ok(row) })
+    }
+
+    fn record_optout<'a>(
+        &'a self,
+        _optout: &'a MemoryOptout,
+    ) -> BoxFuture<'a, Result<(), ApiError>> {
         Box::pin(async { Ok(()) })
     }
 }
@@ -507,6 +622,7 @@ pub struct Harness {
     pub flow: SupportFlow,
     pub model: Arc<ScriptedModel>,
     pub sessions: Arc<MemorySessions>,
+    pub memory: Arc<MemoryNotes>,
     /// 라우터가 남긴 모델 호출 기록(`llm_calls` 의 행).
     pub calls: Arc<InMemoryUsageSink>,
 }
@@ -564,6 +680,7 @@ impl Harness {
     ) -> Harness {
         let model = Arc::new(model);
         let sessions = Arc::new(MemorySessions::default());
+        let memory = Arc::new(MemoryNotes::default());
         let calls = Arc::new(InMemoryUsageSink::default());
         let router = ModelRouter::new(
             ModelRef {
@@ -577,6 +694,7 @@ impl Harness {
         let flow = SupportFlow::new(FlowParts {
             model: Arc::new(router),
             sessions: sessions.clone(),
+            memory: memory.clone(),
             knowledge: KnowledgeBase::from_json(KNOWLEDGE_JSON),
             languages: Arc::new(languages),
             clock: Arc::new(StepClock {
@@ -589,6 +707,7 @@ impl Harness {
             flow,
             model,
             sessions,
+            memory,
             calls,
         }
     }

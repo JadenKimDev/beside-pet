@@ -64,6 +64,7 @@ impl SupportFlow {
     ) -> SharedSupportService {
         Arc::new(SupportFlow::new(FlowParts {
             model,
+            memory: super::adapters::memory_store(db.clone()),
             sessions: Arc::new(SessionStore::new(db)),
             knowledge: KnowledgeBase::load(),
             languages: Arc::new(AccountLanguages(accounts)),

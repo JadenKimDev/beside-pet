@@ -11,7 +11,10 @@ use crate::llm::{PromptMessage, PromptRole};
 use crate::support::knowledge::KnowledgeChunk;
 use crate::support::rules::{QuestionPolicy, Task, TurnStyle};
 use crate::support::session::Message;
-use crate::support::{MessageRole, ReplyPhase, SessionSummaryResponse};
+use crate::support::{
+    MemoryNote, MemoryView, MessageRole, NoteKind, Pet, PetStatus, ReplyPhase,
+    SessionSummaryResponse,
+};
 
 const ALL_PHASES: [ReplyPhase; 6] = [
     ReplyPhase::Intro,
@@ -44,6 +47,7 @@ fn context<'a>(
         knowledge,
         history,
         previous: None,
+        memory: None,
         turn_style: style(phase),
     }
 }
@@ -71,6 +75,8 @@ const NOT_A_COUNSELOR: &str = "You are not a counselor or therapist and never ac
 const STYLE: &str = "Talk the way people speak aloud: vary your sentence endings, and use concrete nouns and plain verbs.";
 const PRONOUN_KO: &str = "When the user writes 저/제/나/내, that is the user, not you; when you refer back to them, use a form of address that fits how you two have been talking, or drop the pronoun.";
 const PRONOUN_EN: &str = "\"I\", \"me\", and \"my\" in the user's message are the user, not you; when you refer back to them, say \"you\".";
+const NO_BRINGING_UP: &str =
+    "Do not bring up on your own how the pet died or anything about their guilt.";
 const NO_INVENTING: &str = "Never invent details about the pet that the user has not mentioned (its looks, habits, or moments together).";
 
 fn phase_guidance(prompt: &str) -> &str {
@@ -81,8 +87,8 @@ fn phase_guidance(prompt: &str) -> &str {
 }
 
 #[test]
-fn the_prompt_version_is_0_4_0() {
-    assert_eq!(PROMPT_VERSION, "0.4.0");
+fn the_prompt_version_is_0_5_0() {
+    assert_eq!(PROMPT_VERSION, "0.5.0");
 }
 
 #[test]
@@ -270,6 +276,9 @@ fn a_resume_carries_the_previous_session_before_the_grounding() {
     ctx.previous = Some(PreviousSession {
         summary: Some(&summary),
         recent_history: &previous_history,
+        days_since: 1,
+        long_gap: false,
+        ended_in_crisis: false,
     });
     let prompt = reply_system_prompt(&ctx);
     let block = [
@@ -277,6 +286,7 @@ fn a_resume_carries_the_previous_session_before_the_grounding() {
         "Previous session recap: 지난번에 산책을 이야기했다",
         "Last messages exchanged:\nUser: 산책이 그리워요\nCompanion: 그 길이 생각나시는군요",
         "Gently acknowledge what was shared last time before asking your reopening question.",
+        NO_BRINGING_UP,
     ]
     .join("\n");
     let grounding = "Ground your words in the following verified grief theory, but never quote or cite it:\n- (출처A) 내용A";
@@ -292,10 +302,13 @@ fn a_previous_session_without_summary_or_tail_keeps_only_the_frame() {
     ctx.previous = Some(PreviousSession {
         summary: None,
         recent_history: &[],
+        days_since: 1,
+        long_gap: false,
+        ended_in_crisis: false,
     });
     let prompt = reply_system_prompt(&ctx);
     let expected = format!(
-        "Context from the previous conversation (for continuity — never quote it verbatim):\nGently acknowledge what was shared last time before asking your reopening question.\n{}",
+        "Context from the previous conversation (for continuity — never quote it verbatim):\nGently acknowledge what was shared last time before asking your reopening question.\n{NO_BRINGING_UP}\n{}",
         ctx.turn_style.instruction()
     );
     assert!(prompt.ends_with(&expected), "{prompt}");
@@ -508,6 +521,9 @@ fn the_blocks_come_in_their_fixed_order_and_join_into_the_prompt() {
     ctx.previous = Some(PreviousSession {
         summary: None,
         recent_history: &previous_history,
+        days_since: 1,
+        long_gap: false,
+        ended_in_crisis: false,
     });
     let blocks = reply_prompt_blocks(&ctx);
     let names: Vec<&str> = blocks.iter().map(|block| block.name).collect();
@@ -542,4 +558,165 @@ fn empty_blocks_are_left_out_of_the_list() {
         names,
         ["identity", "pet", "output_rules", "phase", "turn_style"]
     );
+}
+
+/// 재개 블록만 꺼낸다. 오래됐는가는 흐름이 정하는 것이라 여기서는 7일 기준을 흉내 낸다.
+fn previous_block(days_since: i64, ended_in_crisis: bool) -> String {
+    let mut ctx = context(ReplyPhase::Resume, &[], &[]);
+    ctx.previous = Some(PreviousSession {
+        summary: None,
+        recent_history: &[],
+        days_since,
+        long_gap: days_since > 7,
+        ended_in_crisis,
+    });
+    reply_prompt_blocks(&ctx)
+        .into_iter()
+        .find(|block| block.name == "previous")
+        .expect("a resume carries the previous block")
+        .text
+}
+
+#[test]
+fn a_resume_within_seven_days_says_nothing_about_the_gap() {
+    for days in [0, 3, 7] {
+        let block = previous_block(days, false);
+        assert!(!block.contains("It has been"), "{days}: {block}");
+        assert!(!block.contains("crisis"), "{days}: {block}");
+        assert!(block.contains(NO_BRINGING_UP), "{block}");
+    }
+}
+
+#[test]
+fn a_resume_after_more_than_seven_days_carries_the_servers_day_count() {
+    let block = previous_block(10, false);
+    assert!(
+        block.contains("It has been about 10 days since your last conversation; welcome them back in one short line and do not evaluate the gap."),
+        "{block}"
+    );
+    assert!(!block.contains("crisis"), "{block}");
+    assert!(block.contains(NO_BRINGING_UP), "{block}");
+}
+
+#[test]
+fn a_long_gap_is_said_in_weeks() {
+    let block = previous_block(90, false);
+    assert!(
+        block.contains("It has been about 13 weeks since"),
+        "{block}"
+    );
+}
+
+#[test]
+fn a_resume_after_a_crisis_acknowledges_it_once_without_repeating_it() {
+    let block = previous_block(3, true);
+    assert!(
+        block.contains("The last conversation ended with a crisis notice about 3 days ago; acknowledge it in one line, ask once how they are now, do not repeat the crisis content, keep it short."),
+        "{block}"
+    );
+    assert!(
+        !block.contains("Gently acknowledge what was shared"),
+        "{block}"
+    );
+    assert!(
+        !block.contains("It has been"),
+        "the crisis line carries the gap: {block}"
+    );
+    assert!(block.contains(NO_BRINGING_UP), "{block}");
+}
+
+#[test]
+fn a_crisis_the_same_day_is_said_as_earlier_today() {
+    let block = previous_block(0, true);
+    assert!(
+        block.contains("ended with a crisis notice earlier today;"),
+        "{block}"
+    );
+}
+
+fn at(day: u32) -> chrono::DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 3, day, 9, 0, 0).unwrap()
+}
+
+fn pet(id: &str, name: &str, status: PetStatus) -> Pet {
+    Pet {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        status,
+        loss_type: None,
+        source_session_id: "s-old".to_owned(),
+        said_at: at(1),
+    }
+}
+
+fn note(id: &str, kind: NoteKind, pet_id: Option<&str>, text: &str) -> MemoryNote {
+    MemoryNote {
+        id: id.to_owned(),
+        session_id: "s-old".to_owned(),
+        seq: 1,
+        kind,
+        pet_id: pet_id.map(str::to_owned),
+        text: text.to_owned(),
+        said_at: at(2),
+    }
+}
+
+fn remembered() -> MemoryView {
+    MemoryView {
+        pets: vec![
+            pet("p-2", "치즈", PetStatus::Living),
+            pet("p-1", "보리", PetStatus::Deceased),
+        ],
+        notes: vec![note(
+            "n-1",
+            NoteKind::Object,
+            Some("p-1"),
+            "현관에 보리 담요를 걸어 두었다",
+        )],
+    }
+}
+
+#[test]
+fn every_phase_carries_the_memory_block_after_the_pet_line() {
+    let view = remembered();
+    for phase in ALL_PHASES {
+        let mut ctx = context(phase, &[], &[]);
+        ctx.memory = Some(&view);
+        let blocks = reply_prompt_blocks(&ctx);
+        let names: Vec<&str> = blocks.iter().map(|block| block.name).collect();
+        assert_eq!(&names[..3], ["identity", "pet", "memory"], "{phase:?}");
+        let memory = &blocks[2].text;
+        assert!(memory.starts_with("About this person"), "{memory}");
+        assert!(
+            memory.contains("현관에 보리 담요를 걸어 두었다"),
+            "{memory}"
+        );
+    }
+}
+
+#[test]
+fn the_memory_block_puts_this_sessions_pet_first() {
+    let view = remembered();
+    let mut ctx = context(ReplyPhase::Task, &[], &[]);
+    ctx.memory = Some(&view);
+    let prompt = reply_system_prompt(&ctx);
+    let current = prompt
+        .find("Pet in this conversation: 보리 (passed away)")
+        .expect("the session's pet is named first");
+    let other = prompt
+        .find("Other pets: 치즈 (living)")
+        .expect("then the others");
+    assert!(current < other, "{prompt}");
+}
+
+#[test]
+fn an_empty_memory_leaves_no_block() {
+    let view = MemoryView::default();
+    let mut ctx = context(ReplyPhase::Task, &[], &[]);
+    ctx.memory = Some(&view);
+    let names: Vec<&str> = reply_prompt_blocks(&ctx)
+        .iter()
+        .map(|block| block.name)
+        .collect();
+    assert!(!names.contains(&"memory"), "{names:?}");
 }

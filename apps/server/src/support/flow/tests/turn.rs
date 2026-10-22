@@ -1,9 +1,13 @@
 // 한 턴의 순서(ADR-0005, ADR-0028): 안전 확인 → 받기와 저장 → 과제 전이 → 지식 검색 → 발화 → 턴 분석 → 저장. 깊이 게이트가 응답의 진행률에 닿는다.
 
-use super::doubles::{Call, DUNNO, ENGAGED, Harness, SESSION_ID, ScriptedModel, reply_text};
+use super::doubles::{
+    Call, DUNNO, ENGAGED, Harness, OWNER_ID, SESSION_ID, ScriptedModel, base_time, reply_text,
+};
 use crate::llm::PromptRole;
 use crate::support::rules::Task;
-use crate::support::{MessageRole, ReplyPhase, SupportService};
+use crate::support::{
+    MemoryNote, MemoryView, MessageRole, NoteKind, Pet, PetStatus, ReplyPhase, SupportService,
+};
 
 #[tokio::test]
 async fn 턴은_판정_뒤_발화하고_전사와_분석을_순서대로_저장한다() {
@@ -175,4 +179,88 @@ async fn 질문_좀_그만해요_다음_턴에도_질문_금지_줄이_실린다
     assert!(line.starts_with("For this reply:"), "{line}");
     // 15자 이하의 말이라 짧은 말 줄이 질문 금지 줄의 자리를 대신한다(#37 S3).
     assert!(line.contains("ask no question"), "{line}");
+}
+
+fn remembered() -> MemoryView {
+    let pet = |id: &str, name: &str, status| Pet {
+        id: id.to_owned(),
+        name: name.to_owned(),
+        status,
+        loss_type: None,
+        source_session_id: "s-earlier".to_owned(),
+        said_at: base_time(),
+    };
+    MemoryView {
+        pets: vec![
+            pet("p-mochi", "Mochi", PetStatus::Living),
+            pet("p-biscuit", "Biscuit", PetStatus::Deceased),
+        ],
+        notes: vec![MemoryNote {
+            id: "n-1".to_owned(),
+            session_id: "s-earlier".to_owned(),
+            seq: 2,
+            kind: NoteKind::Object,
+            pet_id: Some("p-biscuit".to_owned()),
+            text: "A blue blanket hangs by the front door.".to_owned(),
+            said_at: base_time(),
+        }],
+    }
+}
+
+#[tokio::test]
+async fn 첫_인사와_매_턴의_시스템_프롬프트에_기억_블록이_있고_지금_세션의_아이가_먼저다() {
+    let h = Harness::new();
+    h.memory.set(OWNER_ID, remembered());
+    h.onboard().await;
+    h.say(ENGAGED).await;
+    h.say(DUNNO).await;
+
+    let replies: Vec<String> = h
+        .model
+        .calls()
+        .into_iter()
+        .filter_map(|call| match call {
+            Call::Reply(request) => request.system,
+            _ => None,
+        })
+        .collect();
+    assert_eq!(replies.len(), 3, "the greeting and two turns");
+    for system in &replies {
+        assert!(system.contains("About this person"), "{system}");
+        assert!(
+            system.contains("A blue blanket hangs by the front door."),
+            "{system}"
+        );
+        let current = system
+            .find("Pet in this conversation: Biscuit (passed away)")
+            .expect("the session's pet comes first");
+        let other = system
+            .find("Other pets: Mochi (living)")
+            .expect("then the others");
+        assert!(current < other);
+    }
+}
+
+#[tokio::test]
+async fn 기억이_없으면_블록도_없다() {
+    let h = Harness::new();
+    h.onboard().await;
+    h.say(ENGAGED).await;
+
+    let system = h.model.last_reply_request().system.unwrap();
+    assert!(!system.contains("About this person"), "{system}");
+}
+
+#[tokio::test]
+async fn 기억을_읽지_못해도_턴은_답한다() {
+    let h = Harness::new();
+    h.memory.set(OWNER_ID, remembered());
+    h.memory.fail_reads();
+    h.onboard().await;
+
+    let turn = h.say(ENGAGED).await;
+
+    assert_eq!(turn.reply, reply_text());
+    let system = h.model.last_reply_request().system.unwrap();
+    assert!(!system.contains("About this person"), "{system}");
 }

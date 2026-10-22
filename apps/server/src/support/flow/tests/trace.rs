@@ -9,9 +9,10 @@ use crate::support::prompt::REPLY_PROMPT_VERSION;
 use crate::support::response::TurnTrace;
 
 /// 블록 이름의 조립 순서(`reply_prompt_blocks`). 빈 블록은 빠지므로 추적의 이름은 이 순서의 부분열이다.
-const BLOCK_ORDER: [&str; 7] = [
+const BLOCK_ORDER: [&str; 8] = [
     "identity",
     "pet",
+    "memory",
     "output_rules",
     "phase",
     "previous",

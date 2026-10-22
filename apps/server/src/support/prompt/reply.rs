@@ -3,21 +3,23 @@
 //! 단계와 과제는 규칙이 정해 넘긴다. 여기서는 그것을 글로 바꾸기만 한다. 문구는 TS 에서 왔고, 0.2.0 에서 정체·화법
 //! 지시문을 다시 썼다(괄호 예시 필수, 안심 지침, 질문 강제를 걷어 냈다). 0.4.0 에서 정체 문장을 한 사람의 결로
 //! 바꾸고(이름·직업·나이·자기 반려동물·자기 경험담은 두지 않는다) 긍정형 문체 한 줄과 언어별 대명사 줄을 더했다.
+//! 0.5.0 에서 매 턴의 기억 블록과 재개 블록의 경과·위기 줄(날 수는 서버가 센다)을 더했다.
 //!
 //! 시스템 프롬프트는 이름 붙은 블록의 목록을 이은 것이다. 블록 이름은 sandbox 턴 추적이 그대로 남긴다.
 
 use super::language::output_language;
+use super::memory::memory_block;
 use super::transcript::{speaker_lines, to_prompt_role};
 use crate::identity::ChatLanguage;
 use crate::llm::{PromptMessage, PromptRole};
 use crate::support::knowledge::KnowledgeChunk;
 use crate::support::rules::TurnStyle;
 use crate::support::session::Message;
-use crate::support::{ReplyPhase, SessionSummaryResponse};
+use crate::support::{MemoryView, ReplyPhase, SessionSummaryResponse};
 
 /// 이 프롬프트의 버전(`x.y.z`). 문구를 바꾸는 커밋이 같은 커밋에서 올린다: major 는 실측 기준선을 새로 잡는 변경,
 /// minor 는 같은 기준선에서 비교할 수 있는 문구 변경, patch 는 오탈자와 다듬기.
-pub const PROMPT_VERSION: &str = "0.4.0";
+pub const PROMPT_VERSION: &str = "0.5.0";
 
 /// 한 턴에 모델로 보내는 최근 메시지의 수.
 pub const HISTORY_WINDOW: usize = 10;
@@ -28,6 +30,12 @@ pub struct PreviousSession<'a> {
     pub summary: Option<&'a SessionSummaryResponse>,
     /// 지난 전사의 꼬리. 고르는 것은 부르는 쪽이다.
     pub recent_history: &'a [Message],
+    /// 지난 세션의 마지막 메시지부터 지금까지 지난 날 수. 서버가 시계로 계산해 넣는다(모델이 지어내지 않게).
+    pub days_since: i64,
+    /// 경과를 말할 만큼 오래됐는가. 기준(날 수)은 재개 과제를 정하는 흐름의 규칙이 갖는다.
+    pub long_gap: bool,
+    /// 지난 세션이 위기로 닫혔는가(닫힘 ∧ 지원 수준 3).
+    pub ended_in_crisis: bool,
 }
 
 /// 발화 한 번을 쓰는 데 필요한 것.
@@ -40,6 +48,8 @@ pub struct ReplyContext<'a> {
     pub history: &'a [Message],
     /// 재개 인사일 때만 있다.
     pub previous: Option<PreviousSession<'a>>,
+    /// 소유자의 현재 기억. 매 턴 넣는다. 읽지 못했으면 없다.
+    pub memory: Option<&'a MemoryView>,
     /// 이번 턴의 화법. 시스템 프롬프트의 마지막 줄이 된다.
     pub turn_style: &'a TurnStyle,
 }
@@ -51,7 +61,7 @@ const IDENTITY: &str = "You are one particular person keeping a grieving pet own
 /// 문체는 긍정형 한 줄만 둔다. 금지 목록과 예시는 두지 않는다(ADR-0027).
 const STYLE: &str = "Talk the way people speak aloud: vary your sentence endings, and use concrete nouns and plain verbs.";
 
-/// 시스템 프롬프트의 이름 붙은 한 조각. 이름은 `identity`, `pet`, `output_rules`, `phase`, `previous`,
+/// 시스템 프롬프트의 이름 붙은 한 조각. 이름은 `identity`, `pet`, `memory`, `output_rules`, `phase`, `previous`,
 /// `knowledge`, `turn_style` 중 하나다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromptBlock {
@@ -86,6 +96,14 @@ pub fn reply_prompt_blocks(context: &ReplyContext<'_>) -> Vec<PromptBlock> {
                 context.pet_name,
                 output_language(context.language)
             ),
+        ),
+        (
+            "memory",
+            context
+                .memory
+                .and_then(|view| memory_block(view, Some(context.pet_name)))
+                .map(|block| block.text)
+                .unwrap_or_default(),
         ),
         ("output_rules", output_rules),
         (
@@ -158,13 +176,39 @@ pub fn reply_messages(context: &ReplyContext<'_>) -> Vec<PromptMessage> {
     messages
 }
 
-/// 지난 대화를 잇는 블록(재개 인사).
+/// 동반자가 먼저 꺼내지 않는 것. 기억 블록의 머리말과 같은 뜻을 재개 블록에도 둔다.
+const NO_BRINGING_UP: &str =
+    "Do not bring up on your own how the pet died or anything about their guilt.";
+
+/// 지난 대화를 잇는 블록(재개 인사). 날 수는 서버가 센 것이고, 모델이 지어내지 않게 그대로 넣는다.
 fn previous_session_block(previous: PreviousSession<'_>) -> String {
     let recap = previous
         .summary
         .map(|summary| format!("Previous session recap: {}", summary.headline))
         .unwrap_or_default();
     let tail = speaker_lines(previous.recent_history);
+    let days = previous.days_since.max(0);
+    let gap = if !previous.ended_in_crisis && previous.long_gap {
+        format!(
+            "It has been about {} since your last conversation; welcome them back in one short line and do not evaluate the gap.",
+            about(days)
+        )
+    } else {
+        String::new()
+    };
+    let acknowledge = if previous.ended_in_crisis {
+        let ago = if days == 0 {
+            "earlier today".to_owned()
+        } else {
+            format!("about {} ago", about(days))
+        };
+        format!(
+            "The last conversation ended with a crisis notice {ago}; acknowledge it in one line, ask once how they are now, do not repeat the crisis content, keep it short."
+        )
+    } else {
+        "Gently acknowledge what was shared last time before asking your reopening question."
+            .to_owned()
+    };
     let lines = [
         "Context from the previous conversation (for continuity — never quote it verbatim):"
             .to_owned(),
@@ -174,10 +218,20 @@ fn previous_session_block(previous: PreviousSession<'_>) -> String {
         } else {
             format!("Last messages exchanged:\n{tail}")
         },
-        "Gently acknowledge what was shared last time before asking your reopening question."
-            .to_owned(),
+        gap,
+        acknowledge,
+        NO_BRINGING_UP.to_owned(),
     ];
     join_non_empty(&lines)
+}
+
+/// 날 수를 말로: 두 주 전까지는 날로, 그 뒤는 주로(반올림).
+fn about(days: i64) -> String {
+    match days {
+        1 => "1 day".to_owned(),
+        d if d < 14 => format!("{d} days"),
+        d => format!("{} weeks", (d + 3) / 7),
+    }
 }
 
 fn join_non_empty(lines: &[String]) -> String {

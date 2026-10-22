@@ -3,6 +3,7 @@
 // 턴 검사(`checkTurn`)는 답 하나를, 세션 검사(`checkSession`)는 인물 하나의 답 전부를 본다.
 // 지연은 검사가 아니라 실행기가 기록한다(임계를 두지 않는다).
 
+import { pronounFlip } from "./moves.ts";
 import type { Language, PersonaExpect } from "./persona.ts";
 
 export type CheckId =
@@ -13,7 +14,8 @@ export type CheckId =
   | "formulaicTail"
   | "crisisExpectation"
   | "stockRepeat"
-  | "echoOpening";
+  | "echoOpening"
+  | "pronounFlip";
 
 export type Flag = { check: CheckId; level: "error" | "warn"; detail: string };
 
@@ -314,7 +316,7 @@ function crisisExpectation(turns: SessionTurn[], expect: PersonaExpect | undefin
 
 /**
  * 인물 하나의 답 전부를 검사한다: 틀에 박힌 꼬리의 비율, 위기 기대와 실제의 어긋남,
- * 이미 쓴 상투구의 반복, 사용자 말을 되받는 시작. 정상화 위로의 비율은 표시가 아니라 `reassureRate` 의 수치다.
+ * 이미 쓴 상투구의 반복, 사용자 말을 되받는 시작, 사용자 1인칭을 가져간 답. 정상화 위로의 비율은 표시가 아니라 `reassureRate` 의 수치다.
  */
 export function checkSession(input: SessionInput): Flag[] {
   return [
@@ -322,5 +324,6 @@ export function checkSession(input: SessionInput): Flag[] {
     ...crisisExpectation(input.turns, input.expect),
     ...stockRepeat(input.turns),
     ...echoOpening(input.turns),
+    ...pronounFlip(input.turns),
   ];
 }

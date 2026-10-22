@@ -43,6 +43,25 @@ export type SupportPlanResponse = {
   cautions: string[];
 };
 
+/**
+ * 턴 추적(#37). 서버가 `APP_ENV=sandbox` 에서만 채우고 production 과 옛 서버의 응답에는 칸이 없다.
+ * 칸 이름은 서버의 `TurnStyle::decisions()` 와 `reply.rs` 의 블록 이름을 따른다. 모두 없을 수 있다고 보고 읽는다.
+ */
+export type TurnTrace = {
+  promptVersion?: string;
+  blocks?: { name: string; chars: number }[];
+  turnStyle?: {
+    questionPolicy?: "forbid" | "allow" | "invite";
+    reassureCooldown?: boolean;
+    endingAvoid?: string;
+    stockPassed?: string[];
+    judgeLine?: boolean;
+    shortRule?: boolean;
+    actionRule?: ("feelingGuess" | "meaningGiven" | "permission")[];
+  };
+  systemPrompt?: string;
+};
+
 export type TurnAnalysisResponse = {
   at: string;
   task: number;
@@ -51,6 +70,8 @@ export type TurnAnalysisResponse = {
   transition: { from: number; to: number; advanced: boolean; retryCount: number };
   knowledge: { source: string; tags: string[] }[];
   supervision?: { evaluated: boolean; quality: "ok" | "review"; flags: string[]; note?: string };
+  /** sandbox 에서만 있다. */
+  trace?: TurnTrace | null;
 };
 
 export type SessionSummaryResponse = {

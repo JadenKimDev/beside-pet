@@ -145,6 +145,7 @@ test("checkCounts: 턴과 세션의 표시를 검사마다 센다", () => {
     crisisExpectation: 0,
     stockRepeat: 0,
     echoOpening: 0,
+    pronounFlip: 0,
   });
 });
 
@@ -227,10 +228,13 @@ test("summaryMarkdown: 인물 × 검사와 인물별 결과", () => {
   assert.match(md, /^# 대화 실측 요약 \(2026-10-18\)/);
   assert.match(
     md,
-    /\| 인물 \| byteToken \| forbiddenWord \| languageMismatch \| multiQuestion \| formulaicTail \| crisisExpectation \| stockRepeat \| echoOpening \|\n/,
+    /\| 인물 \| byteToken \| forbiddenWord \| languageMismatch \| multiQuestion \| formulaicTail \| crisisExpectation \| stockRepeat \| echoOpening \| pronounFlip \|\n/,
   );
   // 이름순이다.
-  assert.match(md, /\| a \| 0 \| 0 \| 0 \| 0 \| 1 \| 0 \| 0 \| 0 \|\n\| b \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \|/);
+  assert.match(
+    md,
+    /\| a \| 0 \| 0 \| 0 \| 0 \| 1 \| 0 \| 0 \| 0 \| 0 \|\n\| b \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \|/,
+  );
   assert.match(
     md,
     /\| 인물 \| 턴 \| closedBy \| 도달 과제 \| 평균 지연 \| 평균 첫 토큰 \| 정상화 위로\(reassureRate\) \| 일반 위로\(genericRate\) \|\n/,
@@ -255,7 +259,7 @@ test("summaryMarkdown: 새 세션 검사(stockRepeat, echoOpening)의 표시 수
       ],
     }),
   ]);
-  assert.match(md, /\| a \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 1 \| 2 \|\n/);
+  assert.match(md, /\| a \| 0 \| 0 \| 0 \| 0 \| 0 \| 0 \| 1 \| 2 \| 0 \|\n/);
   assert.match(md, /\| a \| 4 \| script \| 1 \| 2.0s \| - \| 50% \|/);
 });
 
@@ -390,6 +394,130 @@ test("saveRun, loadRuns, writeSummary: 하나씩 돌려도 summary 가 누적되
       readFileSync(writeSummary(day, "2026-10-18", readBaseline(day, "2026-10-18")), "utf8"),
       /\| a \| 0 → 0 \|/,
     );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── 동작 수치와 턴 추적(#37) ──
+
+const traced = {
+  promptVersion: "0.4.0",
+  blocks: [
+    { name: "identity", chars: 300 },
+    { name: "turn_style", chars: 90 },
+  ],
+  turnStyle: { questionPolicy: "forbid" as const, stockPassed: [], shortRule: true, actionRule: [] },
+  systemPrompt: "지어낸 시스템 프롬프트",
+};
+
+const movingRun = (name: string, greeting: string, answers: string[]) =>
+  run(name, {
+    greeting,
+    turns: answers.map((answer, i) => turn(i + 1, { answer })),
+  });
+
+test("personaMarkdown: 턴 표의 동작 칸과 동작과 길이 절, 추적이 없으면 추적 칸이 없다", () => {
+  const md = personaMarkdown(
+    movingRun("p", "안녕하세요.", ["많이 무거우시겠어요. 울어도 괜찮아요.", "단추는 어디서 자곤 했나요?"]),
+  );
+  assert.match(md, /\| # \| 사용자 발화 \| 답 \| 과제·수준 \| 검사 표시 \| 지연 \| 동작 \|\n/);
+  assert.match(md, /\| 1 \| 발화 1 \| .* \| 2.0s \| 추정·허락 \|\n/);
+  assert.match(md, /\| 2 \| 발화 2 \| .* \| 2.0s \| - \|\n/);
+  assert.match(md, /## 동작과 길이/);
+  assert.match(md, /\| feelingGuess \(추정\) \| 50% \|/);
+  assert.match(md, /\| 셋 중 하나라도 \| 50% \|/);
+  assert.match(md, /\| lengthVariance \(답 글자 수, 표준편차\) \| sd \d+자 \/ 평균 \d+자 \|/);
+  assert.doesNotMatch(md, /추적/);
+});
+
+test("personaMarkdown: 위기 턴은 동작과 길이에서 뺀다", () => {
+  const md = personaMarkdown(
+    run("p", {
+      turns: [
+        turn(1, { answer: "단추 이야기를 더 들려주세요." }),
+        turn(2, { answer: "혼자 짊어지지 않아도 돼요. 109 로 연락할 수 있어요.", supportLevel: 3, done: true }),
+      ],
+    }),
+  );
+  assert.match(md, /\| 셋 중 하나라도 \| 0% \|/);
+});
+
+test("personaMarkdown: 분석에 trace 가 있으면 턴 표에 추적 칸, 전문은 trace.md 를 가리킨다", () => {
+  const md = personaMarkdown(
+    run("p", {
+      analysis: {
+        sessionId: "s",
+        closed: true,
+        history: [],
+        analyses: [{ ...analysisItem(), trace: traced }, analysisItem()],
+      },
+    }),
+  );
+  assert.match(md, /\| # \| 사용자 발화 \| 답 \| 과제·수준 \| 검사 표시 \| 지연 \| 동작 \| 추적 \|\n/);
+  assert.match(md, /\| 1 \| .* \| v0\.4\.0<br>identity 300, turn_style 90<br>질문 forbid · 짧은 말 \|\n/);
+  assert.match(md, /\| 2 \| .* \| - \| - \|\n/);
+  assert.match(md, /`p\.trace\.md` 에 있다/);
+  assert.doesNotMatch(md, /지어낸 시스템 프롬프트/);
+});
+
+test("summaryMarkdown: 인물별 동작과 길이, 인물 전체 비율, 첫 인사 겹침", () => {
+  const md = summaryMarkdown("2026-10-22", [
+    movingRun("a", "안녕하세요, 단추를 떠나보내신 마음이 무거우시겠어요.", ["힘드시겠어요.", "단추는 어땠나요?"]),
+    movingRun("b", "안녕하세요, 단추를 떠나보내신 마음이 무거우시겠어요.", [
+      "울어도 괜찮아요.",
+      "그만큼 아꼈다는 증거예요.",
+    ]),
+    movingRun("c", "오늘 와 주셔서 고마워요.", ["단추 이야기를 들려주세요.", "그랬군요."]),
+  ]);
+  assert.match(
+    md,
+    /\| 인물 \| 감정 추정\(feelingGuess\) \| 뜻 부여\(meaningGiven\) \| 허락\(permission\) \| 셋 중 하나라도 \| 답 길이\(lengthVariance\) \|\n/,
+  );
+  assert.match(md, /\| a \| 50% \| 0% \| 0% \| 50% \| sd \d+자 \/ 평균 \d+자 \|\n/);
+  assert.match(md, /\| b \| 0% \| 50% \| 50% \| 100% \|/);
+  assert.match(md, /동작 셋 중 하나라도 담긴 턴, 인물 전체\(위기 턴 제외\): 3\/6 \(50%\)/);
+  assert.match(
+    md,
+    /## 첫 인사 겹침 \(greetingOverlap\)\n\n.*: 2\/3\n\n- 문장: 안녕하세요, 단추를 떠나보내신 마음이 무거우시겠어요\.\n- 인물: a, b/,
+  );
+  assert.doesNotMatch(md, /기준 대비 동작 차이/);
+});
+
+test("summaryMarkdown: 기준이 있으면 동작·길이·첫 인사가 `기준 → 지금`, 동작 차이 절이 있다", () => {
+  const before = [
+    movingRun("a", "안녕하세요, 단추를 떠나보내신 마음이 무거우시겠어요.", ["힘드시겠어요.", "울어도 괜찮아요."]),
+    movingRun("b", "안녕하세요, 단추를 떠나보내신 마음이 무거우시겠어요.", ["힘드시겠어요.", "가".repeat(20)]),
+  ];
+  const now = [
+    movingRun("a", "단추 이야기를 들려주세요.", ["힘드시겠어요.", "단추는 어땠나요?"]),
+    movingRun("b", "오늘 와 주셔서 고마워요.", ["그랬군요.", "가".repeat(20)]),
+  ];
+  const md = summaryMarkdown("2026-10-23", now, { date: "2026-10-22", runs: before });
+  assert.match(md, /\| a \| 50% → 50% \| 0% → 0% \| 50% → 0% \| 100% → 50% \|/);
+  assert.match(md, /인물 전체\(위기 턴 제외\): 3\/4 \(75%\) → 1\/4 \(25%\)/);
+  assert.match(md, /: 2\/2 → 1\/2\n/);
+  assert.match(md, /## 기준 대비 동작 차이 \(지금 − 기준\)/);
+  assert.match(md, /\| 인물 \| 동작 셋 중 하나라도 차이 \| 답 길이 표준편차 차이 \|\n/);
+  assert.match(md, /\| a \| -50%p \| [+-]?\d+자 \|\n/);
+  assert.match(md, /\| b \| -50%p \| [+-]?\d+자 \|\n/);
+});
+
+test("saveRun: 추적이 있으면 <인물>.trace.md 를 따로 쓰고, 없으면 쓰지 않는다", () => {
+  const dir = mkdtempSync(join(tmpdir(), "chat-eval-trace-"));
+  try {
+    saveRun(dir, run("plain"));
+    assert.throws(() => readFileSync(join(dir, "plain.trace.md"), "utf8"));
+    const md = saveRun(
+      dir,
+      run("traced", {
+        analysis: { sessionId: "s", closed: true, history: [], analyses: [{ ...analysisItem(), trace: traced }] },
+      }),
+    );
+    const trace = readFileSync(join(dir, "traced.trace.md"), "utf8");
+    assert.match(trace, /^# traced — 턴 추적/);
+    assert.match(trace, /지어낸 시스템 프롬프트/);
+    assert.doesNotMatch(readFileSync(md, "utf8"), /지어낸 시스템 프롬프트/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

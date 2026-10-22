@@ -12,7 +12,18 @@ import { join, relative, resolve, sep } from "node:path";
 
 import { type CheckId, type Flag, genericRate, type ReplyLabel, reassureRate } from "./checks.ts";
 import type { TurnAnalysisResponse } from "./client.ts";
+import { cell, percent, table } from "./markdown.ts";
+import {
+  greetingSection,
+  moveCell,
+  moveSection,
+  movesTotalText,
+  runLengthSpread,
+  runMoveRates,
+} from "./move-report.ts";
+import { lengthSpreadText, MOVE_IDS } from "./moves.ts";
 import type { RunResult, TurnRecord } from "./runner.ts";
+import { hasTrace, traceCell, traceMarkdown } from "./trace.ts";
 
 /** 저장하는 실행 결과. 머리에 쓸 서버 주소를 더한다. */
 export type SavedRun = RunResult & { baseUrl: string };
@@ -28,6 +39,7 @@ export const CHECK_IDS: readonly CheckId[] = [
   "crisisExpectation",
   "stockRepeat",
   "echoOpening",
+  "pronounFlip",
 ];
 
 const RUN_SUFFIX = ".run.json";
@@ -158,8 +170,6 @@ export function runGenericRate(run: RunResult): number | null {
   return genericRate(judgedAnalyses(run).map((a) => a.replyLabel));
 }
 
-const percent = (rate: number | null): string => (rate === null ? "-" : `${Math.round(rate * 100)}%`);
-
 /** 판정기 라벨 기준 일반 위로의 비율을 퍼센트 글로. 라벨이 없으면 `-`. */
 export function genericText(run: RunResult): string {
   return percent(runGenericRate(run));
@@ -174,18 +184,7 @@ export function minTaskShortfall(run: RunResult): string | null {
 
 // ── 인물 md ──
 
-/** 표 칸에 넣을 글: `|` 를 가리고 줄바꿈을 `<br>` 로. */
-export function cell(text: string): string {
-  return text.replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
-}
-
-function row(cells: (string | number)[]): string {
-  return `| ${cells.map((c) => cell(String(c))).join(" | ")} |`;
-}
-
-export function table(header: string[], rows: (string | number)[][]): string[] {
-  return [row(header), `|${header.map(() => "---").join("|")}|`, ...rows.map(row)];
-}
+export { cell, table };
 
 const flagText = (flag: Flag): string => `${flag.check}(${flag.level}): ${flag.detail}`;
 
@@ -226,6 +225,7 @@ function headSection(run: SavedRun): string[] {
 }
 
 function turnSection(run: RunResult): string[] {
+  const traced = hasTrace(run);
   const rows = run.turns.map((turn) => [
     turn.index,
     turn.user,
@@ -233,7 +233,10 @@ function turnSection(run: RunResult): string[] {
     `과제 ${turn.task ?? "-"} · 수준 ${turn.supportLevel} · 진행 ${turn.progress}${turn.done ? " · done" : ""}`,
     turn.flags.length === 0 ? "-" : turn.flags.map(flagText).join("\n"),
     latencyText(turn.latencyMs, turn.firstTokenMs),
+    moveCell(turn),
+    ...(traced ? [traceCell(run, turn.index)] : []),
   ]);
+  const header = ["#", "사용자 발화", "답", "과제·수준", "검사 표시", "지연", "동작", ...(traced ? ["추적"] : [])];
   return [
     `## 첫 인사 (${seconds(run.greetingLatencyMs)})`,
     "",
@@ -241,7 +244,8 @@ function turnSection(run: RunResult): string[] {
     "",
     "## 턴",
     "",
-    ...(rows.length === 0 ? ["턴 없음"] : table(["#", "사용자 발화", "답", "과제·수준", "검사 표시", "지연"], rows)),
+    ...(rows.length === 0 ? ["턴 없음"] : table(header, rows)),
+    ...(traced ? ["", `추적의 시스템 프롬프트 전문은 \`${run.persona.name}.trace.md\` 에 있다.`] : []),
   ];
 }
 
@@ -316,6 +320,8 @@ export function personaMarkdown(run: SavedRun): string {
     "",
     ...sessionCheckSection(run),
     "",
+    ...moveSection(run),
+    "",
     ...reportSection(run),
     "",
     ...analysisSection(run),
@@ -343,6 +349,9 @@ function stats(run: RunResult): Stats {
     firstToken: seconds(averageFirstToken(run)),
     reassure: reassureText(run),
     generic: genericText(run),
+    ...Object.fromEntries(MOVE_IDS.map((id) => [id, percent(runMoveRates(run)[id])])),
+    moveAny: percent(runMoveRates(run).any),
+    lengthVariance: lengthSpreadText(runLengthSpread(run)),
   };
 }
 
@@ -356,10 +365,17 @@ const signed = (text: string, diff: number): string => (diff > 0 ? `+${text}` : 
 const latencyDelta = (diff: number): string => signed(`${(diff / 1000).toFixed(1)}s`, diff);
 const pointDelta = (diff: number): string => signed(`${Math.round(diff * 100)}%p`, diff);
 
+const charDelta = (diff: number): string => signed(`${Math.round(diff)}자`, diff);
+
+const of =
+  <T>(f: (run: RunResult) => T | null) =>
+  (run: RunResult | undefined): T | null =>
+    run === undefined ? null : f(run);
+
 /** 기준 대비 평균 지연과 genericRate 의 차이. 판정기와 후보 고르기가 지연과 상투성을 얼마나 바꿨는지 본다(#27). */
 function deltaSection(names: string[], now: Map<string, RunResult>, before: Map<string, RunResult>): string[] {
-  const latencyOf = (run: RunResult | undefined) => (run === undefined ? null : averageLatency(run));
-  const genericOf = (run: RunResult | undefined) => (run === undefined ? null : runGenericRate(run));
+  const latencyOf = of(averageLatency);
+  const genericOf = of(runGenericRate);
   const rows = names.map((name) => {
     const [n, b] = [now.get(name), before.get(name)];
     return [name, delta(latencyOf(n), latencyOf(b), latencyDelta), delta(genericOf(n), genericOf(b), pointDelta)];
@@ -368,6 +384,21 @@ function deltaSection(names: string[], now: Map<string, RunResult>, before: Map<
     "## 기준 대비 차이 (지금 − 기준)",
     "",
     ...table(["인물", "평균 지연 차이", "일반 위로(genericRate) 차이"], rows),
+  ];
+}
+
+/** 기준 대비 동작(셋 중 하나라도) 비율과 답 길이 표준편차의 차이. 페르소나와 화법 규칙이 바꾼 것을 본다(#37). */
+function moveDeltaSection(names: string[], now: Map<string, RunResult>, before: Map<string, RunResult>): string[] {
+  const movesOf = of((run) => runMoveRates(run).any);
+  const sdOf = of((run) => runLengthSpread(run)?.sd ?? null);
+  const rows = names.map((name) => {
+    const [n, b] = [now.get(name), before.get(name)];
+    return [name, delta(movesOf(n), movesOf(b), pointDelta), delta(sdOf(n), sdOf(b), charDelta)];
+  });
+  return [
+    "## 기준 대비 동작 차이 (지금 − 기준)",
+    "",
+    ...table(["인물", "동작 셋 중 하나라도 차이", "답 길이 표준편차 차이"], rows),
   ];
 }
 
@@ -386,10 +417,13 @@ export function summaryMarkdown(date: string, runs: SavedRun[], baseline: Baseli
     ...CHECK_IDS.map((id) => pair(countOf(now.get(name), id), countOf(before.get(name), id), withBaseline)),
   ]);
   const statKeys = ["turns", "closedBy", "reached", "latency", "firstToken", "reassure", "generic"];
-  const statRows = names.map((name) => [
-    name,
-    ...statKeys.map((key) => pair(statOf(now.get(name), key), statOf(before.get(name), key), withBaseline)),
-  ]);
+  const rowsOf = (keys: string[]) =>
+    names.map((name) => [
+      name,
+      ...keys.map((key) => pair(statOf(now.get(name), key), statOf(before.get(name), key), withBaseline)),
+    ]);
+  const statRows = rowsOf(statKeys);
+  const moveRows = rowsOf([...MOVE_IDS, "moveAny", "lengthVariance"]);
   const shortfalls = runs.flatMap((run) => {
     const text = minTaskShortfall(run);
     return text === null ? [] : [`- ${run.persona.name}: ${text}`];
@@ -420,7 +454,27 @@ export function summaryMarkdown(date: string, runs: SavedRun[], baseline: Baseli
       ],
       statRows,
     ),
-    ...(withBaseline ? ["", ...deltaSection(names, now, before)] : []),
+    "",
+    "## 인물별 동작과 길이",
+    "",
+    "동작은 그 패턴이 담긴 동반자 턴의 비율, 길이는 답 글자 수의 표준편차와 평균이다. 위기 턴(고정 안내)은 뺀다.",
+    "",
+    ...table(
+      [
+        "인물",
+        "감정 추정(feelingGuess)",
+        "뜻 부여(meaningGiven)",
+        "허락(permission)",
+        "셋 중 하나라도",
+        "답 길이(lengthVariance)",
+      ],
+      moveRows,
+    ),
+    "",
+    `동작 셋 중 하나라도 담긴 턴, 인물 전체(위기 턴 제외): ${pair(movesTotalText(runs), baseline === null ? null : movesTotalText(baseline.runs), withBaseline)}`,
+    "",
+    ...greetingSection(runs, baseline === null ? null : baseline.runs),
+    ...(withBaseline ? ["", ...deltaSection(names, now, before), "", ...moveDeltaSection(names, now, before)] : []),
     ...(shortfalls.length === 0 ? [] : ["", "## minTask 미달", "", ...shortfalls]),
   ].join("\n")}\n`;
 }
@@ -451,6 +505,8 @@ export function saveRun(dir: string, run: SavedRun): string {
   writeFileSync(join(dir, `${run.persona.name}${RUN_SUFFIX}`), `${JSON.stringify(run, null, 2)}\n`);
   const md = join(dir, `${run.persona.name}.md`);
   writeFileSync(md, personaMarkdown(run));
+  const trace = traceMarkdown(run);
+  if (trace !== null) writeFileSync(join(dir, `${run.persona.name}.trace.md`), trace);
   return md;
 }
 

@@ -13,8 +13,12 @@ import type { TurnRecord } from "./runner.ts";
 
 const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
+/** 궤적 파일의 날 JSON. 틀린 칸도 넣어 보려고 넓게 둔다. */
+type RawValue = string | number | boolean | null | RawValue[] | RawObject;
+type RawObject = { [key: string]: RawValue };
+
 /** 지어낸 궤적. 칸을 하나씩 바꿔 가며 쓴다. */
-function sample(): Record<string, unknown> {
+function sample(): RawObject {
   return {
     name: "sample",
     situation: "지어낸 인물: 고양이 단추를 지난달 보냈다",
@@ -36,12 +40,12 @@ function sample(): Record<string, unknown> {
   };
 }
 
-function parse(overrides: Record<string, unknown>) {
+function parse(overrides: RawObject) {
   return parseArc("sample.json", JSON.stringify({ ...sample(), ...overrides }));
 }
 
-function sessionsWith(change: Record<string, unknown>) {
-  const sessions = sample().sessions as Record<string, unknown>[];
+function sessionsWith(change: RawObject) {
+  const sessions = sample().sessions as RawObject[];
   return [sessions[0], { ...sessions[1], ...change }];
 }
 
@@ -63,7 +67,7 @@ test("틀린 궤적은 파일과 칸을 말한다", () => {
     () => parse({ sessions: sessionsWith({ dayOffset: -1 }) }),
     /sessions\[1\]\.dayOffset 는 0 이상의 정수/,
   );
-  const [first] = sample().sessions as Record<string, unknown>[];
+  const [first] = sample().sessions as RawObject[];
   assert.throws(() => parse({ sessions: [{ ...first, dayOffset: 3 }] }), /sessions\[0\]\.dayOffset 는 0 이어야 합니다/);
   assert.throws(
     () => parse({ sessions: [first, { ...first, dayOffset: 10 }, { ...first, dayOffset: 5 }] }),

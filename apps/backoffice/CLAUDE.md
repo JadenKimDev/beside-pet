@@ -9,6 +9,7 @@
 - **GitHub 토큰은 Next 서버에만 있고 이슈는 DB 에 복사하지 않는다.** 개발노트 화면은 Next 의 Route Handler(`app/api/github/`)가 `GITHUB_TOKEN` 으로 GitHub 를 대신 부른 것을 보인다. 토큰은 `NEXT_PUBLIC_` 으로 두지 않고, 이슈·보드·댓글은 메모리 캐시(60초)만 거치며 DB 와 서버의 관리자 API 에는 들어가지 않는다. 정본은 GitHub 이슈 하나다.
 - **브라우저는 API 를 직접 부르지 않는다.** 늘 같은 출처의 `/v1/...` 을 부르고 `next.config.ts` 의 `rewrites` 가 `API_BASE_URL` 로 넘긴다. 인증 쿠키가 `SameSite=Lax` 라 다른 사이트로는 가지 않기 때문이다(ADR-0024). `API_BASE_URL` 은 서버 쪽 값이라 `NEXT_PUBLIC_` 으로 두지 않고, rewrites 는 빌드 때 굳으므로 Docker 이미지에서는 빌드 인자다.
 - **이 머신에서만 띄운다.** EC2 와 CloudFront 에 올리지 않는다. 올리려면 인증 앞단을 먼저 정한다.
+- **Route Handler 가 로컬 프로세스를 띄우는 것은 `src/shared/claude/` 의 닫힌 목록뿐이다.** `claude -p`(PRD 쓰기, 구독), 작업 대장 CLI(`pnpm prd:push`, `pnpm ledger:new`, `pnpm wt:create`), 그 사이의 `git add`·`git commit`·`git push origin main` 만이다(ADR-0035). 사용자의 글은 `claude -p` 의 인자 배열 원소 하나로만 가고 셸 문자열에 끼우지 않는다(`shell: false`). 파일 인자는 `docs/prd/` 아래의 파일 이름만 받고 `..` 와 경로 구분자는 거른다. 자식 프로세스의 env 에서 `CLAUDECODE`, `CLAUDE_CODE_*`, `GITHUB_TOKEN` 을 뺀다. 이슈로 올리는 명령은 모델이 아니라 화면의 버튼이 돌린다. 이 기능 때문에도 운영 화면은 이 머신 밖에 올리지 않고, 올려야 하면 `app/api/prd-chat/` 을 먼저 뺀다.
 - **색은 토큰으로만 쓴다.** 색 값은 `apps/backoffice/app/globals.css` 에만 두고 컴포넌트는 토큰 클래스를 쓴다. `src/app/styles/color-literals.test.ts` 가 이것을 본다.
 - **글자 리터럴은 `views` 와 `widgets` 에만 둔다.** `shared/ui` 는 글자를 품지 않고 문구를 props 로 받는다. 엔티티의 상태 라벨처럼 개체에 붙은 글자는 그 엔티티의 `model/` 에 모은다.
 

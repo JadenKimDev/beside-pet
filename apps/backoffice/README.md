@@ -32,6 +32,12 @@ rewrites 는 `next dev` 와 `next build` 때 읽힌다. `pnpm dev` 는 다시 �
 
 개발노트 화면은 이 레포의 GitHub 이슈(PRD 의 정본)와 프로젝트 보드(`project.config.json` 의 `repo`, `boardNumber`)를 읽기 전용으로 보인다. GitHub 호출은 브라우저가 아니라 Next 의 Route Handler(`app/api/github/`)가 하고, 토큰은 서버 쪽 환경 변수 `GITHUB_TOKEN` 이다. 보드 2 가 `JadenKimDev` 개인 계정 소유라 세분화 토큰(`github_pat_`)으로는 닿지 못하므로, **클래식 토큰**(Tokens (classic))을 scope `repo`(이슈 읽기와 라벨 `run:implement` 를 붙이는 "구현 시작" 버튼)와 `project`(보드. 읽기만이면 `read:project` 도 되지만 다음 PRD 가 보드 열을 바꾸는 쓰기를 더하므로 `project` 를 권한다)로 만든다. 값이 없으면 개발노트 화면만 "토큰이 없다" 안내를 보이고 다른 화면은 그대로다. 이슈는 DB 에 복사하지 않고 메모리에 60초만 캐시한다.
 
+## PRD 쓰기(개발노트 → "PRD 쓰기")
+
+개발노트 머리의 "PRD 쓰기"(`/dev-notes/new`)는 왼쪽 채팅에 적은 말을 이 Mac 의 `claude -p`(Claude Code 구독, prd 스킬)에 넘겨 `docs/prd/<파일>.md` 초안을 쓰게 하고, 오른쪽에 그 초안을 미리보기로 보인다. 모델은 API 키가 아니라 이 머신의 Claude Code 다(ADR-0035). 그래서 이 머신에 Claude Code 가 설치되어 있고(`claude` 가 `PATH` 에 있어야 한다. 없으면 503 과 안내가 보인다) 로그인돼 있어야 한다. 구독 로그인이 풀렸으면 터미널에서 `claude` 를 한 번 띄워 다시 로그인한다.
+
+"이슈로 올리기"는 팀장이 손으로 하던 다섯 단계를 순서대로 돌린다: `pnpm prd:push` → `pnpm ledger:new` → `git add docs/ledger/<이슈>.json && git commit` → `git push origin main` → `pnpm wt:create <이슈>`. 명령은 본 체크아웃(main)에서 돌고, 시작 전에 `main` 이고 `docs/ledger/` 밖에 추적되는 변경이 없는지 본다. 한 단계가 실패하면 그 뒤를 돌리지 않고 그 단계의 출력을 보인다. 이미 된 단계는 되돌리지 않으므로, 이 Mac 의 터미널에서 실패한 단계부터 이어 한다(예: 이슈는 생겼는데 원장이 없으면 `pnpm ledger:new docs/prd/<이슈>-<파일>.md` 부터). `prd:push` 의 `gh` 인증은 CLI 가 스스로 `JadenKimDev` 토큰을 고른다(루트 `CLAUDE.md` "계정"). 그 뒤는 Todo 열의 카드에서 "구현 시작"이다.
+
 ## 검사
 
 ```bash

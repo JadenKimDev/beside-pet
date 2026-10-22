@@ -75,8 +75,10 @@ comment_text() {
 
 # 사람이 이어 하는 법. 댓글 끝에 붙인다.
 resume_hint() {
-  local where; where="$(shown "${WT_PATH:-<워크트리 없음: pnpm wt:create $ISSUE>}")"
-  printf '%s\n' "" "**이어 하기**: 이 Mac 에서 \`pnpm wt:pane $ISSUE\` 또는 \`cd $where && HARNESS_IMPL=$ISSUE claude '/implement-prd $ISSUE'\`." \
+  # 워크트리가 아직 없으면(원장 확인에서 막힘) cd 할 곳이 없으니 wt:pane 만 안내한다.
+  local how="\`pnpm wt:pane $ISSUE\`"
+  if [ -n "${WT_PATH:-}" ]; then how="$how 또는 \`cd $(shown "$WT_PATH") && HARNESS_IMPL=$ISSUE claude '/implement-prd $ISSUE'\`"; fi
+  printf '%s\n' "" "**이어 하기**: 이 Mac 에서 $how." \
     "고친 뒤 다시 돌리려면 라벨 \`run:again\` 을 붙인다. 러너 로그: \`outputs/runner/$ISSUE/$STAMP*.log\` (러너 호스트 $(hostname -s))."
 }
 

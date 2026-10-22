@@ -305,7 +305,9 @@ function finish(root: string, args: string[]): void {
   printTasks(ledger);
   console.log("\n결과를 outcomes.jsonl 에 적고 원장을 지웠습니다. 이 두 변경을 커밋하세요:");
   console.log("  git add -A docs/ledger");
-  console.log(`  git commit -m "chore(ledger): #${ledger.issue} 마감" -m "Closes #${ledger.issue}"`);
+  // 러너 세션은 이슈를 닫지 않는다(ADR-0032). Closes 를 푸시하면 GitHub 이 이슈를 닫아 사람의 검토 자리가 없어진다.
+  const closing = process.env.HARNESS_RUNNER ? "Refs" : "Closes";
+  console.log(`  git commit -m "chore(ledger): #${ledger.issue} 마감" -m "${closing} #${ledger.issue}"`);
 }
 
 function status(root: string, args: string[]): void {

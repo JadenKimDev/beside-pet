@@ -37,7 +37,7 @@ export const DIALOG_TEXT = {
 
 /** 완전 삭제의 보존 기간 안내. */
 export const PURGE_TEXT = {
-  daysLeft: (days: number) => `정지 3개월 뒤에 완전 삭제할 수 있어요. ${days}일 남았어요.`,
-  noSuspendedAt: '정지 시각이 없어 완전 삭제할 수 없어요.',
-  suspendedAt: (time: string) => `정지 ${time}`,
+  daysLeft: (days: number) => `삭제 3개월 뒤에 완전 삭제할 수 있어요. ${days}일 남았어요.`,
+  noSuspendedAt: '삭제 시각이 없어 완전 삭제할 수 없어요.',
+  suspendedAt: (time: string) => `삭제 ${time}`,
 } as const;

@@ -5,7 +5,7 @@ status: accepted
 tags: [privacy, data, deletion, retention, security]
 related: [ADR-0006, ADR-0008, ADR-0017, ADR-0034]
 ---
-# 삭제는 소프트 삭제만이다. 지운 대화와 리포트는 3개월 보관함에 두고 되살릴 수 있으며, 행을 지우는 것은 기동 때의 파기뿐이다. 계정은 정지 3개월 뒤에만 대화·기억까지 연쇄로 지운다
+# 삭제는 소프트 삭제만이다. 지운 대화와 리포트는 3개월 보관함에 두고 되살릴 수 있으며, 행을 지우는 것은 기동 때의 파기뿐이다. 계정은 삭제(soft delete) 3개월 뒤에만 대화·기억까지 연쇄로 지운다
 
 ## 맥락
 
@@ -20,7 +20,7 @@ ADR-0006 은 "대화를 지우면 전사와 리포트와 턴 분석을 한 트�
 - **지운 대화는 없는 대화다.** 세션 하나를 찾는 모든 경로가 지운 세션을 404 로 본다. 예외는 되살리기와 보관함 목록뿐이다. 목록, 온보딩 분기, 재개의 직전 세션, 기억 블록이 모두 살아 있는 세션만 본다. 뷰 `current_memory` 는 출처 세션이 살아 있는 행만 내므로, 되살리면 기억도 손대지 않고 함께 돌아온다.
 - **리포트는 대화와 따로 지우고 되살린다.** `report_deleted_at` 만 적고 `report` 칸은 남긴다. 지운 리포트의 `GET …/report` 는 404 이고 다시 만들지 않는다(ADR-0008, 한 번만 쓴다). 되살리면 같은 본문이 돌아온다.
 - **행을 지우는 것은 기동 때의 파기뿐이다.** 서버가 뜰 때 한 번, 리포트(3개월 지난 `report_deleted_at` 의 `report` 칸 비우기) → 세션(3개월 지난 `deleted_at` 의 연쇄 삭제, ADR-0006·ADR-0034 의 경로 그대로) → 계정(상태 `Deleted` 이고 `deleted_at` 이 3개월 지난 계정의 세션 연쇄와 `accounts` 행) → 기억 12개월(기존) 순으로 돈다. 로그에는 행 수만 남긴다.
-- **관리자의 완전 삭제는 정지 3개월 뒤에만 된다.** 정지(`soft_delete`, 상태 `Deleted`, ADR-0017)가 `deleted_at` 을 적고 되살리기가 비운다. 3개월 전의 완전 삭제는 409 `Account must be suspended for 3 months before deletion` 이다. 통과하면 그 사람의 세션·메시지·턴·분석·기억·계정 행을 한 트랜잭션으로 지운다. ADR-0006 의 "비어 있는 곳"은 이것으로 메운다.
+- **관리자의 완전 삭제는 삭제(soft delete) 3개월 뒤에만 된다.** 운영 화면의 "삭제"(`soft_delete`, 상태 `Deleted`, ADR-0017)가 `deleted_at` 을 적고 "복구"가 비운다. 로그인만 막는 "정지"(`revoke`, 상태 `Revoked`)는 이 시계와 무관하다. 3개월 전의 완전 삭제는 409 `Account must be suspended for 3 months before deletion` 이다. 통과하면 그 사람의 세션·메시지·턴·분석·기억·계정 행을 한 트랜잭션으로 지운다. ADR-0006 의 "비어 있는 곳"은 이것으로 메운다.
 - **엔드포인트의 겉은 그대로다(ADR-0015).** 기존 `DELETE /v1/sessions/{id}` 는 뜻만 소프트 삭제로 바뀌고 멱등 204 다. 더한 것은 `GET /v1/sessions/deleted`, `POST …/restore`, `DELETE …/report`, `POST …/report/restore` 와 응답 칸 `reportDeleted`, `deletedAt`, `purgeAt` 뿐이다.
 
 ## 버린 것

@@ -118,6 +118,7 @@ impl AppState {
             .map_err(ConnectError::Identity)?,
         );
         close_unfinished_turns(db.clone()).await;
+        purge_stale_memory(db.clone()).await;
         let usage: llm::SharedUsageSink = Arc::new(llm::PostgresUsageSink::spawn(db.clone()));
         let base = Services::with_usage(&config, usage);
         let judge = reply_judge(&config.judge, &base.text_model);
@@ -129,6 +130,9 @@ impl AppState {
             config.judge.candidates,
             config.judge.threshold,
             config.traces_turns(),
+            Arc::new(support::ModelMemoryExtractor(llm::MemoryExtract::new(
+                base.text_model.clone(),
+            ))),
         );
         Ok(AppState {
             services: Services {
@@ -181,6 +185,15 @@ async fn close_unfinished_turns(db: PgPool) {
     match support::fail_pending_turns(db, Utc::now()).await {
         Ok(closed) => tracing::info!(closed, "closed turns left pending by a restart"),
         Err(_) => tracing::warn!("could not close turns left pending by a restart"),
+    }
+}
+
+/// 마지막 대화가 보존 기간보다 오래된 계정의 기억을 지운다(ADR-0034). 지운 행 수만 로그에 남기고, 실패해도 기동은 잇는다
+/// (남은 기억은 다음 기동이 지운다).
+async fn purge_stale_memory(db: PgPool) {
+    match support::purge_stale_memory(db, Utc::now()).await {
+        Ok(purged) => tracing::info!(purged, "purged memory past its retention"),
+        Err(_) => tracing::warn!("could not purge memory past its retention"),
     }
 }
 

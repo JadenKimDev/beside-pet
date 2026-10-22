@@ -19,10 +19,11 @@ pub use flow::{
     HaikuReplyJudge, JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge,
     SystemOneReplyJudge, UnimplementedJudge,
 };
-pub use flow::{SupportFlow, fail_pending_turns, session_presence};
+pub use flow::{SupportFlow, fail_pending_turns, purge_stale_memory, session_presence};
 pub use memory::{
-    ExtractedFact, Extraction, GateInput, GateOutcome, GatedNote, MemoryNote, MemoryOptout,
-    MemoryStore, MemoryView, NewNote, NewPet, NoteKind, Pet, PetLink, PetStatus, SharedMemoryStore,
+    ExtractError, ExtractInput, ExtractedFact, Extraction, GateInput, GateOutcome, GatedNote,
+    MemoryExtractor, MemoryNote, MemoryOptout, MemoryStore, MemoryView, ModelMemoryExtractor,
+    NewNote, NewPet, NoteKind, Pet, PetLink, PetStatus, SharedMemoryExtractor, SharedMemoryStore,
     gate as gate_memory, parse_loss_type, pet_from_profile,
 };
 /// 발화 프롬프트의 기억 블록. 흐름이 매 턴 조립한다.

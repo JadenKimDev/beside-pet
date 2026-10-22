@@ -1,5 +1,5 @@
 //! 조립한 라우터(`app::router`)의 통합 테스트: 33개 경로의 존재, 없는 경로의 404, 검증 문구, 401·403·501, SSE, 응답의 새 칸,
-//! 실제 계정 구현과 DB 로 도는 로그아웃과 턴 저장(#19).
+//! 실제 계정 구현과 DB 로 도는 로그아웃과 턴 저장(#19), 기억의 저장(#38).
 //! 로그아웃 말고는 기능의 trait 에 테스트 더블을 끼우므로 기능 PRD 가 구현을 채워도 그대로 통과한다.
 
 #[path = "routes/harness.rs"]
@@ -32,6 +32,9 @@ mod turn_routes;
 
 #[path = "routes/resume.rs"]
 mod resume;
+
+#[path = "routes/remembering.rs"]
+mod remembering;
 
 use axum::http::{Method, StatusCode};
 use serde_json::{Value, json};

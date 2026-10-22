@@ -13,13 +13,14 @@ mod orchestrator;
 mod outside;
 mod parts;
 mod reattach;
+mod remembering;
 mod report;
 mod service;
 mod start;
 mod stream;
 mod voice;
 
-pub use adapters::{fail_pending_turns, session_presence};
+pub use adapters::{fail_pending_turns, purge_stale_memory, session_presence};
 pub use judge::{
     HaikuReplyJudge, JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge,
     SystemOneReplyJudge, Unimplemented as UnimplementedJudge,

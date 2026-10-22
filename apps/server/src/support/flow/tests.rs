@@ -11,6 +11,7 @@ mod judging;
 mod lifecycle;
 mod limits;
 mod reattach;
+mod remembering;
 mod registry;
 mod report;
 mod retry;

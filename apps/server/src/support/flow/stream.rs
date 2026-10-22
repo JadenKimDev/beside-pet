@@ -1,7 +1,7 @@
 //! 스트림 턴의 통로: 흐름이 이벤트를 보내는 `Emitter` 와, 흐름을 따로 돌려 그 이벤트를 `TurnStream` 으로 내는 `turn_stream`.
 //!
 //! 흐름이 끝나면 `done`(결과)이나 `cancelled`(중단)나 오류 하나를 마지막으로 보낸다. 받는 쪽이 떠나도 턴은 끝까지 돌아 저장된다.
-//! 흐름이 맡겨 둔 뒷일(답의 판정, ADR-0031)은 마지막 이벤트를 보낸 뒤에 돌고, 그것이 끝나야 줄이 닫힌다.
+//! 흐름이 맡겨 둔 뒷일(답의 판정 ADR-0031, 기억 추출 ADR-0034)은 마지막 이벤트를 보낸 뒤에 맡긴 순서대로 돌고, 모두 끝나야 줄이 닫힌다.
 
 use std::future::Future;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -20,7 +20,7 @@ const BUFFER: usize = 32;
 
 type Item = Result<StreamEvent, ApiError>;
 
-type After = Arc<Mutex<Option<BoxFuture<'static, ()>>>>;
+type After = Arc<Mutex<Vec<BoxFuture<'static, ()>>>>;
 
 pub struct Emitter {
     sender: mpsc::Sender<Item>,
@@ -33,9 +33,12 @@ impl Emitter {
         let _ = self.sender.send(Ok(event)).await;
     }
 
-    /// 마지막 이벤트를 보낸 뒤에 돌릴 일을 맡긴다(응답 지연에 더하지 않는다). 다시 맡기면 앞의 것을 바꾼다.
+    /// 마지막 이벤트를 보낸 뒤에 돌릴 일을 맡긴다(응답 지연에 더하지 않는다). 여럿이면 맡긴 순서대로 돈다.
     pub fn after_last(&self, work: impl Future<Output = ()> + Send + 'static) {
-        *self.after.lock().unwrap_or_else(PoisonError::into_inner) = Some(Box::pin(work));
+        self.after
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(Box::pin(work));
     }
 }
 
@@ -55,8 +58,8 @@ where
             Finished::Cancelled => StreamEvent::Cancelled,
         });
         let _ = sender.send(last).await;
-        let work = after.lock().unwrap_or_else(PoisonError::into_inner).take();
-        if let Some(work) = work {
+        let works = std::mem::take(&mut *after.lock().unwrap_or_else(PoisonError::into_inner));
+        for work in works {
             work.await;
         }
     });

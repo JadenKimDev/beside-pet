@@ -87,6 +87,9 @@ pub async fn fixture() -> Fixture {
             1,
             0.5,
             false,
+            Arc::new(support::ModelMemoryExtractor(
+                beside_pet_server::llm::MemoryExtract::new(model.clone()),
+            )),
         ),
         ..Services::unimplemented()
     });

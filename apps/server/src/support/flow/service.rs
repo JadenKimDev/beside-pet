@@ -15,6 +15,7 @@ use super::judging::Judging;
 use super::orchestrator::{Finished, greet, handle, new_turn_id, retry};
 use super::parts::FlowParts;
 use super::reattach::reattach;
+use super::remembering::{keep_profile_pet, remember_turn};
 use super::report::report;
 use super::start::create;
 use super::stream::turn_stream;
@@ -28,8 +29,8 @@ use crate::support::session::{Session, SessionError, TurnStatus};
 use crate::support::store::SessionStore;
 use crate::support::{
     MessageResponse, MindReportResponse, Requester, SendMessageRequest, SessionAnalysisResponse,
-    SessionListItemResponse, SessionStateResponse, SharedSupportService, StartSessionRequest,
-    SupportService, TurnResponse, TurnStream,
+    SessionListItemResponse, SessionStateResponse, SharedMemoryExtractor, SharedSupportService,
+    StartSessionRequest, SupportService, TurnResponse, TurnStream,
 };
 
 /// 목록이 돌려주는 최근 세션의 수(TS 의 `SESSION_LIST_LIMIT`).
@@ -52,7 +53,8 @@ impl SupportFlow {
     }
 
     /// 서버의 조립: Postgres 저장, 작업 디렉터리의 지식 파일, 계정 서비스의 대화 언어, 시스템 시계,
-    /// 설정이 고른 답 판정기(`judge`)와 동기 턴의 후보 수, 직전 답의 임계값, 턴 추적 여부(`Config::traces_turns`).
+    /// 설정이 고른 답 판정기(`judge`)와 동기 턴의 후보 수, 직전 답의 임계값, 턴 추적 여부(`Config::traces_turns`), 기억 추출기.
+    #[allow(clippy::too_many_arguments)] // 조립 한 곳의 칸들이라 묶을 구조체가 FlowParts 와 겹친다
     pub fn live(
         db: PgPool,
         model: SharedTextModel,
@@ -61,10 +63,12 @@ impl SupportFlow {
         candidates: u8,
         threshold: f32,
         trace_turns: bool,
+        extractor: SharedMemoryExtractor,
     ) -> SharedSupportService {
         Arc::new(SupportFlow::new(FlowParts {
             model,
             memory: super::adapters::memory_store(db.clone()),
+            extractor,
             sessions: Arc::new(SessionStore::new(db)),
             knowledge: KnowledgeBase::load(),
             languages: Arc::new(AccountLanguages(accounts)),
@@ -85,8 +89,20 @@ impl SupportFlow {
         voice: &Voice<'_>,
     ) -> Result<TurnResponse, ApiError> {
         let parts = self.parts.as_ref();
+        let profile = request.grief_profile.clone();
         let started = create(parts, requester, request).await?;
         parts.sessions.save(&started.session.snapshot()).await?;
+        if let Some(profile) = &profile {
+            let session = &started.session;
+            keep_profile_pet(
+                parts,
+                session.owner_id(),
+                session.id(),
+                profile,
+                session.started_at(),
+            )
+            .await;
+        }
         greet(parts, started.session, started.previous.as_ref(), voice).await
     }
 
@@ -100,7 +116,17 @@ impl SupportFlow {
         let turn_id = request.turn_id.unwrap_or_else(new_turn_id);
         let session = self.writable(requester, session_id, &turn_id).await?;
         let parts = self.parts.as_ref();
-        handle(parts, &self.turns, session, turn_id, &request.text, voice).await
+        let finished = handle(
+            parts,
+            &self.turns,
+            session,
+            turn_id.clone(),
+            &request.text,
+            voice,
+        )
+        .await?;
+        self.remember_after(&finished, session_id, &turn_id, voice);
+        Ok(finished)
     }
 
     async fn retry_failed(
@@ -111,7 +137,34 @@ impl SupportFlow {
         voice: &Voice<'_>,
     ) -> Result<Finished, ApiError> {
         let session = self.retriable(requester, session_id, turn_id).await?;
-        retry(self.parts.as_ref(), &self.turns, session, turn_id, voice).await
+        let finished = retry(self.parts.as_ref(), &self.turns, session, turn_id, voice).await?;
+        self.remember_after(&finished, session_id, turn_id, voice);
+        Ok(finished)
+    }
+
+    /// 답이 끝난 턴이면 그 사용자 발화의 기억 추출을 맡긴다(턴 지연에 더하지 않는다): 스트림은 마지막 이벤트 뒤에, 동기는 따로.
+    /// 중단한 턴은 맡기지 않는다. 위기 턴은 추출이 스스로 거른다.
+    fn remember_after(
+        &self,
+        finished: &Finished,
+        session_id: &str,
+        turn_id: &str,
+        voice: &Voice<'_>,
+    ) {
+        if !matches!(finished, Finished::Done(_)) {
+            return;
+        }
+        let work = remember_turn(
+            self.parts.clone(),
+            session_id.to_owned(),
+            turn_id.to_owned(),
+        );
+        match voice {
+            Voice::Streamed(out) => out.after_last(work),
+            Voice::Whole => {
+                tokio::spawn(work);
+            }
+        }
     }
 
     /// 답을 다시 받을 수 있는 세션: 있고, 요청자의 것이고, 그 턴이 실패했고, 열려 있다. 소유자의 대화 언어를 따른다.

@@ -27,10 +27,13 @@ use crate::support::knowledge::KnowledgeBase;
 use crate::support::rules::GriefProfile;
 use crate::support::session::{MessageActivity, SessionSnapshot};
 use crate::support::{
+    ExtractError, ExtractInput, Extraction, MemoryExtractor, MemoryNote, MemoryOptout, MemoryStore,
+    MemoryView, NewNote, NewPet, Pet,
+};
+use crate::support::{
     GriefPath, Requester, SendMessageRequest, StartSessionRequest, StreamEvent, SupportService,
     TurnStream,
 };
-use crate::support::{MemoryNote, MemoryOptout, MemoryStore, MemoryView, NewNote, NewPet, Pet};
 
 pub const SESSION_ID: &str = "s-1";
 pub const OWNER_ID: &str = "acct-owner";
@@ -490,6 +493,9 @@ impl SessionRepository for MemorySessions {
 #[derive(Default)]
 pub struct MemoryNotes {
     views: Mutex<HashMap<String, MemoryView>>,
+    /// 넣은 사실과 그때 무효화하라고 받은 옛 사실의 id(넣은 순서).
+    inserted: Mutex<Vec<(NewNote, Vec<String>)>>,
+    optouts: Mutex<Vec<MemoryOptout>>,
     /// 참이면 `view` 가 저장 오류를 낸다.
     failing: std::sync::atomic::AtomicBool,
 }
@@ -501,6 +507,24 @@ impl MemoryNotes {
 
     pub fn fail_reads(&self) {
         self.failing.store(true, Ordering::SeqCst);
+    }
+
+    /// 소유자의 지금 기억(아이와 사실).
+    pub fn view_of(&self, owner_id: &str) -> MemoryView {
+        self.views
+            .lock()
+            .unwrap()
+            .get(owner_id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn inserted(&self) -> Vec<(NewNote, Vec<String>)> {
+        self.inserted.lock().unwrap().clone()
+    }
+
+    pub fn optouts(&self) -> Vec<MemoryOptout> {
+        self.optouts.lock().unwrap().clone()
     }
 }
 
@@ -546,6 +570,10 @@ impl MemoryStore for MemoryNotes {
         note: &'a NewNote,
         supersedes: &'a [String],
     ) -> BoxFuture<'a, Result<MemoryNote, ApiError>> {
+        self.inserted
+            .lock()
+            .unwrap()
+            .push((note.clone(), supersedes.to_vec()));
         let mut views = self.views.lock().unwrap();
         let view = views.entry(note.owner_id.clone()).or_default();
         view.notes.retain(|row| !supersedes.contains(&row.id));
@@ -564,9 +592,60 @@ impl MemoryStore for MemoryNotes {
 
     fn record_optout<'a>(
         &'a self,
-        _optout: &'a MemoryOptout,
+        optout: &'a MemoryOptout,
     ) -> BoxFuture<'a, Result<(), ApiError>> {
+        self.optouts.lock().unwrap().push(optout.clone());
         Box::pin(async { Ok(()) })
+    }
+}
+
+/// 추출 한 번에 받은 것(본문은 지어낸 것이라 그대로 적는다).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtractCall {
+    pub utterance: String,
+    pub seq: i32,
+    pub language: String,
+    pub session_id: String,
+    pub notes: usize,
+}
+
+/// 정해 둔 추출을 내는 추출기. 정해 두지 않으면 빈 추출이다. 받은 입력을 적어 둔다.
+#[derive(Default)]
+pub struct ScriptedExtractor {
+    answer: Mutex<Option<Result<Extraction, ExtractError>>>,
+    calls: Mutex<Vec<ExtractCall>>,
+}
+
+impl ScriptedExtractor {
+    /// 이제부터 추출마다 `answer` 를 낸다.
+    pub fn answer(&self, answer: Result<Extraction, ExtractError>) {
+        *self.answer.lock().unwrap() = Some(answer);
+    }
+
+    pub fn calls(&self) -> Vec<ExtractCall> {
+        self.calls.lock().unwrap().clone()
+    }
+}
+
+impl MemoryExtractor for ScriptedExtractor {
+    fn extract<'a>(
+        &'a self,
+        input: ExtractInput<'a>,
+    ) -> BoxFuture<'a, Result<Extraction, ExtractError>> {
+        self.calls.lock().unwrap().push(ExtractCall {
+            utterance: input.utterance.to_owned(),
+            seq: input.seq,
+            language: input.language.to_owned(),
+            session_id: input.session_id.to_owned(),
+            notes: input.view.notes.len(),
+        });
+        let answer = self
+            .answer
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap_or_else(|| Ok(Extraction::default()));
+        Box::pin(async move { answer })
     }
 }
 
@@ -623,6 +702,7 @@ pub struct Harness {
     pub model: Arc<ScriptedModel>,
     pub sessions: Arc<MemorySessions>,
     pub memory: Arc<MemoryNotes>,
+    pub extractor: Arc<ScriptedExtractor>,
     /// 라우터가 남긴 모델 호출 기록(`llm_calls` 의 행).
     pub calls: Arc<InMemoryUsageSink>,
 }
@@ -681,6 +761,7 @@ impl Harness {
         let model = Arc::new(model);
         let sessions = Arc::new(MemorySessions::default());
         let memory = Arc::new(MemoryNotes::default());
+        let extractor = Arc::new(ScriptedExtractor::default());
         let calls = Arc::new(InMemoryUsageSink::default());
         let router = ModelRouter::new(
             ModelRef {
@@ -695,6 +776,7 @@ impl Harness {
             model: Arc::new(router),
             sessions: sessions.clone(),
             memory: memory.clone(),
+            extractor: extractor.clone(),
             knowledge: KnowledgeBase::from_json(KNOWLEDGE_JSON),
             languages: Arc::new(languages),
             clock: Arc::new(StepClock {
@@ -708,6 +790,7 @@ impl Harness {
             model,
             sessions,
             memory,
+            extractor,
             calls,
         }
     }

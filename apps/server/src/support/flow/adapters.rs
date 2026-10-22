@@ -177,7 +177,6 @@ pub fn memory_store(db: sqlx::PgPool) -> SharedMemoryStore {
 
 /// 기동 때 정리: 마지막 대화가 보존 기간(`MEMORY_RETENTION_MONTHS`)보다 오래된 계정의 기억(아이, 사실, 옵트아웃)을 지우고
 /// 지운 행 수를 돌려준다. 세션은 지우지 않는다.
-#[allow(dead_code)] // 기동의 호출(flow/mod.rs 재export 와 app.rs)은 S6 이 넣고 그때 이 줄을 지운다.
 pub async fn purge_stale_memory(db: sqlx::PgPool, at: DateTime<Utc>) -> Result<u64, ApiError> {
     PgMemoryStore::new(db)
         .purge_expired(at)

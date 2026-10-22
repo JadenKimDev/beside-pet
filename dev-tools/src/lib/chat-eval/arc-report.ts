@@ -7,6 +7,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+import type { MemoryCounts } from "./arc-db.ts";
 import type { ArcProbeRow, ArcSessionRun, SavedArc } from "./arc-run.ts";
 import { chatEvalDir, checkCounts, personaMarkdown, reachedTask, table } from "./report.ts";
 
@@ -74,9 +75,25 @@ export function crisisMismatch(run: ArcSessionRun): string | null {
   return null;
 }
 
+/** 종류를 보이는 순서. 서버의 `NoteKind` 일곱과 같고, 모르는 종류는 뒤에 이름 순으로 붙는다. */
+const KIND_ORDER = ["pet", "person", "object", "place", "date", "ritual", "preference"];
+
+/** "기억 행" 칸: `12 (pet 3, object 4; 옵트아웃 1)`. 기억 테이블이 없었으면 `-`. */
+export function memoryText(memory: MemoryCounts | null | undefined): string {
+  if (memory === null || memory === undefined) return "-";
+  const kinds = Object.keys(memory.byKind).sort((a, b) => {
+    const [ia, ib] = [KIND_ORDER.indexOf(a), KIND_ORDER.indexOf(b)];
+    if (ia !== ib) return (ia < 0 ? KIND_ORDER.length : ia) - (ib < 0 ? KIND_ORDER.length : ib);
+    return a.localeCompare(b);
+  });
+  const parts = kinds.filter((kind) => (memory.byKind[kind] ?? 0) > 0).map((kind) => `${kind} ${memory.byKind[kind]}`);
+  const detail = [parts.join(", "), memory.optouts > 0 ? `옵트아웃 ${memory.optouts}` : ""].filter((p) => p !== "");
+  return detail.length === 0 ? `${memory.total}` : `${memory.total} (${detail.join("; ")})`;
+}
+
 function sessionTable(sessions: ArcSessionRun[]): string[] {
   return table(
-    ["#", "라벨", "dayOffset", "밀린 날짜", "턴", "closedBy", "도달 과제", "검사 표시", "세션"],
+    ["#", "라벨", "dayOffset", "밀린 날짜", "턴", "closedBy", "도달 과제", "검사 표시", "기억 행", "세션"],
     sessions.map((run) => [
       run.index,
       run.label,
@@ -86,9 +103,20 @@ function sessionTable(sessions: ArcSessionRun[]): string[] {
       `${run.closedBy}${run.expectCrisis ? " (위기 기대)" : ""}`,
       reachedTask(run),
       flagCount(run),
+      memoryText(run.memory),
       `[s${run.index}](s${run.index}.md)`,
     ]),
   );
+}
+
+/** time_gap 의 경과 검사: `실제 30일, 어긋남: 3달(90일)` 꼴. 답에 경과 시간의 수가 없으면 그렇게 적는다. */
+function elapsedText(result: ArcProbeRow["result"]): string | null {
+  const { elapsed } = result;
+  if (elapsed === undefined) return null;
+  const said = (list: typeof elapsed.mentions) => list.map((m) => `${m.text}(${m.days}일)`).join(", ");
+  if (elapsed.mentions.length === 0) return `실제 ${elapsed.actualDays}일, 답에 경과 수 없음`;
+  if (elapsed.mismatched.length === 0) return `실제 ${elapsed.actualDays}일, 맞음: ${said(elapsed.mentions)}`;
+  return `실제 ${elapsed.actualDays}일, 어긋남: ${said(elapsed.mismatched)}`;
 }
 
 function outcomeText(probe: ArcProbeRow): string {
@@ -97,6 +125,7 @@ function outcomeText(probe: ArcProbeRow): string {
   const detail = [
     result.found.length > 0 ? `있음: ${result.found.join(", ")}` : null,
     result.rejected.length > 0 ? `금지 낱말: ${result.rejected.join(", ")}` : null,
+    elapsedText(result),
   ].filter((part) => part !== null);
   const mark = { pass: "✅", fail: "❌", manual: "👀", missing: "∅ 턴 없음" }[result.outcome];
   return `${mark} ${name}${detail.length > 0 ? ` (${detail.join("; ")})` : ""}`;
@@ -132,11 +161,12 @@ export function probeTally(probes: ArcProbeRow[]): Record<string, { pass: number
 }
 
 function summaryLines(saved: SavedArc): string[] {
-  const tally = Object.entries(probeTally(saved.probes)).map(([key, { pass, total }]) =>
-    key === "time_gap" || key === "after_crisis"
-      ? `- ${key}: ${total}건 (사람 판정)`
-      : `- ${key}: ${pass}/${total} 통과`,
-  );
+  const gapFails = saved.probes.filter((p) => p.type === "time_gap" && p.result.outcome === "fail").length;
+  const tally = Object.entries(probeTally(saved.probes)).map(([key, { pass, total }]) => {
+    if (key === "time_gap") return `- time_gap: ${total}건 (사람 판정, 경과 일수 어긋남 ${gapFails}건)`;
+    if (key === "after_crisis") return `- ${key}: ${total}건 (사람 판정)`;
+    return `- ${key}: ${pass}/${total} 통과`;
+  });
   const mismatches = saved.sessions.flatMap((run) => {
     const text = crisisMismatch(run);
     return text === null ? [] : [`- s${run.index}: ${text}`];

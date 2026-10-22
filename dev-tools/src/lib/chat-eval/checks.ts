@@ -327,3 +327,99 @@ export function checkSession(input: SessionInput): Flag[] {
     ...pronounFlip(input.turns),
   ];
 }
+
+// ── 경과 일수(장기기억 실측의 time_gap probe) ──
+
+/** 답에서 찾은 경과 시간 하나. `days` 는 그 말을 날로 바꾼 값, `unitDays` 는 단위(일 1, 주 7, 달 30, 해 365). */
+export type ElapsedMention = { text: string; days: number; unitDays: number };
+
+const KO_NUMERALS: Record<string, number> = {
+  한: 1,
+  두: 2,
+  세: 3,
+  석: 3,
+  네: 4,
+  넉: 4,
+  다섯: 5,
+  여섯: 6,
+  일곱: 7,
+  여덟: 8,
+  아홉: 9,
+  열: 10,
+};
+const EN_NUMERALS: Record<string, number> = {
+  a: 1,
+  an: 1,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+/** 수가 낱말 안에 있는 한국어 날 수. "하루"는 "하루하루", "하루를 보내다" 로 흔히 쓰여 넣지 않는다. */
+const KO_DAY_WORDS: Record<string, number> = { 이틀: 2, 사흘: 3, 나흘: 4, 열흘: 10, 보름: 15 };
+
+const KO_UNITS: Record<string, number> = { 일: 1, 주일: 7, 주: 7, 달: 30, 개월: 30, 년: 365 };
+const EN_UNITS: Record<string, number> = { day: 1, week: 7, fortnight: 14, month: 30, year: 365 };
+
+// 한국어 "N일" 은 숫자일 때만 센다("한 일" 은 "한 일(a thing done)" 과 섞인다). 주·달·개월·년은 수사도 받는다.
+// 날짜("10월 3일")의 일과 연도("2026년")는 경과가 아니라 뺀다. "N일째", "N개월 전" 은 경과로 센다.
+const KO_DIGIT = /(?<![\d.]|월\s*)(\d{1,3})\s*(주일|개월|일|주|달|년)/g;
+const KO_WORD = new RegExp(
+  `(?<![가-힣])(${Object.keys(KO_NUMERALS)
+    .sort((a, b) => b.length - a.length)
+    .join("|")})\\s*(주일|개월|주|달|년)`,
+  "g",
+);
+const KO_DAY_WORD = new RegExp(`(${Object.keys(KO_DAY_WORDS).join("|")})`, "g");
+const KO_ONE_WEEK = /일주일/g;
+const EN_MENTION = new RegExp(
+  `\\b(\\d+|${Object.keys(EN_NUMERALS).join("|")})[\\s-]+(day|week|fortnight|month|year)s?\\b`,
+  "gi",
+);
+
+/** 답에 있는 경과 시간의 말(일·주·달·해 단위). 수가 없는 "몇 달", "오랜만" 은 세지 않는다. */
+export function elapsedMentions(answer: string): ElapsedMention[] {
+  const out: ElapsedMention[] = [];
+  const add = (text: string, count: number, unitDays: number) => out.push({ text, days: count * unitDays, unitDays });
+  for (const m of answer.matchAll(KO_ONE_WEEK)) add(m[0], 1, 7);
+  const withoutWeek = answer.replace(KO_ONE_WEEK, " ");
+  for (const m of withoutWeek.matchAll(KO_DIGIT)) add(m[0], Number(m[1]), KO_UNITS[m[2] as string] as number);
+  for (const m of withoutWeek.matchAll(KO_WORD)) {
+    add(m[0], KO_NUMERALS[m[1] as string] as number, KO_UNITS[m[2] as string] as number);
+  }
+  for (const m of withoutWeek.matchAll(KO_DAY_WORD)) add(m[0], KO_DAY_WORDS[m[1] as string] as number, 1);
+  for (const m of answer.matchAll(EN_MENTION)) {
+    const word = (m[1] as string).toLowerCase();
+    // "one day" 는 "언젠가" 로, "a day" 는 "하루하루" 로 흔히 쓰여 경과로 세지 않는다.
+    if ((word === "one" || word === "a") && (m[2] as string).toLowerCase() === "day") continue;
+    const count = /^\d+$/.test(word) ? Number(word) : (EN_NUMERALS[word] as number);
+    add(m[0], count, EN_UNITS[(m[2] as string).toLowerCase()] as number);
+  }
+  return out;
+}
+
+/** 허용 오차(날). 일 단위는 ±1일, 그보다 큰 단위는 반 단위 + 1일(“3주” 는 20~22일이 아니라 17~25일을 받는다). */
+export function elapsedTolerance(unitDays: number): number {
+  return unitDays === 1 ? 1 : unitDays / 2 + 1;
+}
+
+/** 경과 시간의 말이 실제 경과 일수와 맞는가. */
+export function elapsedMatches(mention: ElapsedMention, actualDays: number): boolean {
+  return Math.abs(mention.days - actualDays) <= elapsedTolerance(mention.unitDays);
+}
+
+export type ElapsedCheck = { actualDays: number; mentions: ElapsedMention[]; mismatched: ElapsedMention[] };
+
+/** 답의 경과 시간 말을 실제 경과 일수(궤적의 앞 세션부터 이번 세션까지)에 대 본다. */
+export function checkElapsed(answer: string, actualDays: number): ElapsedCheck {
+  const mentions = elapsedMentions(answer);
+  return { actualDays, mentions, mismatched: mentions.filter((mention) => !elapsedMatches(mention, actualDays)) };
+}

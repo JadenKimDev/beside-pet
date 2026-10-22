@@ -2,12 +2,16 @@
 //
 // - 궤적은 한 인물의 세션 여럿이다. 첫 세션만 프로필을 보내고 나머지는 재개(프로필 없음)로 시작한다.
 // - `dayOffset` 은 첫 세션(0)부터의 날 수이고 줄지 않는다. 도구는 마지막 세션이 오늘이 되도록 세션마다 DB 의 시각을
-//   `dayOffset − max` 일만큼 민다(`shiftDaysOf`). 밀기 자체는 `arc-db.ts` 가 한다.
-// - probe 는 그 세션 그 턴의 답을 낱말로 대 본다(`checkProbe`). `time_gap`, `after_crisis` 는 사람이 판정한다.
+//   `dayOffset − max` 일만큼 민다(`shiftDaysOf`). 밀기 자체는 `arc-db.ts` 가 한다. 한 번에 밀지 않고 세션이 끝날 때마다
+//   그때까지의 세션 전부를 다음 세션까지의 간격만큼 민다(`shiftStepAfter`). 다음 세션이 열릴 때 서버가 보는 경과가 궤적의
+//   간격과 같아야 하기 때문이다(한 번에 밀면 둘째 세션이 첫 세션과 `max` 일 떨어진 것으로 보인다). 끝난 뒤의 시각은 같다.
+// - probe 는 그 세션 그 턴의 답을 낱말로 대 본다(`checkProbe`). `time_gap`, `after_crisis` 는 사람이 판정한다. 다만 `time_gap`
+//   의 답에 경과 시간의 수(일·주·달)가 있으면 앞 세션부터의 간격과 어긋나는지 기계가 보고, 어긋나면 fail 이다.
 
 import { readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
+import { checkElapsed, type ElapsedCheck } from "./checks.ts";
 import {
   fail,
   type GriefProfile,
@@ -180,6 +184,25 @@ export function shiftDaysOf(sessions: readonly { dayOffset: number }[]): number[
   return sessions.map((session) => session.dayOffset - max);
 }
 
+/**
+ * 세션 `index` 가 끝난 뒤 그때까지의 세션 전부를 밀 날 수(0 이하): 다음 세션까지의 간격의 음수. 마지막 세션 뒤는 0.
+ * 세션마다 이 값을 더하면 `shiftDaysOf` 와 같다.
+ */
+export function shiftStepAfter(sessions: readonly { dayOffset: number }[], index: number): number {
+  const next = sessions[index + 1];
+  const current = sessions[index];
+  if (next === undefined || current === undefined) return 0;
+  return current.dayOffset - next.dayOffset;
+}
+
+/** 세션 `index` 가 열릴 때 앞 세션부터 지난 날 수. 첫 세션은 null. */
+export function gapDaysBefore(sessions: readonly { dayOffset: number }[], index: number): number | null {
+  const previous = sessions[index - 1];
+  const current = sessions[index];
+  if (previous === undefined || current === undefined) return null;
+  return current.dayOffset - previous.dayOffset;
+}
+
 const DAY_MS = 86_400_000;
 
 /** 시각 `at` 을 `days` 일 민 시각. */
@@ -210,19 +233,26 @@ export type ProbeResult = {
   found: string[];
   /** 답에 있던 reject 낱말. */
   rejected: string[];
+  /** time_gap 에서 앞 세션이 있을 때만: 답의 경과 시간 말과 실제 간격. */
+  elapsed?: ElapsedCheck;
 };
 
 const contains = (answer: string, word: string): boolean => answer.toLowerCase().includes(word.toLowerCase());
 
 /**
  * probe 하나를 답에 대 본다. expect 는 하나라도 있으면 되고, reject 는 하나도 없어야 한다.
- * `answer` 가 null 이면(그 턴까지 가지 못함) missing 이다.
+ * `answer` 가 null 이면(그 턴까지 가지 못함) missing 이다. `gapDays` 는 앞 세션부터의 날 수이고(첫 세션은 null),
+ * time_gap 에서 답의 경과 시간 말이 그와 어긋나면 fail, 아니면 사람 판정(manual)이다.
  */
-export function checkProbe(probe: Probe, answer: string | null): ProbeResult {
+export function checkProbe(probe: Probe, answer: string | null, gapDays: number | null = null): ProbeResult {
   const check = PROBE_CHECK[probe.type] ?? null;
   if (answer === null) return { check, outcome: "missing", found: [], rejected: [] };
   const found = (probe.expect ?? []).filter((word) => contains(answer, word));
   const rejected = (probe.reject ?? []).filter((word) => contains(answer, word));
+  if (probe.type === "time_gap" && gapDays !== null) {
+    const elapsed = checkElapsed(answer, gapDays);
+    return { check, outcome: elapsed.mismatched.length > 0 ? "fail" : "manual", found, rejected, elapsed };
+  }
   if (check === null) return { check, outcome: "manual", found, rejected };
   const expectOk = probe.expect === undefined || found.length > 0;
   return { check, outcome: expectOk && rejected.length === 0 ? "pass" : "fail", found, rejected };

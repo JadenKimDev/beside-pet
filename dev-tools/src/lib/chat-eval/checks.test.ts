@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  checkElapsed,
   checkSession,
   checkTurn,
   echoedOpening,
+  elapsedMentions,
   endsWithExampleTail,
   type Flag,
   genericRate,
@@ -203,4 +205,40 @@ test("genericRate: 라벨이 있는 턴 가운데 generic_comfort 의 비율, �
 test("genericRate: 라벨이 하나도 없거나 턴이 없으면 null", () => {
   assert.equal(genericRate([undefined, undefined]), null);
   assert.equal(genericRate([]), null);
+});
+
+const days = (answer: string) => elapsedMentions(answer).map((m) => m.days);
+
+test("elapsedMentions: 일·주·달·해 단위의 수를 날로 바꾼다", () => {
+  assert.deepEqual(days("3일 만이에요"), [3]);
+  assert.deepEqual(days("일주일 만이네요"), [7]);
+  assert.deepEqual(days("2주가 지났어요"), [14]);
+  assert.deepEqual(days("석 달 만이에요"), [90]);
+  // 숫자 말을 먼저, 수사 말을 뒤에 센다.
+  assert.deepEqual(days("두 달, 그리고 3개월"), [90, 60]);
+  assert.deepEqual(days("이틀 전"), [2]);
+  assert.deepEqual(days("보름쯤"), [15]);
+  assert.deepEqual(days("It has been three weeks."), [21]);
+  assert.deepEqual(days("about 2 months"), [60]);
+  assert.deepEqual(days("a month ago"), [30]);
+});
+
+test("elapsedMentions: 수가 없거나 날짜·연도·관용구면 세지 않는다", () => {
+  assert.deepEqual(days("오랜만이에요. 몇 달이 흘렀네요."), []);
+  assert.deepEqual(days("10월 3일에 보냈다고 하셨죠"), []);
+  assert.deepEqual(days("2026년 봄"), []);
+  assert.deepEqual(days("하루하루가 길었겠어요"), []);
+  assert.deepEqual(days("One day at a time."), []);
+  assert.deepEqual(days("한 일이 많았네요"), []);
+});
+
+test("checkElapsed: 일은 ±1일, 큰 단위는 반 단위 + 1일까지 받는다", () => {
+  assert.deepEqual(checkElapsed("3일 만이에요", 4).mismatched, []);
+  assert.equal(checkElapsed("3일 만이에요", 5).mismatched.length, 1);
+  assert.deepEqual(checkElapsed("석 달 만이에요", 92).mismatched, []);
+  assert.deepEqual(checkElapsed("2주 만이에요", 10).mismatched, []);
+  assert.equal(checkElapsed("2주 만이에요", 30).mismatched.length, 1);
+  assert.equal(checkElapsed("일주일 만이에요", 90).mismatched.length, 1);
+  const none = checkElapsed("오랜만이에요", 90);
+  assert.deepEqual([none.actualDays, none.mentions, none.mismatched], [90, [], []]);
 });

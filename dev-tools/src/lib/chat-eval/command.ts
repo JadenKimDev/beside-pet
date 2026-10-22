@@ -6,7 +6,7 @@ import { join, relative } from "node:path";
 
 import { arcsDir, loadArc } from "./arc.ts";
 import { openSandboxDb } from "./arc-db.ts";
-import { ARC_USAGE, arcDir, parseArcArgs, saveArc, saveArcSession } from "./arc-report.ts";
+import { ARC_USAGE, arcDir, memoryText, parseArcArgs, saveArc, saveArcSession } from "./arc-report.ts";
 import { resetQaSessions, runArc } from "./arc-run.ts";
 import { createClient, loadQaAccount } from "./client.ts";
 import { loadPersona, loadPersonas, personasDir } from "./persona.ts";
@@ -108,6 +108,7 @@ async function chatEvalArc(root: string, args: string[]): Promise<void> {
           .map(([table, count]) => `${table} ${count}`)
           .join(", ");
         console.log(`  closedBy ${run.closedBy}  → ${run.shiftedDate} (${run.shiftDays}일: ${moved})`);
+        console.log(`  기억 행 ${memoryText(run.memory)}`);
       },
     });
     console.log(`\n→ ${relative(root, saveArc(out, saved))}`);

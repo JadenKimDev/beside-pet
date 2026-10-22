@@ -4,11 +4,20 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { checkProbe, loadArc, type Probe, parseArc, shiftDaysOf, shiftedAt } from "./arc.ts";
-import { databaseUrlFromEnvText, isSandboxUrl, sandboxDatabaseUrl } from "./arc-db.ts";
-import { arcDir, crisisMismatch, parseArcArgs, probeTally } from "./arc-report.ts";
-import type { ArcProbeRow, ArcSessionRun } from "./arc-run.ts";
-import { probeRows, sessionPersona } from "./arc-run.ts";
+import {
+  checkProbe,
+  gapDaysBefore,
+  loadArc,
+  type Probe,
+  parseArc,
+  shiftDaysOf,
+  shiftedAt,
+  shiftStepAfter,
+} from "./arc.ts";
+import { databaseUrlFromEnvText, isSandboxUrl, MEMORY_COUNT_QUERIES, sandboxDatabaseUrl } from "./arc-db.ts";
+import { arcDir, arcMarkdown, crisisMismatch, memoryText, parseArcArgs, probeTally } from "./arc-report.ts";
+import type { ArcProbeRow, ArcSessionRun, SavedArc } from "./arc-run.ts";
+import { extractableTurns, probeRows, sessionPersona } from "./arc-run.ts";
 import type { TurnRecord } from "./runner.ts";
 
 const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -250,4 +259,73 @@ test("결과 폴더는 outputs/chat-eval/<날짜>[-<라벨>]/arc-<이름>", () =
     arcDir("/r", "2026-10-22", "v2", "smoke", {}),
     join("/r", "outputs", "chat-eval", "2026-10-22-v2", "arc-smoke"),
   );
+});
+
+test("세션마다 미는 날 수를 더하면 한 번에 미는 날 수와 같고, 다음 세션은 궤적의 간격만큼 떨어져 열린다", () => {
+  const sessions = [{ dayOffset: 0 }, { dayOffset: 30 }, { dayOffset: 90 }];
+  const steps = sessions.map((_, index) => shiftStepAfter(sessions, index));
+  assert.deepEqual(steps, [-30, -60, 0]);
+  // 세션 j 는 j 뒤의 모든 단계에서 함께 밀린다.
+  const totals = sessions.map((_, j) => steps.slice(j).reduce((sum, step) => sum + step, 0));
+  assert.deepEqual(totals, shiftDaysOf(sessions));
+  // 둘째 세션이 열릴 때(첫 단계 뒤) 첫 세션은 30일 전에 있다. 한 번에 밀었다면 90일 전이었다.
+  assert.equal(steps[0], -30);
+  assert.deepEqual(
+    sessions.map((_, index) => gapDaysBefore(sessions, index)),
+    [null, 30, 60],
+  );
+});
+
+test("time_gap: 답의 경과 수가 앞 세션부터의 간격과 어긋나면 fail, 맞거나 없으면 사람 판정", () => {
+  const probe: Probe = { turn: 1, type: "time_gap" };
+  assert.equal(checkProbe(probe, "석 달 만이네요. 다시 와 주셔서 반가워요.", 90).outcome, "manual");
+  const wrong = checkProbe(probe, "일주일 만이네요.", 90);
+  assert.equal(wrong.outcome, "fail");
+  assert.deepEqual(
+    wrong.elapsed?.mismatched.map((m) => m.days),
+    [7],
+  );
+  assert.equal(checkProbe(probe, "오랜만이에요.", 90).outcome, "manual");
+  assert.deepEqual(checkProbe(probe, "오랜만이에요.", 90).elapsed?.mentions, []);
+  // 첫 세션(간격 없음)은 검사하지 않는다.
+  assert.equal(checkProbe(probe, "일주일 만이네요.", null).elapsed, undefined);
+  const arc = parse({});
+  const session = arc.sessions[1];
+  assert.ok(session);
+  const [row] = probeRows(1, session, [turn(1, "두 달이 지났네요")], 30);
+  assert.equal(row?.result.outcome, "fail");
+  assert.ok(row);
+  const saved: SavedArc = {
+    arc,
+    baseUrl: "http://127.0.0.1:3000",
+    startedAt: "2026-10-22T00:00:00.000Z",
+    resetDeleted: null,
+    sessions: [],
+    probes: [row],
+  };
+  const md = arcMarkdown(saved);
+  assert.match(md, /time_gap: 1건 \(사람 판정, 경과 일수 어긋남 1건\)/);
+  assert.match(md, /실제 30일, 어긋남: 두 달\(60일\)/);
+});
+
+test("기억 행 칸은 건수만: 종류는 서버의 순서로, 옵트아웃은 있을 때만, 테이블이 없으면 -", () => {
+  assert.equal(memoryText(null), "-");
+  assert.equal(memoryText(undefined), "-");
+  assert.equal(memoryText({ total: 0, byKind: {}, optouts: 0 }), "0");
+  assert.equal(
+    memoryText({ total: 12, byKind: { object: 4, pet: 3, ritual: 2, place: 3 }, optouts: 1 }),
+    "12 (pet 3, object 4, place 3, ritual 2; 옵트아웃 1)",
+  );
+  assert.equal(memoryText({ total: 0, byKind: {}, optouts: 2 }), "0 (옵트아웃 2)");
+});
+
+test("기억 건수 쿼리는 본문 칸(memory_notes.text, pets.name)을 고르지 않는다", () => {
+  for (const sql of MEMORY_COUNT_QUERIES) {
+    assert.doesNotMatch(sql, /\btext\b|\bname\b|\bpets\b|SELECT \*|\.\*/i, sql);
+  }
+});
+
+test("기억을 추출할 턴은 답이 있고 위기가 아닌 턴이다", () => {
+  const crisis = { ...turn(3, "고정 안내"), supportLevel: 3 };
+  assert.equal(extractableTurns([turn(1, "답"), turn(2, " "), crisis]), 1);
 });

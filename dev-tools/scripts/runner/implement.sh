@@ -19,6 +19,11 @@
 
 set -Eeuo pipefail
 
+# 댓글·요약 조립 함수(shown, resume_hint, blocked_comment, summary_*). 이 스크립트의 디렉터리 기준으로 읽는다.
+# lib.sh 는 shellcheck 에 따로 넘겨 검사한다(검증 명령). 여기서는 따라가지 않는다.
+# shellcheck disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
 ISSUE="${1:-}"
 [[ "$ISSUE" =~ ^[0-9]+$ ]] || { sed -n '2,4p' "$0" >&2; exit 2; }
 
@@ -45,9 +50,6 @@ FINISHED=0
 
 log() { echo "[runner #$ISSUE $(date +%H:%M:%S)] $*"; }
 
-# 공개 이슈에 싣는 경로. 이 Mac 의 홈(사용자 이름)을 ~ 로 가린다.
-shown() { local p="$1"; if [ -n "${HOME:-}" ] && [ "${p#"$HOME"}" != "$p" ]; then p="~${p#"$HOME"}"; fi; printf '%s' "$p"; }
-
 # 댓글을 단다. 작업 대장 CLI 가 먼저이고, 그것이 실패하면 gh 로 바로 단다.
 comment() {
   local file="$1"
@@ -73,40 +75,35 @@ comment_text() {
   rm -f "$f"
 }
 
-# 사람이 이어 하는 법. 댓글 끝에 붙인다.
-resume_hint() {
-  # 워크트리가 아직 없으면(원장 확인에서 막힘) cd 할 곳이 없으니 wt:pane 만 안내한다.
-  local how="\`pnpm wt:pane $ISSUE\`"
-  if [ -n "${WT_PATH:-}" ]; then how="$how 또는 \`cd $(shown "$WT_PATH") && HARNESS_IMPL=$ISSUE claude '/implement-prd $ISSUE'\`"; fi
-  printf '%s\n' "" "**이어 하기**: 이 Mac 에서 $how." \
-    "고친 뒤 다시 돌리려면 라벨 \`run:again\` 을 붙인다. 러너 로그: \`outputs/runner/$ISSUE/$STAMP*.log\` (러너 호스트 $(hostname -s))."
-}
-
-# 막혔다: 이유를 댓글로 남기고 run:blocked 를 붙인다. 댓글이나 라벨이 실패해도 끝까지 간다.
-block() {
-  local reason="$1"; shift
+# 막힘을 이슈에 알린다: 댓글과 run:blocked. 댓글이나 라벨이 실패해도 끝까지 간다. 종료 코드는 부르는 쪽이 정한다.
+report_blocked() {
   FINISHED=1
-  log "막힘: $reason"
   local f; f="$(mktemp "$LOG_DIR/comment.XXXXXX")"
-  {
-    echo "### 러너: 막혔습니다 (#$ISSUE)"
-    echo ""
-    echo "$reason"
-    if [ "$#" -gt 0 ]; then echo ""; printf -- '- %s\n' "$@"; fi
-    resume_hint
-  } > "$f"
+  blocked_comment "$@" > "$f"
   if comment "$f"; then rm -f "$f"; else log "막힘 댓글을 달지 못했습니다: $f 에 남겨 둡니다"; fi
   relabel run:blocked run:implement,run:again || log "run:blocked 라벨을 붙이지 못했습니다"
-  exit 1
 }
 
-# 어떤 외부 명령이든 예상하지 못하게 실패하면 여기로 온다.
+# 막혔다: 설계된 결과라 Actions 에서는 success(종료 코드 0)로 끝내고, 이유는 댓글과 실행 요약에 남긴다.
+block() {
+  log "막힘: $1"
+  summary_blocked "$@"
+  report_blocked "$@"
+  exit 0
+}
+
+# 어떤 외부 명령이든 예상하지 못하게 실패하면 여기로 온다. 러너가 터진 것이라 failure(종료 코드 1)로 끝낸다.
 on_error() {
   local code=$? line="$1" cmd="$2"
   trap - ERR
   set +e
   if [ "$FINISHED" = 1 ]; then exit "$code"; fi
-  block "러너 스크립트가 실패했습니다 (종료 코드 $code, implement.sh $line 행)." "실패한 명령: \`${cmd:0:200}\`"
+  # $( ) 같은 하위 셸에서 난 실패는 부모 셸의 ERR 트랩이 다시 잡아 보고하므로 여기서는 종료 코드만 넘긴다.
+  if [ "$BASH_SUBSHELL" -gt 0 ]; then exit "$code"; fi
+  log "고장: implement.sh $line 행 (종료 코드 $code)"
+  summary_broken "$line" "$cmd" "$code"
+  report_blocked "러너 스크립트가 실패했습니다 (종료 코드 $code, implement.sh $line 행)." "실패한 명령: \`${cmd:0:200}\`"
+  exit 1
 }
 trap 'on_error "$LINENO" "$BASH_COMMAND"' ERR
 
@@ -287,4 +284,5 @@ FINISHED=1
 comment "$REPORT"
 attach_screenshots || true
 relabel review:ready run:implement,run:again,run:blocked
+summary_ready "$SHA"
 log "끝: review:ready"

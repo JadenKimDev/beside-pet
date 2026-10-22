@@ -4,6 +4,7 @@
 mod api;
 mod flow;
 mod knowledge;
+mod memory;
 mod prompt;
 mod request;
 mod response;
@@ -19,6 +20,13 @@ pub use flow::{
     SystemOneReplyJudge, UnimplementedJudge,
 };
 pub use flow::{SupportFlow, fail_pending_turns, session_presence};
+pub use memory::{
+    ExtractedFact, Extraction, GateInput, GateOutcome, GatedNote, MemoryNote, MemoryOptout,
+    MemoryStore, MemoryView, NewNote, NewPet, NoteKind, Pet, PetLink, PetStatus, SharedMemoryStore,
+    gate as gate_memory, parse_loss_type, pet_from_profile,
+};
+/// 발화 프롬프트의 기억 블록. 흐름이 매 턴 조립한다.
+pub use prompt::memory_block;
 pub use request::{
     DailyStateRequest, EatingState, GriefPath, GriefProfileRequest, LossType, SendMessageRequest,
     Situation, SleepState, StartSessionRequest, TogetherRange,

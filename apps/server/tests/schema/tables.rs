@@ -142,7 +142,8 @@ async fn purpose_and_outcome_are_closed_sets() {
 async fn accounts_has_a_nullable_tokens_valid_from() {
     let schema = TestSchema::open().await;
     let got = columns(&schema, "accounts").await;
-    assert_eq!(got.last().map(String::as_str), Some("tokens_valid_from"));
+    // #42 의 deleted_at 이 그 뒤에 붙는다(soft_delete.rs 가 본다).
+    assert_eq!(&got[got.len() - 2..], ["tokens_valid_from", "deleted_at"]);
     let row = sqlx::query(
         "SELECT data_type::text, is_nullable::text FROM information_schema.columns \
          WHERE table_schema = $1 AND table_name = 'accounts' AND column_name = 'tokens_valid_from'",

@@ -21,3 +21,6 @@ mod turn_trace;
 
 #[path = "schema/memory.rs"]
 mod memory;
+
+#[path = "schema/soft_delete.rs"]
+mod soft_delete;

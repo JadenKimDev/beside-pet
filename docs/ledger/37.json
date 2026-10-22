@@ -40,13 +40,13 @@
       ],
       "tdd": true,
       "red_at": "2026-10-22T01:30:28.021Z",
-      "status": "doing",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
       "started_at": "2026-10-22T01:27:31.542Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-22T01:30:56.956Z",
+      "active_ms": 205414,
+      "verify_ms": 9420
     },
     {
       "id": "S3",
@@ -60,14 +60,14 @@
         "dev-tools/scripts/cargo.sh test -p beside-pet-server -- rules::turn_style"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "doing",
-      "passes": false,
+      "red_at": "2026-10-22T01:30:55.938Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
       "started_at": "2026-10-22T01:27:31.846Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-22T01:31:55.335Z",
+      "active_ms": 263489,
+      "verify_ms": 3503
     },
     {
       "id": "S4",

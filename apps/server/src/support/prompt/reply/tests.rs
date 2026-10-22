@@ -4,7 +4,7 @@ use chrono::{TimeZone, Utc};
 
 use super::{
     HISTORY_WINDOW, PROMPT_VERSION, PreviousSession, ReplyContext, reply_messages,
-    reply_system_prompt,
+    reply_prompt_blocks, reply_system_prompt,
 };
 use crate::identity::ChatLanguage;
 use crate::llm::{PromptMessage, PromptRole};
@@ -65,7 +65,12 @@ fn chunk(source: &str, content: &str) -> KnowledgeChunk {
     }
 }
 
-const IDENTITY: &str = "You are someone a grieving pet owner is talking with. Speak like a thoughtful person, not like a script.";
+const IDENTITY: &str = "You are one particular person keeping a grieving pet owner company, not a service and not a script. You are not a counselor or therapist and never act like one. You speak little and plainly, sometimes with a dry, gentle humor. You trust silence and do not fill it. You do not explain people's feelings to them or tell them what their feelings mean; you say what you notice.";
+/// 정체 문장 안의 면책 부정형. ADR-0003 이 허락하는 유일한 금지어 자리다.
+const NOT_A_COUNSELOR: &str = "You are not a counselor or therapist and never act like one.";
+const STYLE: &str = "Talk the way people speak aloud: vary your sentence endings, and use concrete nouns and plain verbs.";
+const PRONOUN_KO: &str = "When the user writes 저/제/나/내, that is the user, not you; when you refer back to them, use a form of address that fits how you two have been talking, or drop the pronoun.";
+const PRONOUN_EN: &str = "\"I\", \"me\", and \"my\" in the user's message are the user, not you; when you refer back to them, say \"you\".";
 const NO_INVENTING: &str = "Never invent details about the pet that the user has not mentioned (its looks, habits, or moments together).";
 
 fn phase_guidance(prompt: &str) -> &str {
@@ -76,8 +81,8 @@ fn phase_guidance(prompt: &str) -> &str {
 }
 
 #[test]
-fn the_prompt_version_is_0_2_0() {
-    assert_eq!(PROMPT_VERSION, "0.3.0");
+fn the_prompt_version_is_0_4_0() {
+    assert_eq!(PROMPT_VERSION, "0.4.0");
 }
 
 #[test]
@@ -92,6 +97,8 @@ fn the_system_prompt_is_the_identity_and_style_text_with_grounding() {
         "Vary how you begin and end each reply.",
         "Ask at most one question, and only when it helps. A reply does not have to end with a question.",
         NO_INVENTING,
+        STYLE,
+        PRONOUN_KO,
         "Current phase guidance: Pick up what the user just said and go one layer deeper — do not switch topics.",
         "Ground your words in the following verified grief theory, but never quote or cite it:\n- (출처A) 내용A\n- (출처B) 내용B",
         "For this reply: Refer to what they said in your own words; do not open by repeating their sentence.",
@@ -208,16 +215,18 @@ fn without_knowledge_or_previous_the_phase_guidance_comes_just_before_the_style_
     ctx.language = ChatLanguage::En;
     let prompt = reply_system_prompt(&ctx);
     let lines: Vec<&str> = prompt.lines().collect();
-    assert_eq!(lines.len(), 9);
+    assert_eq!(lines.len(), 11);
     assert_eq!(
         lines[1],
         "The pet's name is \"보리\". Respond ONLY in English."
     );
+    assert_eq!(lines[7], STYLE);
+    assert_eq!(lines[8], PRONOUN_EN);
     assert_eq!(
-        lines[7],
+        lines[9],
         "Current phase guidance: Acknowledge what they shared today and close warmly. Do not ask a new question."
     );
-    assert_eq!(lines[8], ctx.turn_style.instruction());
+    assert_eq!(lines[10], ctx.turn_style.instruction());
 }
 
 #[test]
@@ -369,5 +378,167 @@ fn when_the_model_speaks_first_a_phase_seed_ends_the_request() {
             role: PromptRole::User,
             text: "(Please continue.)".to_owned()
         }
+    );
+}
+
+/// ADR-0003 의 금지어. 영어 지시문은 면책 부정형 한 자리만 허락하고, 한국어 낱말은 어디에도 두지 않는다.
+const ADR_0003_WORDS: [&str; 11] = [
+    "counsel",
+    "therap",
+    "treatment",
+    "clinical",
+    "diagnos",
+    "cure",
+    "patient",
+    "상담",
+    "치료",
+    "테라피",
+    "환자",
+];
+
+/// 페르소나의 이름, 직업, 나이, 자기 반려동물, 자기 경험담을 뜻하는 낱말(사용자 결정 2026-10-22).
+const PERSONAL_HISTORY_WORDS: [&str; 22] = [
+    "my name",
+    "your name is",
+    "named ",
+    "my dog",
+    "my cat",
+    "my pet",
+    "own dog",
+    "own cat",
+    "own pet",
+    "own experience",
+    "years old",
+    "in her",
+    "in his",
+    "forties",
+    "fifties",
+    "woman",
+    "I work",
+    "I am a",
+    "I'm a",
+    "runs a",
+    "lost her",
+    "봄이",
+];
+
+fn every_prompt() -> Vec<String> {
+    let knowledge = [chunk("출처A", "내용A")];
+    let mut prompts = Vec::new();
+    for language in [ChatLanguage::Ko, ChatLanguage::En] {
+        for phase in ALL_PHASES {
+            let mut ctx = context(phase, &[], &knowledge);
+            ctx.language = language;
+            prompts.push(reply_system_prompt(&ctx));
+        }
+    }
+    prompts
+}
+
+#[test]
+fn the_identity_is_the_persona_texture_with_the_disclaimer() {
+    for prompt in every_prompt() {
+        let identity = prompt.lines().next().expect("identity line");
+        assert_eq!(identity, IDENTITY);
+        assert!(identity.contains(NOT_A_COUNSELOR), "{identity}");
+        for texture in [
+            "speak little and plainly",
+            "dry, gentle humor",
+            "trust silence and do not fill it",
+            "do not explain people's feelings",
+            "say what you notice",
+        ] {
+            assert!(identity.contains(texture), "{texture}");
+        }
+    }
+}
+
+#[test]
+fn no_prompt_carries_an_adr_0003_word_outside_the_disclaimer() {
+    for prompt in every_prompt() {
+        let rest = prompt.replacen(NOT_A_COUNSELOR, "", 1).to_lowercase();
+        for word in ADR_0003_WORDS {
+            assert!(!rest.contains(word), "{word}: {prompt}");
+        }
+    }
+}
+
+#[test]
+fn no_prompt_gives_the_companion_a_name_job_age_or_pet_of_its_own() {
+    for prompt in every_prompt() {
+        let lower = prompt.to_lowercase();
+        for word in PERSONAL_HISTORY_WORDS {
+            assert!(!lower.contains(&word.to_lowercase()), "{word}: {prompt}");
+        }
+    }
+}
+
+#[test]
+fn a_korean_session_says_whose_first_person_it_is() {
+    let prompt = reply_system_prompt(&context(ReplyPhase::Deepen, &[], &[]));
+    assert!(prompt.lines().any(|line| line == PRONOUN_KO), "{prompt}");
+    assert!(!prompt.contains(PRONOUN_EN), "{prompt}");
+}
+
+#[test]
+fn an_english_session_says_whose_first_person_it_is() {
+    let mut ctx = context(ReplyPhase::Deepen, &[], &[]);
+    ctx.language = ChatLanguage::En;
+    let prompt = reply_system_prompt(&ctx);
+    assert!(prompt.lines().any(|line| line == PRONOUN_EN), "{prompt}");
+    assert!(!prompt.contains(PRONOUN_KO), "{prompt}");
+}
+
+#[test]
+fn the_style_is_one_positive_line_without_examples() {
+    for prompt in every_prompt() {
+        assert_eq!(prompt.lines().filter(|line| *line == STYLE).count(), 1);
+        for word in ["BAD", "GOOD", "e.g."] {
+            assert!(!prompt.contains(word), "{word}: {prompt}");
+        }
+    }
+}
+
+#[test]
+fn the_blocks_come_in_their_fixed_order_and_join_into_the_prompt() {
+    let previous_history = [message(MessageRole::User, "산책이 그리워요")];
+    let knowledge = [chunk("출처A", "내용A")];
+    let mut ctx = context(ReplyPhase::Resume, &[], &knowledge);
+    ctx.previous = Some(PreviousSession {
+        summary: None,
+        recent_history: &previous_history,
+    });
+    let blocks = reply_prompt_blocks(&ctx);
+    let names: Vec<&str> = blocks.iter().map(|block| block.name).collect();
+    assert_eq!(
+        names,
+        [
+            "identity",
+            "pet",
+            "output_rules",
+            "phase",
+            "previous",
+            "knowledge",
+            "turn_style"
+        ]
+    );
+    let joined = blocks
+        .iter()
+        .map(|block| block.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert_eq!(joined, reply_system_prompt(&ctx));
+    assert_eq!(blocks[0].text, IDENTITY);
+    assert_eq!(blocks[6].text, ctx.turn_style.instruction());
+    assert!(blocks.iter().all(|block| !block.text.is_empty()));
+}
+
+#[test]
+fn empty_blocks_are_left_out_of_the_list() {
+    let blocks = reply_prompt_blocks(&context(ReplyPhase::Deepen, &[], &[]));
+    let names: Vec<&str> = blocks.iter().map(|block| block.name).collect();
+    assert_eq!(
+        names,
+        ["identity", "pet", "output_rules", "phase", "turn_style"]
     );
 }

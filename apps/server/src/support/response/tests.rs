@@ -4,8 +4,8 @@ use chrono::{TimeZone, Utc};
 use serde_json::json;
 
 use super::{
-    ActiveTurnResponse, ActiveTurnStatus, CancelledTurnResponse, FailedTurnResponse,
-    KnowledgeRefResponse, MessageResponse, MessageRole, MindReportResponse,
+    ActiveTurnResponse, ActiveTurnStatus, CancelledTurnResponse, DeletedSessionResponse,
+    FailedTurnResponse, KnowledgeRefResponse, MessageResponse, MessageRole, MindReportResponse,
     MindReportSectionResponse, ReplyPhase, ReportSectionKey, RiskAssessmentResponse, RiskDetector,
     SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse, SessionSummaryResponse,
     StreamEvent, SupervisionQuality, SupervisionResponse, SupportPlanResponse, TaskFocusResponse,
@@ -86,6 +86,7 @@ fn 상태와_목록() {
         pet_name: None,
         preferred_language: ChatLanguage::En,
         report_available: false,
+        report_deleted: false,
         last_message_at: None,
         duration_minutes: None,
         message_count: 0,
@@ -95,7 +96,7 @@ fn 상태와_목록() {
         json!({
             "sessionId": "s1", "startedAt": "2026-10-16T09:05:07.123Z", "closed": false,
             "reachedTask": 1, "progress": 0.0, "preferredLanguage": "en", "reportAvailable": false,
-            "messageCount": 0
+            "reportDeleted": false, "messageCount": 0
         }),
         "메시지가 없으면 마지막 시각과 길이 칸을 뺀다"
     );
@@ -109,6 +110,34 @@ fn 상태와_목록() {
     assert_eq!(value["lastMessageAt"], json!("2026-10-16T09:05:07.123Z"));
     assert_eq!(value["durationMinutes"], json!(42));
     assert_eq!(value["messageCount"], json!(7));
+}
+
+#[test]
+fn 보관함_항목은_지운_시각과_파기_시각을_싣고_없는_이름은_뺀다() {
+    let item = DeletedSessionResponse {
+        session_id: "s1".to_owned(),
+        started_at: at(),
+        deleted_at: at(),
+        purge_at: at(),
+        pet_name: None,
+        preferred_language: ChatLanguage::Ko,
+    };
+    assert_eq!(
+        serde_json::to_value(item.clone()).unwrap(),
+        json!({
+            "sessionId": "s1", "startedAt": "2026-10-16T09:05:07.123Z",
+            "deletedAt": "2026-10-16T09:05:07.123Z", "purgeAt": "2026-10-16T09:05:07.123Z",
+            "preferredLanguage": "ko"
+        })
+    );
+    let named = DeletedSessionResponse {
+        pet_name: Some("Dotori".to_owned()),
+        ..item
+    };
+    assert_eq!(
+        serde_json::to_value(named).unwrap()["petName"],
+        json!("Dotori")
+    );
 }
 
 #[test]

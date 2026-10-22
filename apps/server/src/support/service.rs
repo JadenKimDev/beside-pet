@@ -8,7 +8,7 @@ use std::sync::Arc;
 use futures_util::future::BoxFuture;
 use futures_util::stream::{self, BoxStream};
 
-use super::response::CancelledTurnResponse;
+use super::response::{CancelledTurnResponse, DeletedSessionResponse};
 use super::{
     MessageResponse, MindReportResponse, SendMessageRequest, SessionAnalysisResponse,
     SessionListItemResponse, SessionStateResponse, StartSessionRequest, StreamEvent, TurnResponse,
@@ -62,7 +62,7 @@ pub trait SupportService {
         requester: &'a Requester,
         session_id: &'a str,
     ) -> BoxFuture<'a, Result<SessionStateResponse, ApiError>>;
-    /// 대화와 리포트와 분석을 지운다. 되돌릴 수 없다.
+    /// 세션을 보관함으로 옮긴다(소프트 삭제, ADR-0036). 이미 지운 내 세션이면 그대로 성공(멱등).
     fn delete<'a>(
         &'a self,
         requester: &'a Requester,
@@ -92,6 +92,43 @@ pub trait SupportService {
         requester: &'a Requester,
         session_id: &'a str,
     ) -> BoxFuture<'a, Result<MindReportResponse, ApiError>>;
+    // 아래는 보관함과 리포트 삭제(ADR-0036). 구현하지 않은 쪽은 `501` 이다.
+
+    /// 지운 세션을 되살리고 세션 상태를 낸다. 지우지 않은 세션이면 그대로 낸다.
+    fn restore<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<SessionStateResponse, ApiError>> {
+        let _ = (requester, session_id);
+        not_implemented()
+    }
+    /// 요청자의 보관함: 늦게 지운 것부터, 지운 시각과 파기 시각과 함께.
+    fn list_deleted<'a>(
+        &'a self,
+        requester: &'a Requester,
+    ) -> BoxFuture<'a, Result<Vec<DeletedSessionResponse>, ApiError>> {
+        let _ = requester;
+        not_implemented()
+    }
+    /// 리포트를 지운다(대화는 남는다). 지울 리포트가 없으면 404 `Report not found`.
+    fn delete_report<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<(), ApiError>> {
+        let _ = (requester, session_id);
+        not_implemented()
+    }
+    /// 지운 리포트를 되살려 그대로 낸다(다시 쓰지 않는다, ADR-0008). 지운 리포트가 없으면 404 `Report not found`.
+    fn restore_report<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<MindReportResponse, ApiError>> {
+        let _ = (requester, session_id);
+        not_implemented()
+    }
     /// 턴의 답에 다시 붙는다. 진행 중이면 `meta` → 모은 글 `token` 하나 → 이어지는 조각 → `done`(중단되면 `cancelled`),
     /// 끝났으면 `meta` → 답 전체 `token` → `done`. 실패했거나 중단된 턴은 첫 항목이 409 "Turn is not active" 다.
     fn turn_stream(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {

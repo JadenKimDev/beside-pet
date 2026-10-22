@@ -333,7 +333,7 @@ async fn 기억하지_말라고_하면_사실_없이_옵트아웃_한_행이다(
 }
 
 #[tokio::test]
-async fn 세션을_지우면_그_세션의_아이_사실_옵트아웃이_모두_없다() {
+async fn 세션을_지우면_행은_남고_현재_기억에서_빠지며_되살리면_돌아온다() {
     let f = fixture().await;
     f.model.answer(json!([object(BLANKET, 1, &[])]), false);
     f.say(BLANKET).await;
@@ -342,6 +342,8 @@ async fn 세션을_지우면_그_세션의_아이_사실_옵트아웃이_모두_
     f.say(PUT_AWAY).await;
     f.wait_for(OPTOUTS, SESSION, 1).await;
     assert_eq!(f.count(PETS, SESSION).await, 1);
+    let current = f.count(CURRENT, SESSION).await;
+    assert!(current > 0, "the session has current memory before deletion");
 
     let reply =
         f.h.send(
@@ -354,9 +356,30 @@ async fn 세션을_지우면_그_세션의_아이_사실_옵트아웃이_모두_
 
     assert_eq!(reply.status, StatusCode::NO_CONTENT, "{}", reply.text);
     for sql in [NOTES, OPTOUTS, PETS] {
-        assert_eq!(f.count(sql, SESSION).await, 0, "{sql}");
+        assert_eq!(f.count(sql, SESSION).await, 1, "{sql}: rows stay until the purge");
     }
-    assert_eq!(f.owner_pets().await, 0);
+    assert_eq!(f.count(CURRENT, SESSION).await, 0, "deleted sessions leave current memory");
+    let state =
+        f.h.send(
+            Method::GET,
+            &format!("/v1/sessions/{SESSION}"),
+            Some(&f.token),
+            None,
+        )
+        .await;
+    assert_eq!(state.status, StatusCode::NOT_FOUND, "{}", state.text);
+
+    let restored =
+        f.h.send(
+            Method::POST,
+            &format!("/v1/sessions/{SESSION}/restore"),
+            Some(&f.token),
+            None,
+        )
+        .await;
+    assert_eq!(restored.status, StatusCode::OK, "{}", restored.text);
+    assert_eq!(restored.body["sessionId"], json!(SESSION));
+    assert_eq!(f.count(CURRENT, SESSION).await, current);
     f.schema.close().await;
 }
 

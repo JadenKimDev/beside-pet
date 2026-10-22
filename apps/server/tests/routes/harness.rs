@@ -17,7 +17,7 @@ use beside_pet_server::identity::{
 use beside_pet_server::metrics::SharedMetricsSource;
 use beside_pet_server::shared::{ApiError, Config};
 use beside_pet_server::support::{
-    CancelledTurnResponse, MessageResponse, MindReportResponse, MindReportSectionResponse,
+    CancelledTurnResponse, DeletedSessionResponse, MessageResponse, MindReportResponse, MindReportSectionResponse,
     ReportSectionKey, Requester, SendMessageRequest, SessionAnalysisResponse,
     SessionListItemResponse, SessionStateResponse, SharedSupportService, StartSessionRequest,
     StreamEvent, SupportService, TurnResponse, TurnStream,
@@ -48,7 +48,7 @@ impl Authenticator for TokenAuthenticator {
     }
 }
 
-/// 스트림 턴은 `meta`, `token`, `done` 셋을 흘리고, 목록과 리포트는 지어낸 값을 내고, 나머지는 `Unimplemented` 에 넘긴다.
+/// 스트림 턴은 `meta`, `token`, `done` 셋을 흘리고, 목록과 보관함과 리포트는 지어낸 값을 내고, 나머지는 `Unimplemented` 에 넘긴다.
 /// 턴 경로는 다시 붙기가 셋을, 답 다시 받기가 `meta` 뒤 `cancelled` 를 흘리고, 중단은 받은 턴 id 로 답한다.
 pub struct Scripted;
 
@@ -69,6 +69,7 @@ pub fn list_items() -> Vec<SessionListItemResponse> {
         pet_name: Some("Dotori".to_owned()),
         preferred_language: ChatLanguage::Ko,
         report_available: true,
+        report_deleted: false,
         last_message_at: Some(at("2026-10-16T09:42:30.250Z")),
         duration_minutes: Some(42),
         message_count: 9,
@@ -83,6 +84,18 @@ pub fn list_items() -> Vec<SessionListItemResponse> {
         ..busy.clone()
     };
     vec![busy, quiet]
+}
+
+/// 보관함의 지운 세션 하나(이름 없음).
+pub fn trash_items() -> Vec<DeletedSessionResponse> {
+    vec![DeletedSessionResponse {
+        session_id: "s-gone".to_owned(),
+        started_at: at("2026-10-16T09:00:00Z"),
+        deleted_at: at("2026-10-20T08:30:00.125Z"),
+        purge_at: at("2027-01-20T08:30:00.125Z"),
+        pet_name: None,
+        preferred_language: ChatLanguage::En,
+    }]
 }
 
 pub fn mind_report() -> MindReportResponse {
@@ -209,6 +222,12 @@ impl SupportService for Scripted {
         _: &'a str,
     ) -> futures_util::future::BoxFuture<'a, Result<MindReportResponse, ApiError>> {
         Box::pin(async { Ok(mind_report()) })
+    }
+    fn list_deleted<'a>(
+        &'a self,
+        _: &'a Requester,
+    ) -> futures_util::future::BoxFuture<'a, Result<Vec<DeletedSessionResponse>, ApiError>> {
+        Box::pin(async { Ok(trash_items()) })
     }
     fn turn_stream(&self, _: Requester, _: String, _: String) -> TurnStream {
         turn_stream()

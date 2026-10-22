@@ -1,13 +1,13 @@
 //! 흐름 테스트의 더블: 요청을 적어 두는 대본 모델, 메모리 저장, 고정 언어, 한 번에 1초씩 가는 시계, 그리고 조립 도우미.
 //! 대본 모델은 실제 라우터(`ModelRouter`) 뒤의 공급자로 끼워, 시간 제한과 호출 기록을 서버와 같은 자리에서 잰다.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Months, TimeZone, Utc};
 use futures_util::future::{self, BoxFuture};
 use futures_util::stream::{self, StreamExt};
 use tokio::sync::Semaphore;
@@ -26,6 +26,7 @@ use crate::shared::ApiError;
 use crate::support::knowledge::KnowledgeBase;
 use crate::support::rules::GriefProfile;
 use crate::support::session::{MessageActivity, SessionSnapshot};
+use crate::support::store::DeletedSession;
 use crate::support::{
     ExtractError, ExtractInput, Extraction, MemoryExtractor, MemoryNote, MemoryOptout, MemoryStore,
     MemoryView, NewNote, NewPet, Pet,
@@ -356,12 +357,21 @@ impl TextModelProvider for ScriptedProvider {
     }
 }
 
+/// 메모리 저장의 보관함이 세션을 지운 시각(지어낸 값).
+pub fn deleted_at() -> DateTime<Utc> {
+    Utc.with_ymd_and_hms(2026, 10, 20, 8, 30, 0).unwrap()
+}
+
 /// 메모리 저장. 저장할 때마다 스냅샷을 적어 둔다. 문을 걸면(`hold_saves`) 저장이 문이 열릴 때까지 기다린다.
+/// 소프트 삭제는 저장과 같은 규칙이다: 지운 세션은 `find`·`find_by_owner`·`latest_by_owner` 에서 없고, 지운 리포트는
+/// `find` 의 스냅샷에서 `None` 이며 저장해도 칸이 남는다. 지운 시각은 늘 `deleted_at()` 이다.
 #[derive(Default)]
 pub struct MemorySessions {
     rows: Mutex<HashMap<String, SessionSnapshot>>,
     saves: Mutex<Vec<SessionSnapshot>>,
     gate: Mutex<Option<Arc<Semaphore>>>,
+    deleted: Mutex<HashSet<String>>,
+    deleted_reports: Mutex<HashSet<String>>,
 }
 
 impl MemorySessions {
@@ -380,8 +390,32 @@ impl MemorySessions {
         self.saves().pop().expect("the session was saved")
     }
 
+    /// 행 그대로(지운 세션과 지운 리포트도 보인다).
     pub fn get(&self, id: &str) -> Option<SessionSnapshot> {
         self.rows.lock().unwrap().get(id).cloned()
+    }
+
+    pub fn is_deleted(&self, id: &str) -> bool {
+        self.deleted.lock().unwrap().contains(id)
+    }
+
+    /// 살아 있는 세션들(소유자 읽기가 보는 것). 지운 리포트는 `None` 으로 보인다.
+    fn alive(&self) -> Vec<SessionSnapshot> {
+        let deleted = self.deleted.lock().unwrap().clone();
+        let reports = self.deleted_reports.lock().unwrap().clone();
+        self.rows
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|snapshot| !deleted.contains(&snapshot.id))
+            .cloned()
+            .map(|mut snapshot| {
+                if reports.contains(&snapshot.id) {
+                    snapshot.report = None;
+                }
+                snapshot
+            })
+            .collect()
     }
 
     pub fn put(&self, snapshot: SessionSnapshot) {
@@ -400,13 +434,17 @@ impl SessionRepository for MemorySessions {
                 gate.acquire().await.expect("the gate stays open").forget();
             }
             self.saves.lock().unwrap().push(snapshot.clone());
-            self.put(snapshot.clone());
+            let mut row = snapshot.clone();
+            if self.deleted_reports.lock().unwrap().contains(&row.id) {
+                row.report = self.get(&row.id).and_then(|kept| kept.report);
+            }
+            self.put(row);
             Ok(())
         })
     }
 
     fn find<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<Option<SessionSnapshot>, ApiError>> {
-        let found = self.get(id);
+        let found = self.alive().into_iter().find(|snapshot| snapshot.id == id);
         Box::pin(async move { Ok(found) })
     }
 
@@ -416,12 +454,9 @@ impl SessionRepository for MemorySessions {
         limit: u32,
     ) -> BoxFuture<'a, Result<Vec<SessionSnapshot>, ApiError>> {
         let mut found: Vec<SessionSnapshot> = self
-            .rows
-            .lock()
-            .unwrap()
-            .values()
+            .alive()
+            .into_iter()
             .filter(|snapshot| snapshot.owner_id == owner_id)
-            .cloned()
             .collect();
         found.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.started_at));
         found.truncate(limit as usize);
@@ -434,10 +469,8 @@ impl SessionRepository for MemorySessions {
         owner_id: &'a str,
     ) -> BoxFuture<'a, Result<Option<LatestSession>, ApiError>> {
         let found = self
-            .rows
-            .lock()
-            .unwrap()
-            .values()
+            .alive()
+            .into_iter()
             .filter(|snapshot| snapshot.owner_id == owner_id)
             .map(|snapshot| LatestSession {
                 last_active_at: snapshot
@@ -485,7 +518,81 @@ impl SessionRepository for MemorySessions {
 
     fn delete<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<(), ApiError>> {
         self.rows.lock().unwrap().remove(id);
+        self.deleted.lock().unwrap().remove(id);
+        self.deleted_reports.lock().unwrap().remove(id);
         Box::pin(async { Ok(()) })
+    }
+
+    fn soft_delete<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
+        let found = self.get(id).is_some();
+        if found {
+            self.deleted.lock().unwrap().insert(id.to_owned());
+        }
+        Box::pin(async move { Ok(found) })
+    }
+
+    fn restore<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
+        let found = self.get(id).is_some();
+        self.deleted.lock().unwrap().remove(id);
+        Box::pin(async move { Ok(found) })
+    }
+
+    fn find_deleted<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> BoxFuture<'a, Result<Option<SessionSnapshot>, ApiError>> {
+        let found = self.get(id).filter(|_| self.is_deleted(id));
+        Box::pin(async move { Ok(found) })
+    }
+
+    fn list_deleted<'a>(
+        &'a self,
+        owner_id: &'a str,
+        limit: u32,
+    ) -> BoxFuture<'a, Result<Vec<DeletedSession>, ApiError>> {
+        let deleted = self.deleted.lock().unwrap().clone();
+        let mut found: Vec<DeletedSession> = self
+            .rows
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|snapshot| snapshot.owner_id == owner_id && deleted.contains(&snapshot.id))
+            .map(|snapshot| DeletedSession {
+                snapshot: snapshot.clone(),
+                deleted_at: deleted_at(),
+                purge_at: deleted_at() + Months::new(3),
+            })
+            .collect();
+        found.sort_by(|a, b| b.snapshot.id.cmp(&a.snapshot.id));
+        found.truncate(limit as usize);
+        Box::pin(async move { Ok(found) })
+    }
+
+    fn delete_report<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
+        let has_report = self
+            .get(id)
+            .is_some_and(|snapshot| snapshot.report.is_some())
+            && !self.is_deleted(id);
+        let done = has_report && self.deleted_reports.lock().unwrap().insert(id.to_owned());
+        Box::pin(async move { Ok(done) })
+    }
+
+    fn restore_report<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<bool, ApiError>> {
+        let done = self.deleted_reports.lock().unwrap().remove(id);
+        Box::pin(async move { Ok(done) })
+    }
+
+    fn deleted_reports<'a>(
+        &'a self,
+        session_ids: &'a [&'a str],
+    ) -> BoxFuture<'a, Result<HashSet<String>, ApiError>> {
+        let reports = self.deleted_reports.lock().unwrap();
+        let found: HashSet<String> = session_ids
+            .iter()
+            .filter(|id| reports.contains(**id))
+            .map(|id| (*id).to_owned())
+            .collect();
+        Box::pin(async move { Ok(found) })
     }
 }
 

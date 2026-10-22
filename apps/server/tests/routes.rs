@@ -1,4 +1,4 @@
-//! 조립한 라우터(`app::router`)의 통합 테스트: 33개 경로의 존재, 없는 경로의 404, 검증 문구, 401·403·501, SSE, 응답의 새 칸,
+//! 조립한 라우터(`app::router`)의 통합 테스트: 37개 경로의 존재, 없는 경로의 404, 검증 문구, 401·403·501, SSE, 응답의 새 칸,
 //! 실제 계정 구현과 DB 로 도는 로그아웃과 턴 저장(#19), 기억의 저장(#38).
 //! 로그아웃 말고는 기능의 trait 에 테스트 더블을 끼우므로 기능 PRD 가 구현을 채워도 그대로 통과한다.
 
@@ -36,13 +36,16 @@ mod resume;
 #[path = "routes/remembering.rs"]
 mod remembering;
 
+#[path = "routes/trash.rs"]
+mod trash;
+
 use axum::http::{Method, StatusCode};
 use serde_json::{Value, json};
 
 use beside_pet_server::safety::safety_resources;
 use harness::{Harness, Unimplemented};
 
-/// 33개 경로: (메서드, 경로, 올바른 본문, 더블과 `Unimplemented` 서비스로 admin 이 부를 때의 상태).
+/// 37개 경로: (메서드, 경로, 올바른 본문, 더블과 `Unimplemented` 서비스로 admin 이 부를 때의 상태).
 fn routes() -> Vec<(Method, &'static str, Option<Value>, StatusCode)> {
     let ni = StatusCode::NOT_IMPLEMENTED;
     let account = json!({ "username": "maple", "password": "password1", "company": "Acme Pets" });
@@ -111,15 +114,19 @@ fn routes() -> Vec<(Method, &'static str, Option<Value>, StatusCode)> {
         (Method::GET, "/v1/sessions/s-1/turns/t-1/stream", None, ni),
         (Method::POST, "/v1/sessions/s-1/turns/t-1/cancel", None, ni),
         (Method::POST, "/v1/sessions/s-1/turns/t-1/retry", None, ni),
+        (Method::GET, "/v1/sessions/deleted", None, ni),
+        (Method::POST, "/v1/sessions/s-1/restore", None, ni),
+        (Method::DELETE, "/v1/sessions/s-1/report", None, ni),
+        (Method::POST, "/v1/sessions/s-1/report/restore", None, ni),
         (Method::GET, "/v1/admin/metrics/models", None, ni),
         (Method::GET, "/v1/admin/metrics/conversations", None, ni),
     ]
 }
 
 #[tokio::test]
-async fn 경로_33개가_모두_있다() {
+async fn 경로_37개가_모두_있다() {
     let routes = routes();
-    assert_eq!(routes.len(), 33);
+    assert_eq!(routes.len(), 37);
     let h = Harness::new(Unimplemented);
     for (method, path, body, expected) in routes {
         let reply = h.send(method.clone(), path, Some("admin"), body).await;

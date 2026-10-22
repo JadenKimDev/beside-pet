@@ -10,7 +10,7 @@ use axum::routing::{get, post};
 use super::request::{parse_send_message, parse_start_session};
 use super::sse::sse_response;
 use super::{
-    CancelledTurnResponse, MessageResponse, MindReportResponse, Requester, SessionAnalysisResponse,
+    CancelledTurnResponse, DeletedSessionResponse, MessageResponse, MindReportResponse, Requester, SessionAnalysisResponse,
     SessionListItemResponse, SessionStateResponse, SharedSupportService, TurnResponse,
 };
 use crate::identity::{CurrentAccount, SharedAuthenticator};
@@ -27,12 +27,16 @@ where
     Router::new()
         .route("/v1/sessions", post(start).get(list))
         .route("/v1/sessions/stream", post(start_stream))
+        // 고정 경로라 `{id}` 보다 먼저 맞는다(matchit). 라우트 테스트가 못 박는다.
+        .route("/v1/sessions/deleted", get(list_deleted))
         .route("/v1/sessions/{id}", get(state).delete(remove))
+        .route("/v1/sessions/{id}/restore", post(restore))
         .route("/v1/sessions/{id}/messages", post(send).get(history))
         .route("/v1/sessions/{id}/messages/stream", post(send_stream))
         .route("/v1/sessions/{id}/close", post(close))
         .route("/v1/sessions/{id}/analysis", get(analysis))
-        .route("/v1/sessions/{id}/report", get(report))
+        .route("/v1/sessions/{id}/report", get(report).delete(remove_report))
+        .route("/v1/sessions/{id}/report/restore", post(restore_report))
         .route("/v1/sessions/{id}/turns/{turn_id}/stream", get(turn_stream))
         .route(
             "/v1/sessions/{id}/turns/{turn_id}/cancel",
@@ -140,6 +144,41 @@ async fn report(
     Path(id): Path<String>,
 ) -> Result<Json<MindReportResponse>, ApiError> {
     Ok(Json(service.report(&Requester::of(&account), &id).await?))
+}
+
+/// 보관함(ADR-0036).
+async fn list_deleted(
+    State(service): Service,
+    CurrentAccount(account): CurrentAccount,
+) -> Result<Json<Vec<DeletedSessionResponse>>, ApiError> {
+    Ok(Json(service.list_deleted(&Requester::of(&account)).await?))
+}
+
+async fn restore(
+    State(service): Service,
+    CurrentAccount(account): CurrentAccount,
+    Path(id): Path<String>,
+) -> Result<Json<SessionStateResponse>, ApiError> {
+    Ok(Json(service.restore(&Requester::of(&account), &id).await?))
+}
+
+async fn remove_report(
+    State(service): Service,
+    CurrentAccount(account): CurrentAccount,
+    Path(id): Path<String>,
+) -> Result<Response, ApiError> {
+    service.delete_report(&Requester::of(&account), &id).await?;
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+async fn restore_report(
+    State(service): Service,
+    CurrentAccount(account): CurrentAccount,
+    Path(id): Path<String>,
+) -> Result<Json<MindReportResponse>, ApiError> {
+    Ok(Json(
+        service.restore_report(&Requester::of(&account), &id).await?,
+    ))
 }
 
 /// 턴의 답에 다시 붙는다(ADR-0030). 소유 확인과 409 는 서비스가 첫 항목으로 낸다.

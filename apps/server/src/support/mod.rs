@@ -19,7 +19,10 @@ pub use flow::{
     HaikuReplyJudge, JudgeError, JudgeInput, Judgement, ReplyJudge, ReplyLabel, SharedReplyJudge,
     SystemOneReplyJudge, UnimplementedJudge,
 };
-pub use flow::{SupportFlow, fail_pending_turns, purge_stale_memory, session_presence};
+pub use flow::{
+    StartupPurge, SupportFlow, fail_pending_turns, owned_data_purger, purge_on_startup,
+    session_presence,
+};
 pub use memory::{
     ExtractError, ExtractInput, ExtractedFact, Extraction, GateInput, GateOutcome, GatedNote,
     MemoryExtractor, MemoryNote, MemoryOptout, MemoryStore, MemoryView, ModelMemoryExtractor,
@@ -34,10 +37,11 @@ pub use request::{
 };
 pub use response::{
     ActiveTurnResponse, ActiveTurnStatus, CancelledStatus, CancelledTurnResponse,
-    FailedTurnResponse, KnowledgeRefResponse, MessageResponse, MessageRole, MindReportResponse,
-    MindReportSectionResponse, ReplyPhase, ReportSectionKey, RiskAssessmentResponse, RiskDetector,
-    SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse, SessionSummaryResponse,
-    StreamEvent, SupervisionQuality, SupervisionResponse, SupportPlanResponse, TaskFocusResponse,
-    TaskTransitionResponse, TurnAnalysisResponse, TurnResponse,
+    DeletedSessionResponse, FailedTurnResponse, KnowledgeRefResponse, MessageResponse, MessageRole,
+    MindReportResponse, MindReportSectionResponse, ReplyPhase, ReportSectionKey,
+    RiskAssessmentResponse, RiskDetector, SessionAnalysisResponse, SessionListItemResponse,
+    SessionStateResponse, SessionSummaryResponse, StreamEvent, SupervisionQuality,
+    SupervisionResponse, SupportPlanResponse, TaskFocusResponse, TaskTransitionResponse,
+    TurnAnalysisResponse, TurnResponse,
 };
 pub use service::{Requester, SharedSupportService, SupportService, TurnStream, Unimplemented};

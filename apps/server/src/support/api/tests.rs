@@ -65,7 +65,7 @@ fn send_body() -> Value {
     json!({ "text": "hello" })
 }
 
-/// 14 라우트와 올바른 본문.
+/// 18 라우트와 올바른 본문.
 fn routes() -> Vec<(Method, &'static str, Option<Value>)> {
     vec![
         (Method::POST, "/v1/sessions", Some(start_body())),
@@ -86,6 +86,10 @@ fn routes() -> Vec<(Method, &'static str, Option<Value>)> {
         (Method::GET, "/v1/sessions/s-1/turns/t-1/stream", None),
         (Method::POST, "/v1/sessions/s-1/turns/t-1/cancel", None),
         (Method::POST, "/v1/sessions/s-1/turns/t-1/retry", None),
+        (Method::GET, "/v1/sessions/deleted", None),
+        (Method::POST, "/v1/sessions/s-1/restore", None),
+        (Method::DELETE, "/v1/sessions/s-1/report", None),
+        (Method::POST, "/v1/sessions/s-1/report/restore", None),
     ]
 }
 
@@ -93,7 +97,7 @@ fn routes() -> Vec<(Method, &'static str, Option<Value>)> {
 
 #[tokio::test]
 async fn 쿠키가_없으면_모두_401_이다() {
-    assert_eq!(routes().len(), 14);
+    assert_eq!(routes().len(), 18);
     for (method, path, body) in routes() {
         let reply = call(app(Arc::new(Echo)), method.clone(), path, None, body).await;
         assert_eq!(reply.status, StatusCode::UNAUTHORIZED, "{method} {path}");
@@ -222,6 +226,18 @@ async fn 닫기와_조회는_200_이다() {
             json!("report acct-viewer/false s-1"),
             "/petName",
         ),
+        (
+            Method::POST,
+            "/v1/sessions/s-1/restore",
+            json!("restore acct-viewer/false s-1"),
+            "/sessionId",
+        ),
+        (
+            Method::POST,
+            "/v1/sessions/s-1/report/restore",
+            json!("restore-report acct-viewer/false s-1"),
+            "/petName",
+        ),
     ];
     for (method, path, expected, pointer) in cases {
         let reply = call(
@@ -264,6 +280,57 @@ async fn 삭제는_204_이고_본문이_없다() {
     .await;
     assert_eq!(reply.status, StatusCode::NOT_FOUND);
     assert_eq!(reply.json()["message"], "Session not found");
+}
+
+#[tokio::test]
+async fn 보관함_고정_경로는_세션_조회가_아니라_보관함_배열로_간다() {
+    let reply = call(
+        app(Arc::new(Echo)),
+        Method::GET,
+        "/v1/sessions/deleted",
+        Some("viewer"),
+        None,
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::OK);
+    assert_eq!(
+        reply.json(),
+        json!([{
+            "sessionId": "deleted acct-viewer/false",
+            "startedAt": "2026-10-16T09:00:00.000Z",
+            "deletedAt": "2026-10-16T09:00:00.000Z",
+            "purgeAt": "2026-10-16T09:00:00.000Z",
+            "preferredLanguage": "ko"
+        }])
+    );
+}
+
+#[tokio::test]
+async fn 리포트_삭제는_204_이고_본문이_없으며_없으면_404_다() {
+    let reply = call(
+        app(Arc::new(Echo)),
+        Method::DELETE,
+        "/v1/sessions/s-1/report",
+        Some("viewer"),
+        None,
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::NO_CONTENT);
+    assert_eq!(reply.text, "");
+
+    let reply = call(
+        app(Arc::new(Echo)),
+        Method::DELETE,
+        "/v1/sessions/missing/report",
+        Some("viewer"),
+        None,
+    )
+    .await;
+    assert_eq!(reply.status, StatusCode::NOT_FOUND);
+    assert_eq!(
+        reply.json(),
+        json!({ "statusCode": 404, "message": "Report not found", "error": "Not Found" })
+    );
 }
 
 #[tokio::test]

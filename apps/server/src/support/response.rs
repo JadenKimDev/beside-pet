@@ -117,6 +117,8 @@ pub struct SessionListItemResponse {
     pub pet_name: Option<String>,
     pub preferred_language: ChatLanguage,
     pub report_available: bool,
+    /// 리포트가 있으나 지운 상태(보관함, ADR-0036). 그때 `report_available` 은 `false` 다.
+    pub report_deleted: bool,
     /// 마지막 메시지의 시각. 메시지가 없으면 칸을 뺀다.
     #[serde(
         skip_serializing_if = "Option::is_none",
@@ -127,6 +129,22 @@ pub struct SessionListItemResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_minutes: Option<u32>,
     pub message_count: u32,
+}
+
+/// 보관함의 한 항목(`GET /v1/sessions/deleted`). `purge_at` 은 지운 시각에 보관 기간을 더해 저장이 구한 값이다.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletedSessionResponse {
+    pub session_id: String,
+    #[serde(with = "crate::shared::iso_millis")]
+    pub started_at: DateTime<Utc>,
+    #[serde(with = "crate::shared::iso_millis")]
+    pub deleted_at: DateTime<Utc>,
+    #[serde(with = "crate::shared::iso_millis")]
+    pub purge_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pet_name: Option<String>,
+    pub preferred_language: ChatLanguage,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

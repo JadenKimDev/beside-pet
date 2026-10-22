@@ -1,4 +1,4 @@
-//! `SupportService` 의 구현: 요청마다 관문(소유자 확인)을 거쳐 흐름(시작, 턴, 닫기, 삭제, 질의, 리포트, 턴의 다시 붙기·중단·답 다시 받기)을
+//! `SupportService` 의 구현: 요청마다 관문(소유자 확인)을 거쳐 흐름(시작, 턴, 닫기, 보관함, 질의, 리포트, 턴의 다시 붙기·중단·답 다시 받기)을
 //! 부르고, 스트림 턴은 따로 돌려 이벤트로 낸다. 진행 중 턴 등록부는 이 구현 하나가 들고 복제본이 함께 본다.
 
 use std::sync::Arc;
@@ -6,7 +6,9 @@ use std::sync::Arc;
 use futures_util::future::BoxFuture;
 use sqlx::PgPool;
 
-use super::access::{TURN_CANCELLED, TURN_NOT_FAILED, require, require_turn, session_conflict};
+use super::access::{
+    NOT_OWNER, TURN_CANCELLED, TURN_NOT_FAILED, require, require_turn, session_conflict,
+};
 use super::active::ActiveTurns;
 use super::adapters::{AccountLanguages, SystemClock};
 use super::cancel::cancel;
@@ -25,16 +27,51 @@ use crate::llm::SharedTextModel;
 use crate::shared::ApiError;
 use crate::support::knowledge::KnowledgeBase;
 use crate::support::response::CancelledTurnResponse;
-use crate::support::session::{Session, SessionError, TurnStatus};
-use crate::support::store::SessionStore;
+use crate::support::session::{Session, SessionError, SessionSnapshot, TurnStatus};
+use crate::support::store::{DeletedSession, SessionStore};
 use crate::support::{
-    MessageResponse, MindReportResponse, Requester, SendMessageRequest, SessionAnalysisResponse,
+    DeletedSessionResponse, MessageResponse, MindReportResponse, Requester, SendMessageRequest, SessionAnalysisResponse,
     SessionListItemResponse, SessionStateResponse, SharedMemoryExtractor, SharedSupportService,
     StartSessionRequest, SupportService, TurnResponse, TurnStream,
 };
 
 /// 목록이 돌려주는 최근 세션의 수(TS 의 `SESSION_LIST_LIMIT`).
 const SESSION_LIST_LIMIT: u32 = 20;
+
+/// 보관함이 돌려주는 지운 세션의 수. 3개월치를 넉넉히 덮는다.
+const TRASH_LIST_LIMIT: u32 = 100;
+
+/// 지울 리포트나 되살릴 리포트가 없다. 지운 리포트를 읽을 때도 같다(ADR-0036).
+const REPORT_NOT_FOUND: &str = "Report not found";
+
+fn report_not_found() -> ApiError {
+    ApiError::NotFound(REPORT_NOT_FOUND.to_owned())
+}
+
+fn session_not_found(id: &str) -> ApiError {
+    ApiError::NotFound(format!("Session not found: {id}"))
+}
+
+/// 지운 세션의 소유자 확인: 남의 것이면 403, 관리자는 통과(`require` 와 같은 규칙).
+fn check_owner(snapshot: &SessionSnapshot, requester: &Requester) -> Result<(), ApiError> {
+    if snapshot.owner_id != requester.account_id && !requester.is_admin {
+        return Err(ApiError::Forbidden(NOT_OWNER.to_owned()));
+    }
+    Ok(())
+}
+
+fn trash_item(deleted: DeletedSession) -> DeletedSessionResponse {
+    let session = Session::rehydrate(deleted.snapshot);
+    let profile = session.grief_profile();
+    DeletedSessionResponse {
+        session_id: session.id().to_owned(),
+        started_at: session.started_at(),
+        deleted_at: deleted.deleted_at,
+        purge_at: deleted.purge_at,
+        pet_name: profile.pet_name.clone(),
+        preferred_language: profile.language(),
+    }
+}
 
 /// 대화 기능의 구현. 복제가 싸다(스트림 턴이 따로 돌며 들고 간다).
 #[derive(Clone)]
@@ -231,13 +268,115 @@ impl SupportFlow {
         Ok(session.state_response())
     }
 
+    /// 보관함으로 옮긴다(소프트 삭제). 이미 지운 내 세션이면 그대로 성공한다(멱등).
     async fn delete_session(
         &self,
         requester: &Requester,
         session_id: &str,
     ) -> Result<(), ApiError> {
+        let sessions = self.parts.sessions.as_ref();
+        if sessions.find(session_id).await?.is_none() {
+            return self.find_deleted(requester, session_id).await.map(|_| ());
+        }
         self.find(requester, session_id).await?;
-        self.parts.sessions.delete(session_id).await
+        if !sessions.soft_delete(session_id).await? {
+            return Err(session_not_found(session_id));
+        }
+        Ok(())
+    }
+
+    /// 지운 세션 하나. 없거나 살아 있으면 404, 남의 것이면 403.
+    async fn find_deleted(
+        &self,
+        requester: &Requester,
+        session_id: &str,
+    ) -> Result<SessionSnapshot, ApiError> {
+        let snapshot = self
+            .parts
+            .sessions
+            .find_deleted(session_id)
+            .await?
+            .ok_or_else(|| session_not_found(session_id))?;
+        check_owner(&snapshot, requester)?;
+        Ok(snapshot)
+    }
+
+    /// 되살리고 상태를 낸다. 살아 있는 세션이면 그대로 낸다.
+    async fn restore_session(
+        &self,
+        requester: &Requester,
+        session_id: &str,
+    ) -> Result<SessionStateResponse, ApiError> {
+        let sessions = self.parts.sessions.as_ref();
+        if sessions.find(session_id).await?.is_none() {
+            self.find_deleted(requester, session_id).await?;
+            if !sessions.restore(session_id).await? {
+                return Err(session_not_found(session_id));
+            }
+        }
+        Ok(self.find(requester, session_id).await?.state_response())
+    }
+
+    async fn list_trash(
+        &self,
+        requester: &Requester,
+    ) -> Result<Vec<DeletedSessionResponse>, ApiError> {
+        let deleted = self
+            .parts
+            .sessions
+            .list_deleted(&requester.account_id, TRASH_LIST_LIMIT)
+            .await?;
+        Ok(deleted.into_iter().map(trash_item).collect())
+    }
+
+    /// 리포트만 지운다. 아직 쓰지 않았거나 이미 지웠으면 404.
+    async fn delete_report_of(
+        &self,
+        requester: &Requester,
+        session_id: &str,
+    ) -> Result<(), ApiError> {
+        self.find(requester, session_id).await?;
+        if !self.parts.sessions.delete_report(session_id).await? {
+            return Err(report_not_found());
+        }
+        Ok(())
+    }
+
+    /// 지운 리포트를 되살려 저장된 그대로 낸다(다시 쓰지 않는다).
+    async fn restore_report_of(
+        &self,
+        requester: &Requester,
+        session_id: &str,
+    ) -> Result<MindReportResponse, ApiError> {
+        self.find(requester, session_id).await?;
+        if !self.parts.sessions.restore_report(session_id).await? {
+            return Err(report_not_found());
+        }
+        let session = self.find(requester, session_id).await?;
+        session
+            .report()
+            .map(|stored| stored.to_response(session.started_at()))
+            .ok_or_else(report_not_found)
+    }
+
+    /// 리포트. 지운 리포트는 스냅샷에서 없음으로 보이므로, 새로 쓰기 전에 지운 것인지 묻고 404 로 막는다(ADR-0008).
+    async fn report_of(
+        &self,
+        requester: &Requester,
+        session_id: &str,
+    ) -> Result<MindReportResponse, ApiError> {
+        let session = self.find(requester, session_id).await?;
+        if session.report().is_none()
+            && self
+                .parts
+                .sessions
+                .deleted_reports(&[session_id])
+                .await?
+                .contains(session_id)
+        {
+            return Err(report_not_found());
+        }
+        report(self.parts.as_ref(), session).await
     }
 
     async fn list_sessions(
@@ -254,11 +393,18 @@ impl SupportFlow {
             .map(|snapshot| snapshot.id.as_str())
             .collect();
         let activity = self.parts.sessions.message_activity(&ids).await?;
+        let deleted_reports = self.parts.sessions.deleted_reports(&ids).await?;
         Ok(snapshots
             .into_iter()
             .map(|snapshot| {
                 let counted = activity.get(&snapshot.id).copied().unwrap_or_default();
-                Session::rehydrate(snapshot).list_item(&counted)
+                let report_deleted = deleted_reports.contains(&snapshot.id);
+                let mut item = Session::rehydrate(snapshot).list_item(&counted);
+                if report_deleted {
+                    item.report_deleted = true;
+                    item.report_available = false;
+                }
+                item
             })
             .collect())
     }
@@ -364,10 +510,38 @@ impl SupportService for SupportFlow {
         requester: &'a Requester,
         session_id: &'a str,
     ) -> BoxFuture<'a, Result<MindReportResponse, ApiError>> {
-        Box::pin(async move {
-            let session = self.find(requester, session_id).await?;
-            report(self.parts.as_ref(), session).await
-        })
+        Box::pin(self.report_of(requester, session_id))
+    }
+
+    fn restore<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<SessionStateResponse, ApiError>> {
+        Box::pin(self.restore_session(requester, session_id))
+    }
+
+    fn list_deleted<'a>(
+        &'a self,
+        requester: &'a Requester,
+    ) -> BoxFuture<'a, Result<Vec<DeletedSessionResponse>, ApiError>> {
+        Box::pin(self.list_trash(requester))
+    }
+
+    fn delete_report<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<(), ApiError>> {
+        Box::pin(self.delete_report_of(requester, session_id))
+    }
+
+    fn restore_report<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<MindReportResponse, ApiError>> {
+        Box::pin(self.restore_report_of(requester, session_id))
     }
 
     fn turn_stream(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {

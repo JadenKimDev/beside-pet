@@ -61,6 +61,8 @@ impl Session {
             pet_name: self.grief_profile.pet_name.clone(),
             preferred_language: self.grief_profile.language(),
             report_available: self.report_available(),
+            // 지운 리포트는 세션이 모른다(스냅샷에서 없음으로 보인다). 목록을 내는 흐름이 덮어쓴다.
+            report_deleted: false,
             last_message_at: activity.last_message_at,
             duration_minutes: activity.duration_minutes,
             message_count: activity.message_count,

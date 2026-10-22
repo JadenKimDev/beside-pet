@@ -14,7 +14,7 @@ use crate::identity::{
 };
 use crate::shared::ApiError;
 use crate::support::{
-    CancelledTurnResponse, MessageResponse, MessageRole, MindReportResponse, Requester,
+    CancelledTurnResponse, DeletedSessionResponse, MessageResponse, MessageRole, MindReportResponse, Requester,
     SendMessageRequest, SessionAnalysisResponse, SessionListItemResponse, SessionStateResponse,
     SharedSupportService, StartSessionRequest, StreamEvent, SupportService, TurnResponse,
     TurnStream,
@@ -89,6 +89,19 @@ fn at() -> chrono::DateTime<Utc> {
 pub const GONE_TURN: &str = "gone";
 /// 이 id 의 턴은 `meta` 뒤에 `cancelled` 로 끝난다.
 pub const CUT_TURN: &str = "cut";
+
+/// 이름 칸에 받은 인자를 비춘 리포트.
+fn report_of(pet_name: String) -> MindReportResponse {
+    MindReportResponse {
+        at: at(),
+        started_at: at(),
+        pet_name,
+        reached_task: 2,
+        progress: 0.25,
+        locale: ChatLanguage::En,
+        sections: vec![],
+    }
+}
 
 fn conflict_stream(message: &str) -> TurnStream {
     let error = ApiError::Conflict(message.to_owned());
@@ -220,6 +233,7 @@ impl SupportService for Echo {
                 pet_name: None,
                 preferred_language: ChatLanguage::Ko,
                 report_available: false,
+                report_deleted: false,
                 last_message_at: Some(at()),
                 duration_minutes: Some(12),
                 message_count: 5,
@@ -277,17 +291,57 @@ impl SupportService for Echo {
         session_id: &'a str,
     ) -> BoxFuture<'a, Result<MindReportResponse, ApiError>> {
         let pet_name = format!("report {} {session_id}", who(requester));
+        Box::pin(async move { Ok(report_of(pet_name)) })
+    }
+
+    fn restore<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<SessionStateResponse, ApiError>> {
+        let id = format!("restore {} {session_id}", who(requester));
+        Box::pin(async move { Ok(state_of(id)) })
+    }
+
+    fn list_deleted<'a>(
+        &'a self,
+        requester: &'a Requester,
+    ) -> BoxFuture<'a, Result<Vec<DeletedSessionResponse>, ApiError>> {
+        let id = format!("deleted {}", who(requester));
         Box::pin(async move {
-            Ok(MindReportResponse {
-                at: at(),
+            Ok(vec![DeletedSessionResponse {
+                session_id: id,
                 started_at: at(),
-                pet_name,
-                reached_task: 2,
-                progress: 0.25,
-                locale: ChatLanguage::En,
-                sections: vec![],
-            })
+                deleted_at: at(),
+                purge_at: at(),
+                pet_name: None,
+                preferred_language: ChatLanguage::Ko,
+            }])
         })
+    }
+
+    fn delete_report<'a>(
+        &'a self,
+        _requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<(), ApiError>> {
+        let missing = session_id == "missing";
+        Box::pin(async move {
+            if missing {
+                Err(ApiError::NotFound("Report not found".to_owned()))
+            } else {
+                Ok(())
+            }
+        })
+    }
+
+    fn restore_report<'a>(
+        &'a self,
+        requester: &'a Requester,
+        session_id: &'a str,
+    ) -> BoxFuture<'a, Result<MindReportResponse, ApiError>> {
+        let pet_name = format!("restore-report {} {session_id}", who(requester));
+        Box::pin(async move { Ok(report_of(pet_name)) })
     }
 
     fn turn_stream(&self, requester: Requester, session_id: String, turn_id: String) -> TurnStream {

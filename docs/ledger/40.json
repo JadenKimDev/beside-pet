@@ -38,14 +38,14 @@
         "pnpm -F @beside-pet/backoffice typecheck && pnpm -F @beside-pet/backoffice test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
-      "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "red_at": "2026-10-22T07:06:41.272Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
+      "started_at": "2026-10-22T07:03:59.906Z",
+      "finished_at": "2026-10-22T07:10:03.174Z",
+      "active_ms": 363268,
+      "verify_ms": 4247
     },
     {
       "id": "S3",
@@ -62,14 +62,14 @@
         "pnpm -F @beside-pet/backoffice typecheck && pnpm -F @beside-pet/backoffice test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "red_at": "2026-10-22T07:08:37.517Z",
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-22T07:04:00.217Z",
+      "finished_at": "2026-10-22T07:10:03.195Z",
+      "active_ms": 362978,
+      "verify_ms": 3992
     },
     {
       "id": "S4",

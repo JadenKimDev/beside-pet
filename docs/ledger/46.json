@@ -1,0 +1,52 @@
+{
+  "issue": 46,
+  "title": "러너의 막힘(run:blocked)을 Actions 에서 고장(failure)과 가른다 — 막힘은 success 로 끝내고 실행 요약에 이유를 적으며, 라벨 이벤트마다 생기는 skipped 실행은 정상으로 문서에 적는다",
+  "prd": "docs/prd/46-runner-blocked-outcome.md",
+  "depends_on": [],
+  "created_at": "2026-10-22T10:32:36.043Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "`implement.sh`: 댓글 조립을 `lib.sh` 로 떼고 `report_blocked` 를 두어 막힘은 `exit 0`·고장은 `exit 1`, `GITHUB_STEP_SUMMARY` 요약(막힘·성공·고장), `lib.test.sh`",
+      "scope": [
+        "dev-tools/scripts/runner/implement.sh",
+        "dev-tools/scripts/runner/lib.sh",
+        "dev-tools/scripts/runner/lib.test.sh"
+      ],
+      "depends_on": [],
+      "verify": [
+        "bash dev-tools/scripts/runner/lib.test.sh && shellcheck dev-tools/scripts/runner/implement.sh dev-tools/scripts/runner/lib.sh"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "README 판정 절에 \"막힘은 success, failure 는 고장뿐, skipped 는 라벨 이벤트마다 하나\" 와 요약 안내; ADR-0032 결과에 두 줄",
+      "scope": [
+        "dev-tools/scripts/runner/README.md",
+        "docs/adr/0032-self-hosted-runner-implements-on-label.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

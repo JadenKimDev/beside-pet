@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchBoard, fetchIssue, type IssueCard } from '@/entities/issue';
 import { Button, PageTitle } from '@/shared/ui';
@@ -22,6 +23,7 @@ const DEV_NOTES_TEXT = {
   description:
     'GitHub 이슈(PRD)와 보드를 봐요. 보드 첫 열의 이슈는 여기서 구현을 시작할 수 있어요.',
   refresh: '새로 받기',
+  writePrd: 'PRD 쓰기',
 } as const;
 
 export function DevNotesPage() {
@@ -89,16 +91,24 @@ export function DevNotesPage() {
         title={DEV_NOTES_TEXT.title}
         description={DEV_NOTES_TEXT.description}
         actions={
-          board.failure !== 'tokenMissing' && (
-            <Button
-              variant="secondary"
-              size="sm"
-              busy={board.loading}
-              onClick={() => void reloadBoard()}
+          <>
+            {board.failure !== 'tokenMissing' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                busy={board.loading}
+                onClick={() => void reloadBoard()}
+              >
+                {DEV_NOTES_TEXT.refresh}
+              </Button>
+            )}
+            <Link
+              href="/dev-notes/new"
+              className="inline-flex h-8 items-center justify-center rounded-md bg-accent px-3 text-sm font-medium whitespace-nowrap text-accent-fg hover:opacity-90"
             >
-              {DEV_NOTES_TEXT.refresh}
-            </Button>
-          )
+              {DEV_NOTES_TEXT.writePrd}
+            </Link>
+          </>
         }
       />
       <IssueBoard

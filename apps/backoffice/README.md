@@ -30,7 +30,7 @@ rewrites 는 `next dev` 와 `next build` 때 읽힌다. `pnpm dev` 는 다시 �
 
 ## `GITHUB_TOKEN`(개발노트)
 
-개발노트 화면은 이 레포의 GitHub 이슈(PRD 의 정본)와 프로젝트 보드(`project.config.json` 의 `repo`, `boardNumber`)를 읽기 전용으로 보인다. GitHub 호출은 브라우저가 아니라 Next 의 Route Handler(`app/api/github/`)가 하고, 토큰은 서버 쪽 환경 변수 `GITHUB_TOKEN` 이다. fine-grained 토큰으로 이 레포의 Issues 읽기·쓰기(라벨 `run:implement` 를 붙이는 "구현 시작" 버튼 때문)와 Projects 읽기만 준다. 값이 없으면 개발노트 화면만 "토큰이 없다" 안내를 보이고 다른 화면은 그대로다. 이슈는 DB 에 복사하지 않고 메모리에 60초만 캐시한다.
+개발노트 화면은 이 레포의 GitHub 이슈(PRD 의 정본)와 프로젝트 보드(`project.config.json` 의 `repo`, `boardNumber`)를 읽기 전용으로 보인다. GitHub 호출은 브라우저가 아니라 Next 의 Route Handler(`app/api/github/`)가 하고, 토큰은 서버 쪽 환경 변수 `GITHUB_TOKEN` 이다. 보드 2 가 `JadenKimDev` 개인 계정 소유라 세분화 토큰(`github_pat_`)으로는 닿지 못하므로, **클래식 토큰**(Tokens (classic))을 scope `repo`(이슈 읽기와 라벨 `run:implement` 를 붙이는 "구현 시작" 버튼)와 `project`(보드. 읽기만이면 `read:project` 도 되지만 다음 PRD 가 보드 열을 바꾸는 쓰기를 더하므로 `project` 를 권한다)로 만든다. 값이 없으면 개발노트 화면만 "토큰이 없다" 안내를 보이고 다른 화면은 그대로다. 이슈는 DB 에 복사하지 않고 메모리에 60초만 캐시한다.
 
 ## 검사
 

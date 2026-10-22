@@ -14,9 +14,9 @@ use crate::llm::{
     OllamaProvider, TextModelProvider,
 };
 
-const ANTHROPIC_ANSWER: &str = r#"{"id":"msg_fake","type":"message","role":"assistant","model":"claude-test","content":[{"type":"text","text":"{\"facts\":[{\"kind\":\"object\",\"pet_name\":\"보리\",\"text\":\"보리는 빨간 공을 좋아했다\",\"seq\":9,\"supersedes_seq\":3},{\"kind\":\"place\",\"pet_name\":null,\"text\":\"매일 저녁 한강에 갔다\",\"seq\":9,\"supersedes_seq\":null}],\"do_not_remember\":false}"}],"stop_reason":"end_turn","usage":{"input_tokens":40,"output_tokens":20}}"#;
+const ANTHROPIC_ANSWER: &str = r#"{"id":"msg_fake","type":"message","role":"assistant","model":"claude-test","content":[{"type":"text","text":"{\"facts\":[{\"kind\":\"object\",\"pet_name\":\"보리\",\"text\":\"보리는 빨간 공을 좋아했다\",\"seq\":9,\"supersedes\":[1]},{\"kind\":\"place\",\"pet_name\":null,\"text\":\"매일 저녁 한강에 갔다\",\"seq\":9,\"supersedes\":[]}],\"do_not_remember\":false}"}],"stop_reason":"end_turn","usage":{"input_tokens":40,"output_tokens":20}}"#;
 
-const OLLAMA_ANSWER: &str = r#"{"model":"shim-test","message":{"role":"assistant","content":"```json\n{\"facts\":[{\"kind\":\"object\",\"pet_name\":\"보리\",\"text\":\"보리는 빨간 공을 좋아했다\",\"seq\":9,\"supersedes_seq\":3},{\"kind\":\"place\",\"pet_name\":null,\"text\":\"매일 저녁 한강에 갔다\",\"seq\":9,\"supersedes_seq\":null}],\"do_not_remember\":false}\n```"},"done":true,"prompt_eval_count":40,"eval_count":20}"#;
+const OLLAMA_ANSWER: &str = r#"{"model":"shim-test","message":{"role":"assistant","content":"```json\n{\"facts\":[{\"kind\":\"object\",\"pet_name\":\"보리\",\"text\":\"보리는 빨간 공을 좋아했다\",\"seq\":9,\"supersedes\":[1]},{\"kind\":\"place\",\"pet_name\":null,\"text\":\"매일 저녁 한강에 갔다\",\"seq\":9,\"supersedes\":[]}],\"do_not_remember\":false}\n```"},"done":true,"prompt_eval_count":40,"eval_count":20}"#;
 
 fn router(
     provider: LlmProvider,

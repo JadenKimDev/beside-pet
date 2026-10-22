@@ -82,7 +82,8 @@ impl MemoryExtractor for ModelMemoryExtractor {
     }
 }
 
-/// 현재 기억을 모델이 읽을 모양으로: 아이는 이름과 상태, 사실은 seq·종류·아이 이름·글.
+/// 현재 기억을 모델이 읽을 모양으로: 아이는 이름과 상태, 사실은 종류·아이 이름·글. 사실의 순서는 뷰의 순서 그대로라
+/// 모델이 돌려준 번호를 게이트가 같은 뷰에서 푼다.
 fn request_of(input: ExtractInput<'_>) -> MemoryExtractRequest {
     let view = input.view;
     let pet_name = |pet_id: &Option<String>| {
@@ -107,7 +108,6 @@ fn request_of(input: ExtractInput<'_>) -> MemoryExtractRequest {
             .notes
             .iter()
             .map(|note| KnownFact {
-                seq: note.seq,
                 kind: note.kind.as_str(),
                 pet_name: pet_name(&note.pet_id),
                 text: note.text.clone(),
@@ -130,7 +130,7 @@ fn extraction_of(extracted: ExtractedMemory) -> Extraction {
                 pet_name: fact.pet_name,
                 text: fact.text,
                 seq: fact.seq,
-                supersedes_seq: fact.supersedes_seq,
+                supersedes: fact.supersedes,
             })
             .collect(),
         do_not_remember: extracted.do_not_remember,

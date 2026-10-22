@@ -1,12 +1,13 @@
 //! 검증 게이트(순수): 모델 추출에서 저장해도 되는 사실만 남기고, 무엇을 넣고 무효화하고 만들지를 정한다.
 //!
 //! 버리는 것: 일곱 밖의 종류, 이번 발화가 아닌 seq, 빈 글, 발화 본문에 없는 숫자(모델이 추론한 날짜·나이).
+//! 정정은 추출 입력에 붙인 번호(뷰의 순서, 1부터)를 같은 뷰에서 푼다. 목록 밖의 번호는 버린다.
 //! 모르는 아이 이름은 아이를 만들지 않고 `pet_id` 없이 둔다. 다만 같은 세션에서 같은 이름의 `pet` 사실이 두 번째로
 //! 나오면 그 이름의 아이를 만들라고 내놓는다. `do_not_remember` 면 사실을 모두 버리고 옵트아웃만 남긴다.
 
 use std::collections::BTreeSet;
 
-use super::{ExtractedFact, Extraction, MemoryNote, MemoryView, NoteKind};
+use super::{ExtractedFact, Extraction, MemoryView, NoteKind};
 
 /// 게이트가 보는 것: 추출, 출처 발화(seq 와 본문), 세션, 소유자의 현재 기억.
 #[derive(Debug, Clone, Copy)]
@@ -68,11 +69,7 @@ pub fn gate(input: GateInput<'_>) -> GateOutcome {
             continue;
         };
         let pet = link(fact, kind, &input, &mut mentioned, &mut outcome.new_pets);
-        let supersedes = fact
-            .supersedes_seq
-            .filter(|old| *old < input.seq)
-            .map(|old| superseded(input.view, old, kind))
-            .unwrap_or_default();
+        let supersedes = superseded(input.view, &fact.supersedes);
         outcome.notes.push(GatedNote {
             kind,
             pet,
@@ -147,21 +144,22 @@ fn link(
     }
 }
 
-/// 정정 대상: 그 seq 에서 나온 같은 종류의 현재 사실 중 가장 최근 세션의 것.
-fn superseded(view: &MemoryView, seq: i32, kind: NoteKind) -> Vec<String> {
-    let matches: Vec<&MemoryNote> = view
-        .notes
-        .iter()
-        .filter(|note| note.seq == seq && note.kind == kind)
-        .collect();
-    let Some(latest) = matches.iter().max_by_key(|note| note.said_at) else {
-        return Vec::new();
-    };
-    matches
-        .iter()
-        .filter(|note| note.session_id == latest.session_id)
-        .map(|note| note.id.clone())
-        .collect()
+/// 정정 대상: 번호(1부터, 뷰의 순서)가 가리키는 현재 사실들. 목록 밖의 번호와 되풀이는 버린다.
+fn superseded(view: &MemoryView, numbers: &[i32]) -> Vec<String> {
+    let mut ids: Vec<String> = Vec::new();
+    for number in numbers {
+        let Some(note) = usize::try_from(*number)
+            .ok()
+            .and_then(|n| n.checked_sub(1))
+            .and_then(|index| view.notes.get(index))
+        else {
+            continue;
+        };
+        if !ids.contains(&note.id) {
+            ids.push(note.id.clone());
+        }
+    }
+    ids
 }
 
 fn name_key(name: &str) -> String {

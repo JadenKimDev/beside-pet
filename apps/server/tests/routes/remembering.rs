@@ -137,8 +137,9 @@ async fn fixture() -> Fixture {
     f
 }
 
-fn object(text: &str, seq: i32, supersedes_seq: Option<i32>) -> Value {
-    json!({ "kind": "object", "pet_name": null, "text": text, "seq": seq, "supersedes_seq": supersedes_seq })
+/// `supersedes` 는 추출 입력의 현재 사실 목록 번호(`[1]`, `[2]`…)다.
+fn object(text: &str, seq: i32, supersedes: &[i32]) -> Value {
+    json!({ "kind": "object", "pet_name": null, "text": text, "seq": seq, "supersedes": supersedes })
 }
 
 impl Fixture {
@@ -170,11 +171,15 @@ impl Fixture {
 
     /// 스트림으로 보낸다. 본문이 끝나면(뒷일까지 끝나 줄이 닫히면) 돌아온다.
     async fn say_streamed(&self, text: &str) -> Reply {
+        self.say_streamed_in(SESSION, text).await
+    }
+
+    async fn say_streamed_in(&self, session_id: &str, text: &str) -> Reply {
         let reply = self
             .h
             .send(
                 Method::POST,
-                &format!("/v1/sessions/{SESSION}/messages/stream"),
+                &format!("/v1/sessions/{session_id}/messages/stream"),
                 Some(&self.token),
                 Some(json!({ "text": text })),
             )
@@ -239,7 +244,7 @@ async fn 온보딩하면_아이가_한_행이고_같은_이름으로_또_시작�
 #[tokio::test]
 async fn 턴_뒤_추출은_호출_기록과_사실_행을_남기고_응답은_그대로다() {
     let f = fixture().await;
-    f.model.answer(json!([object(BLANKET, 1, None)]), false);
+    f.model.answer(json!([object(BLANKET, 1, &[])]), false);
 
     let reply = f.say(BLANKET).await;
 
@@ -260,10 +265,10 @@ async fn 턴_뒤_추출은_호출_기록과_사실_행을_남기고_응답은_�
 #[tokio::test]
 async fn 정정하면_현재_목록에는_새_것만_있고_옛_행은_새_행을_가리킨다() {
     let f = fixture().await;
-    f.model.answer(json!([object(BLANKET, 1, None)]), false);
+    f.model.answer(json!([object(BLANKET, 1, &[])]), false);
     f.say_streamed(BLANKET).await;
     f.wait_for(NOTES, SESSION, 1).await;
-    f.model.answer(json!([object(PUT_AWAY, 3, Some(1))]), false);
+    f.model.answer(json!([object(PUT_AWAY, 3, &[1])]), false);
 
     f.say_streamed(PUT_AWAY).await;
 
@@ -287,10 +292,38 @@ async fn 정정하면_현재_목록에는_새_것만_있고_옛_행은_새_행�
     f.schema.close().await;
 }
 
+/// seq 는 세션마다 1부터 다시 매긴다. 다른 세션의 정정도 번호([1])로 옛 사실을 덮는다(#38 QA).
+#[tokio::test]
+async fn 다른_세션의_정정도_옛_사실을_덮는다() {
+    const NEXT: &str = "s-memory-fixture-next";
+    let f = fixture().await;
+    f.model.answer(json!([object(BLANKET, 1, &[])]), false);
+    f.say_streamed(BLANKET).await;
+    f.wait_for(NOTES, SESSION, 1).await;
+    let started = f.start(NEXT).await;
+    assert_eq!(started.status, StatusCode::CREATED, "{}", started.text);
+    f.model.answer(json!([object(PUT_AWAY, 1, &[1])]), false);
+
+    f.say_streamed_in(NEXT, PUT_AWAY).await;
+
+    f.wait_for(NOTES, NEXT, 1).await;
+    assert_eq!(f.count(CURRENT, SESSION).await, 0);
+    assert_eq!(f.count(CURRENT, NEXT).await, 1);
+    let linked = f
+        .count(
+            "SELECT count(*) FROM memory_notes old JOIN memory_notes new ON old.superseded_by = new.id \
+             WHERE old.session_id = $1 AND new.session_id = 's-memory-fixture-next'",
+            SESSION,
+        )
+        .await;
+    assert_eq!(linked, 1);
+    f.schema.close().await;
+}
+
 #[tokio::test]
 async fn 기억하지_말라고_하면_사실_없이_옵트아웃_한_행이다() {
     let f = fixture().await;
-    f.model.answer(json!([object(BLANKET, 1, None)]), true);
+    f.model.answer(json!([object(BLANKET, 1, &[])]), true);
 
     f.say(BLANKET).await;
 
@@ -302,7 +335,7 @@ async fn 기억하지_말라고_하면_사실_없이_옵트아웃_한_행이다(
 #[tokio::test]
 async fn 세션을_지우면_그_세션의_아이_사실_옵트아웃이_모두_없다() {
     let f = fixture().await;
-    f.model.answer(json!([object(BLANKET, 1, None)]), false);
+    f.model.answer(json!([object(BLANKET, 1, &[])]), false);
     f.say(BLANKET).await;
     f.wait_for(NOTES, SESSION, 1).await;
     f.model.answer(json!([]), true);
@@ -330,7 +363,7 @@ async fn 세션을_지우면_그_세션의_아이_사실_옵트아웃이_모두_
 #[tokio::test]
 async fn 추출이_실패해도_응답은_그대로이고_사실_행은_없다() {
     let f = fixture().await;
-    f.model.answer(json!([object(BLANKET, 1, None)]), false);
+    f.model.answer(json!([object(BLANKET, 1, &[])]), false);
     f.model.fail_extract.store(true, Ordering::SeqCst);
 
     let reply = f.say(BLANKET).await;

@@ -63,7 +63,7 @@ fn fact(kind: &str, pet_name: Option<&str>, text: &str, seq: i32) -> ExtractedFa
         pet_name: pet_name.map(str::to_owned),
         text: text.to_owned(),
         seq,
-        supersedes_seq: None,
+        supersedes: Vec::new(),
     }
 }
 
@@ -420,71 +420,78 @@ fn do_not_remember_drops_every_fact_and_opts_out() {
     assert_eq!(out.dropped, 2);
 }
 
-#[test]
-fn supersedes_the_old_fact_of_the_same_kind_at_that_seq() {
+/// 정정의 대상은 추출 입력에 붙인 번호(`[1]`, `[2]`…, 뷰의 순서)로 온다. 세션마다 1부터 매기는 seq 는 보지 않는다.
+fn blanket_view() -> MemoryView {
     let mut v = view();
     v.notes.push(note(
-        "old-blanket",
-        SESSION,
-        2,
-        NoteKind::Object,
-        Some("pet-bori"),
-        "담요를 현관에 걸어 뒀다",
-    ));
-    v.notes
-        .push(note("old-place", SESSION, 2, NoteKind::Place, None, "현관"));
-    let mut correction = fact("object", Some("보리"), "담요를 결국 치웠다", 4);
-    correction.supersedes_seq = Some(2);
-    let extraction = Extraction {
-        facts: vec![correction],
-        do_not_remember: false,
-    };
-    let out = run(&extraction, "그 담요는 결국 치웠어요", &v);
-    assert_eq!(out.notes[0].supersedes, vec!["old-blanket".to_owned()]);
-}
-
-#[test]
-fn supersedes_prefers_the_latest_session_with_that_seq() {
-    let mut v = view();
-    let mut older = note(
-        "older",
+        "walk-bag",
         "session-a",
         2,
         NoteKind::Object,
         None,
-        "담요를 빨았다",
-    );
-    older.said_at = at(1);
-    let mut newer = note(
-        "newer",
+        "산책 가방은 현관에 그대로 걸어 두고 치우지 않기로 했다",
+    ));
+    v.notes.push(note(
+        "same-seq-other-session",
         "session-b",
         2,
         NoteKind::Object,
         None,
-        "담요를 걸어 뒀다",
-    );
-    newer.said_at = at(5);
-    v.notes.push(newer);
-    v.notes.push(older);
-    let mut correction = fact("object", None, "담요를 치웠다", 4);
-    correction.supersedes_seq = Some(2);
-    let extraction = Extraction {
+        "담요를 소파에 둔다",
+    ));
+    v.notes.push(note(
+        "later-seq",
+        "session-c",
+        7,
+        NoteKind::Place,
+        None,
+        "산책은 늘 개천가로 갔다",
+    ));
+    v
+}
+
+fn correcting(numbers: Vec<i32>) -> Extraction {
+    let mut correction = fact("object", None, "산책 가방을 결국 치웠다", 4);
+    correction.supersedes = numbers;
+    Extraction {
         facts: vec![correction],
         do_not_remember: false,
-    };
-    let out = run(&extraction, "담요는 치웠어요", &v);
-    assert_eq!(out.notes[0].supersedes, vec!["newer".to_owned()]);
+    }
 }
 
 #[test]
-fn supersedes_nothing_when_no_fact_matches() {
-    let mut correction = fact("object", None, "담요를 치웠다", 4);
-    correction.supersedes_seq = Some(9);
-    let extraction = Extraction {
-        facts: vec![correction],
-        do_not_remember: false,
-    };
-    let out = run(&extraction, "담요는 치웠어요", &view());
+fn supersedes_resolves_the_bracketed_number_across_sessions() {
+    let v = blanket_view();
+    let out = run(&correcting(vec![1]), "산책 가방은 결국 치웠어요", &v);
+    assert_eq!(out.notes[0].supersedes, vec!["walk-bag".to_owned()]);
+}
+
+#[test]
+fn supersedes_ignores_seq_session_and_kind_of_the_old_fact() {
+    let v = blanket_view();
+    // 셋째 사실은 다른 세션의 seq 7(이번 발화의 seq 4 보다 크다)이고 종류도 다르다.
+    let out = run(&correcting(vec![3, 2]), "산책 가방은 결국 치웠어요", &v);
+    assert_eq!(
+        out.notes[0].supersedes,
+        vec!["later-seq".to_owned(), "same-seq-other-session".to_owned()]
+    );
+}
+
+#[test]
+fn supersedes_drops_numbers_outside_the_list_and_repeats() {
+    let v = blanket_view();
+    let out = run(
+        &correcting(vec![0, -1, 4, 99, 1, 1]),
+        "산책 가방은 결국 치웠어요",
+        &v,
+    );
+    assert_eq!(out.notes.len(), 1);
+    assert_eq!(out.notes[0].supersedes, vec!["walk-bag".to_owned()]);
+}
+
+#[test]
+fn supersedes_nothing_when_the_list_is_empty() {
+    let out = run(&correcting(vec![1]), "산책 가방은 결국 치웠어요", &view());
     assert_eq!(out.notes.len(), 1);
     assert!(out.notes[0].supersedes.is_empty());
 }

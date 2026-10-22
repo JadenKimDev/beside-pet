@@ -16,7 +16,7 @@ struct WireFact {
     pet_name: Option<String>,
     text: String,
     seq: i32,
-    supersedes_seq: Option<i32>,
+    supersedes: Vec<i32>,
 }
 
 /// 답 글에서 JSON object 하나를 읽는다.
@@ -31,7 +31,7 @@ pub(super) fn parse_extraction(text: &str) -> Option<ExtractedMemory> {
                 pet_name: fact.pet_name,
                 text: fact.text,
                 seq: fact.seq,
-                supersedes_seq: fact.supersedes_seq,
+                supersedes: fact.supersedes,
             })
             .collect(),
         do_not_remember: wire.do_not_remember,

@@ -45,13 +45,11 @@ fn sample_request() -> MemoryExtractRequest {
         ],
         facts: vec![
             KnownFact {
-                seq: 3,
                 kind: "object",
                 pet_name: Some("보리".to_owned()),
                 text: "보리는 파란 공을 좋아했다".to_owned(),
             },
             KnownFact {
-                seq: 5,
                 kind: "person",
                 pet_name: None,
                 text: "언니와 함께 산다".to_owned(),
@@ -64,7 +62,7 @@ fn sample_request() -> MemoryExtractRequest {
     }
 }
 
-const GOOD_JSON: &str = r#"{"facts":[{"kind":"object","pet_name":"보리","text":"보리는 빨간 공을 좋아했다","seq":9,"supersedes_seq":3},{"kind":"place","pet_name":null,"text":"매일 저녁 한강에 갔다","seq":9,"supersedes_seq":null}],"do_not_remember":false}"#;
+const GOOD_JSON: &str = r#"{"facts":[{"kind":"object","pet_name":"보리","text":"보리는 빨간 공을 좋아했다","seq":9,"supersedes":[1]},{"kind":"place","pet_name":null,"text":"매일 저녁 한강에 갔다","seq":9,"supersedes":[]}],"do_not_remember":false}"#;
 
 fn good_extraction() -> ExtractedMemory {
     ExtractedMemory {
@@ -74,14 +72,14 @@ fn good_extraction() -> ExtractedMemory {
                 pet_name: Some("보리".to_owned()),
                 text: "보리는 빨간 공을 좋아했다".to_owned(),
                 seq: 9,
-                supersedes_seq: Some(3),
+                supersedes: vec![1],
             },
             MemoryFact {
                 kind: "place".to_owned(),
                 pet_name: None,
                 text: "매일 저녁 한강에 갔다".to_owned(),
                 seq: 9,
-                supersedes_seq: None,
+                supersedes: Vec::new(),
             },
         ],
         do_not_remember: false,
@@ -171,7 +169,9 @@ fn 읽지_못하는_답은_none_이다() {
         "",
         "I could not find any facts.",
         r#"{"facts":[{"kind":"pet","pet_name":null,"text":"잘린"#,
-        r#"{"facts":[{"kind":"pet","pet_name":null,"text":"t","seq":"9","supersedes_seq":null}],"do_not_remember":false}"#,
+        r#"{"facts":[{"kind":"pet","pet_name":null,"text":"t","seq":"9","supersedes":[]}],"do_not_remember":false}"#,
+        r#"{"facts":[{"kind":"pet","pet_name":null,"text":"t","seq":9,"supersedes":1}],"do_not_remember":false}"#,
+        r#"{"facts":[{"kind":"pet","pet_name":null,"text":"t","seq":9,"supersedes_seq":1}],"do_not_remember":false}"#,
         r#"{"facts":[]}"#,
         r#"[{"kind":"pet"}]"#,
     ] {
@@ -245,8 +245,8 @@ fn 입력_글에_언어_아이_seq_붙은_사실_발화가_있다() {
         "ko",
         "보리 (deceased)",
         "콩이 (living)",
-        "[seq 3] object (보리): 보리는 파란 공을 좋아했다",
-        "[seq 5] person: 언니와 함께 산다",
+        "[1] object (보리): 보리는 파란 공을 좋아했다",
+        "[2] person: 언니와 함께 산다",
         "seq 9",
         "사실 공은 빨간색이었어요. 매일 저녁 한강에 갔어요",
     ] {
@@ -273,11 +273,33 @@ fn 지시문은_일곱_종류와_금지_규칙을_적는다() {
         "occupation",
         "Never infer",
         "do_not_remember",
-        "supersedes_seq",
+        "supersedes",
         "only",
     ] {
         assert!(SYSTEM_PROMPT.contains(needle), "{needle:?}");
     }
+    assert!(!SYSTEM_PROMPT.contains("supersedes_seq"));
+}
+
+#[test]
+fn 지시문은_번호로_정정하고_이유를_남기고_아이의_아픔은_남긴다() {
+    for needle in [
+        "if the fact corrects or replaces known facts, list their bracketed numbers",
+        "When the user gives a reason for keeping, moving, washing, or not touching something, or for a habit or ritual, keep that reason in the same sentence",
+        "Do not extract health or occupation facts about the user or other people",
+        "A pet's illness, symptoms, vet visits and recovery are pet facts and are kept",
+    ] {
+        assert!(SYSTEM_PROMPT.contains(needle), "{needle:?}");
+    }
+}
+
+#[test]
+fn 입력_글의_사실_번호는_1부터_목록_순서다() {
+    let text = user_prompt(&sample_request());
+    let first = text.find("[1] ").expect("[1]");
+    let second = text.find("[2] ").expect("[2]");
+    assert!(first < second, "{text}");
+    assert!(!text.contains("[3]") && !text.contains("[seq"), "{text}");
 }
 
 /// 스키마의 모든 object 는 `additionalProperties: false` 이고 `required` 가 속성 전부다.
@@ -324,11 +346,14 @@ fn 스키마는_조사의_모양이고_닫혀_있다() {
     assert_eq!(enum_kinds, KINDS);
     assert_eq!(fact["properties"]["seq"]["type"], "integer");
     assert_eq!(fact["properties"]["text"]["type"], "string");
+    assert_eq!(fact["properties"]["supersedes"]["type"], "array");
+    assert_eq!(fact["properties"]["supersedes"]["items"]["type"], "integer");
+    assert!(fact["properties"].get("supersedes_seq").is_none());
     let text = schema.to_string();
     assert!(!text.contains("health") && !text.contains("job"), "{text}");
 }
 
 #[test]
 fn 프롬프트_버전() {
-    assert_eq!(MEMORY_EXTRACT_PROMPT_VERSION, "0.1.0");
+    assert_eq!(MEMORY_EXTRACT_PROMPT_VERSION, "0.2.0");
 }

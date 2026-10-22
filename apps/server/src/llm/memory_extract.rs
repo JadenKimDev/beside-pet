@@ -27,10 +27,9 @@ pub struct KnownPet {
     pub status: &'static str,
 }
 
-/// 지금 유효한 사실 하나. `seq` 는 그 사실이 나온 사용자 메시지라, 모델이 정정을 `supersedes_seq` 로 가리킬 수 있다.
+/// 지금 유효한 사실 하나. 입력 글에서 목록 순서대로 `[1]`, `[2]`… 번호가 붙고, 모델은 정정을 그 번호로 가리킨다.
 #[derive(Clone, PartialEq, Eq)]
 pub struct KnownFact {
-    pub seq: i32,
     pub kind: &'static str,
     pub pet_name: Option<String>,
     pub text: String,
@@ -39,7 +38,6 @@ pub struct KnownFact {
 impl fmt::Debug for KnownFact {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("KnownFact")
-            .field("seq", &self.seq)
             .field("kind", &self.kind)
             .field("text_chars", &self.text.chars().count())
             .finish()
@@ -74,14 +72,14 @@ impl fmt::Debug for MemoryExtractRequest {
     }
 }
 
-/// 모델이 뽑은 사실 하나(걸러지지 않음).
+/// 모델이 뽑은 사실 하나(걸러지지 않음). `supersedes` 는 이 사실이 정정하는 `facts` 의 번호(1부터)이고 범위는 보지 않는다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryFact {
     pub kind: String,
     pub pet_name: Option<String>,
     pub text: String,
     pub seq: i32,
-    pub supersedes_seq: Option<i32>,
+    pub supersedes: Vec<i32>,
 }
 
 /// 모델의 답. 읽지 못했으면 비어 있다(`Default`).

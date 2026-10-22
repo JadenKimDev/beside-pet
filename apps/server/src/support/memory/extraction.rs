@@ -7,12 +7,13 @@ pub struct Extraction {
     pub do_not_remember: bool,
 }
 
-/// 모델이 뽑은 사실 하나. `seq` 는 출처 사용자 메시지, `supersedes_seq` 는 이 사실이 정정하는 옛 사실의 메시지다.
+/// 모델이 뽑은 사실 하나. `seq` 는 출처 사용자 메시지다. `supersedes` 는 이 사실이 정정하는 옛 사실의 번호로,
+/// 추출 입력의 `MemoryView::notes` 순서로 1부터 매긴 것이다(seq 는 세션마다 다시 매기므로 쓰지 않는다).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtractedFact {
     pub kind: String,
     pub pet_name: Option<String>,
     pub text: String,
     pub seq: i32,
-    pub supersedes_seq: Option<i32>,
+    pub supersedes: Vec<i32>,
 }

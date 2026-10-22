@@ -26,7 +26,7 @@ fn fact(kind: &str, pet_name: Option<&str>, text: &str, seq: i32) -> ExtractedFa
         pet_name: pet_name.map(str::to_owned),
         text: text.to_owned(),
         seq,
-        supersedes_seq: None,
+        supersedes: Vec::new(),
     }
 }
 
@@ -189,7 +189,8 @@ async fn 정정은_옛_사실을_무효화하라고_넘긴다() {
     let old = view(&h).notes[0].id.clone();
     // 둘째 사용자 발화: 첫 답(2) 뒤의 3.
     let mut correction = fact("object", None, SECOND, 3);
-    correction.supersedes_seq = Some(FIRST_SEQ);
+    // 추출 입력의 현재 사실 목록에서 첫째([1]).
+    correction.supersedes = vec![1];
     h.extractor.answer(facts(vec![correction]));
 
     say_streamed(&h, SECOND).await;

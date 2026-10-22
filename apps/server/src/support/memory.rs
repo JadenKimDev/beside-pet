@@ -11,12 +11,16 @@ mod extraction;
 mod gate;
 mod kind;
 mod onboarding;
+mod extractor;
 mod storage;
 
 pub use extraction::{ExtractedFact, Extraction};
 pub use gate::{GateInput, GateOutcome, GatedNote, PetLink, gate};
 pub use kind::{NoteKind, PetStatus, parse_loss_type};
 pub use onboarding::pet_from_profile;
+pub use extractor::{
+    ExtractError, ExtractInput, MemoryExtractor, ModelMemoryExtractor, SharedMemoryExtractor,
+};
 pub use storage::{MemoryOptout, MemoryStore, SharedMemoryStore};
 
 /// 저장된 아이 한 행(`pets`). 이름은 사용자가 쓴 그대로다.

@@ -10,7 +10,7 @@ mod wire;
 use futures_util::future::BoxFuture;
 use futures_util::stream::BoxStream;
 
-use super::GenerationRequest;
+use super::{GenerationRequest, OutputSchema};
 use crate::shared::ApiError;
 
 pub use anthropic::AnthropicProvider;
@@ -76,6 +76,16 @@ pub trait TextModelProvider: Send + Sync {
         request: GenerationRequest,
     ) -> BoxFuture<'_, Result<Generation, ApiError>>;
     fn stream(&self, model: &str, request: GenerationRequest) -> ProviderStream;
+    /// 답을 `schema` 의 JSON 으로 묶어 만든다. 묶을 수 없는 공급자(기본)는 스키마를 버리고 `generate` 와 같다.
+    fn generate_structured(
+        &self,
+        model: &str,
+        request: GenerationRequest,
+        schema: OutputSchema,
+    ) -> BoxFuture<'_, Result<Generation, ApiError>> {
+        let _ = schema;
+        self.generate(model, request)
+    }
 }
 
 #[cfg(test)]

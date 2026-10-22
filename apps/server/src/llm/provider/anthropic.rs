@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::wire::{self, LineDecoder};
 use super::{Generation, LlmProvider, ProviderStream, TextModelProvider, TokenUsage};
-use crate::llm::{GenerationRequest, PromptRole};
+use crate::llm::{GenerationRequest, OutputSchema, PromptRole};
 use crate::shared::ApiError;
 
 const API_VERSION: &str = "2023-06-01";
@@ -29,7 +29,13 @@ impl AnthropicProvider {
         }
     }
 
-    fn post(&self, model: &str, request: &GenerationRequest, stream: bool) -> RequestBuilder {
+    fn post(
+        &self,
+        model: &str,
+        request: &GenerationRequest,
+        stream: bool,
+        schema: Option<serde_json::Value>,
+    ) -> RequestBuilder {
         let body = MessagesBody {
             model,
             max_tokens: request.max_tokens,
@@ -47,6 +53,12 @@ impl AnthropicProvider {
                 .collect(),
             stream,
             thinking: Thinking::DISABLED,
+            output_config: schema.map(|schema| OutputConfig {
+                format: OutputFormat {
+                    r#type: "json_schema",
+                    schema,
+                },
+            }),
         };
         self.client
             .post(&self.endpoint)
@@ -66,35 +78,52 @@ impl TextModelProvider for AnthropicProvider {
         model: &str,
         request: GenerationRequest,
     ) -> BoxFuture<'_, Result<Generation, ApiError>> {
-        let call = self.post(model, &request, false);
-        Box::pin(async move {
-            let reply: MessageReply = wire::read_json(PROVIDER, call).await?;
-            let text = reply
-                .content
-                .into_iter()
-                .find_map(|block| match block {
-                    ContentBlock::Text { text } => Some(text),
-                    ContentBlock::Other => None,
-                })
-                .filter(|text| !text.is_empty())
-                .ok_or_else(|| wire::failure(PROVIDER, "empty answer"))?;
-            Ok(Generation {
-                text,
-                usage: TokenUsage {
-                    input_tokens: reply.usage.input_tokens,
-                    output_tokens: reply.usage.output_tokens,
-                },
-            })
-        })
+        let call = self.post(model, &request, false, None);
+        Box::pin(read_generation(call))
+    }
+
+    fn generate_structured(
+        &self,
+        model: &str,
+        request: GenerationRequest,
+        schema: OutputSchema,
+    ) -> BoxFuture<'_, Result<Generation, ApiError>> {
+        // 스키마는 바깥(모델 API)으로 나가는 본문의 일부라 이 경계에서만 JSON 값으로 푼다.
+        let Ok(schema) = serde_json::from_str::<serde_json::Value>(&schema.0) else {
+            return Box::pin(async { Err(wire::failure(PROVIDER, "invalid output schema")) });
+        };
+        let call = self.post(model, &request, false, Some(schema));
+        Box::pin(read_generation(call))
     }
 
     fn stream(&self, model: &str, request: GenerationRequest) -> ProviderStream {
         wire::event_stream(
             PROVIDER,
-            self.post(model, &request, true),
+            self.post(model, &request, true, None),
             SseDecoder::default(),
         )
     }
+}
+
+/// 비스트리밍 응답에서 첫 글 블록과 토큰 수를 읽는다.
+async fn read_generation(call: RequestBuilder) -> Result<Generation, ApiError> {
+    let reply: MessageReply = wire::read_json(PROVIDER, call).await?;
+    let text = reply
+        .content
+        .into_iter()
+        .find_map(|block| match block {
+            ContentBlock::Text { text } => Some(text),
+            ContentBlock::Other => None,
+        })
+        .filter(|text| !text.is_empty())
+        .ok_or_else(|| wire::failure(PROVIDER, "empty answer"))?;
+    Ok(Generation {
+        text,
+        usage: TokenUsage {
+            input_tokens: reply.usage.input_tokens,
+            output_tokens: reply.usage.output_tokens,
+        },
+    })
 }
 
 #[derive(Serialize)]
@@ -109,6 +138,20 @@ struct MessagesBody<'a> {
     /// 늘 끈다. 생각을 스스로 시작하는 모델(Haiku 5.5 등)이 고정된 `max_tokens` 를 생각에 다 써서
     /// 답이 비는 것을 막는다(ADR-0016). Ollama 의 `think: false` 와 같은 뜻이다.
     thinking: Thinking,
+    /// 답을 JSON 스키마로 묶을 때만(structured outputs).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_config: Option<OutputConfig>,
+}
+
+#[derive(Serialize)]
+struct OutputConfig {
+    format: OutputFormat,
+}
+
+#[derive(Serialize)]
+struct OutputFormat {
+    r#type: &'static str,
+    schema: serde_json::Value,
 }
 
 #[derive(Serialize)]

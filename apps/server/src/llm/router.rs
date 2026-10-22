@@ -16,9 +16,9 @@ use self::limits::log_timeout;
 pub use self::limits::{CallLimits, GENERATE_LIMIT, STREAM_IDLE_LIMIT};
 use self::meter::CallMeter;
 use super::{
-    AnthropicProvider, CallContext, CallErrorKind, GenerationRequest, LlmProvider, ModelRef,
-    ModelSettings, OllamaProvider, SharedUsageSink, StreamEvent, TextModel, TextModelProvider,
-    TextStream,
+    AnthropicProvider, CallContext, CallErrorKind, Generation, GenerationRequest, LlmProvider,
+    ModelRef, ModelSettings, OllamaProvider, OutputSchema, SharedUsageSink, StreamEvent, TextModel,
+    TextModelProvider, TextStream,
 };
 use crate::shared::ApiError;
 
@@ -118,13 +118,24 @@ impl ModelRouter {
     }
 }
 
-impl TextModel for ModelRouter {
-    fn generate(&self, request: GenerationRequest) -> BoxFuture<'_, Result<String, ApiError>> {
+impl ModelRouter {
+    /// `generate` 와 `generate_structured` 의 공통 절차: 공급자를 고르고, 시간 제한을 두르고, 기록을 남긴다.
+    fn generate_with<'a>(
+        &'a self,
+        request: GenerationRequest,
+        call: impl FnOnce(
+            &'a dyn TextModelProvider,
+            &'a str,
+            GenerationRequest,
+        ) -> BoxFuture<'a, Result<Generation, ApiError>>
+        + Send
+        + 'a,
+    ) -> BoxFuture<'a, Result<String, ApiError>> {
         Box::pin(async move {
             let (provider, mut meter) = self.resolve_metered(&request.context)?;
             let limit = self.limits.generate;
             // 이 future 가 끝나기 전에 버려지면 `meter` 가 취소로 남긴다.
-            let call = provider.generate(&self.default_model.model, request);
+            let call = call(provider, &self.default_model.model, request);
             let Ok(result) = tokio::time::timeout(limit, call).await else {
                 log_timeout("generate", limit);
                 meter.fail(CallErrorKind::Timeout);
@@ -141,6 +152,24 @@ impl TextModel for ModelRouter {
                     Err(error)
                 }
             }
+        })
+    }
+}
+
+impl TextModel for ModelRouter {
+    fn generate(&self, request: GenerationRequest) -> BoxFuture<'_, Result<String, ApiError>> {
+        self.generate_with(request, |provider, model, request| {
+            provider.generate(model, request)
+        })
+    }
+
+    fn generate_structured(
+        &self,
+        request: GenerationRequest,
+        schema: OutputSchema,
+    ) -> BoxFuture<'_, Result<String, ApiError>> {
+        self.generate_with(request, move |provider, model, request| {
+            provider.generate_structured(model, request, schema)
         })
     }
 

@@ -34,6 +34,8 @@ pub enum CallPurpose {
     Report,
     /// 답의 상투성 판정(ADR-0031).
     Judge,
+    /// 장기기억 추출(ADR-0034).
+    MemoryExtract,
 }
 
 impl CallPurpose {
@@ -43,6 +45,7 @@ impl CallPurpose {
             CallPurpose::Crisis => "crisis",
             CallPurpose::Report => "report",
             CallPurpose::Judge => "judge",
+            CallPurpose::MemoryExtract => "memory_extract",
         }
     }
 }
@@ -65,6 +68,11 @@ pub struct GenerationRequest {
     pub context: CallContext,
 }
 
+/// 답이 따라야 할 JSON 스키마(JSON 글 그대로). 지원하는 공급자(Anthropic)만 요청에 싣고, 나머지는 보지 않는다.
+/// 그래서 부르는 쪽은 지시문으로도 JSON 만 달라고 하고 받은 글을 스스로 읽어야 한다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutputSchema(pub String);
+
 /// 생성된 글을 조각으로 흘린다. 오류가 나면 그 뒤로는 흘리지 않는다.
 pub type TextStream = BoxStream<'static, Result<String, ApiError>>;
 
@@ -73,6 +81,16 @@ pub trait TextModel {
     fn generate(&self, request: GenerationRequest) -> BoxFuture<'_, Result<String, ApiError>>;
     /// 글을 조각으로 흘린다.
     fn stream(&self, request: GenerationRequest) -> TextStream;
+    /// 글 전체를 한 번에 만들되 답을 `schema` 의 JSON 으로 묶을 수 있는 공급자에는 그렇게 묶는다.
+    /// 기본은 스키마를 버리고 `generate` 와 같다.
+    fn generate_structured(
+        &self,
+        request: GenerationRequest,
+        schema: OutputSchema,
+    ) -> BoxFuture<'_, Result<String, ApiError>> {
+        let _ = schema;
+        self.generate(request)
+    }
 }
 
 pub type SharedTextModel = Arc<dyn TextModel + Send + Sync>;

@@ -1,8 +1,8 @@
 use futures_util::StreamExt;
 
 use super::{
-    CallContext, CallPurpose, GenerationRequest, PromptMessage, PromptRole, TextModel,
-    Unimplemented,
+    CallContext, CallPurpose, GenerationRequest, OutputSchema, PromptMessage, PromptRole,
+    TextModel, Unimplemented,
 };
 use crate::shared::ApiError;
 
@@ -41,4 +41,15 @@ fn 호출_역할은_reply_crisis_report_낱말이다() {
     assert_eq!(CallPurpose::Reply.as_str(), "reply");
     assert_eq!(CallPurpose::Crisis.as_str(), "crisis");
     assert_eq!(CallPurpose::Report.as_str(), "report");
+    assert_eq!(CallPurpose::Judge.as_str(), "judge");
+    assert_eq!(CallPurpose::MemoryExtract.as_str(), "memory_extract");
+}
+
+#[tokio::test]
+async fn 스키마를_모르는_구현의_generate_structured_는_generate_와_같다() {
+    let schema = OutputSchema("{\"type\":\"object\"}".to_owned());
+    assert_eq!(
+        Unimplemented.generate_structured(request(), schema).await,
+        Err(ApiError::NotImplemented)
+    );
 }

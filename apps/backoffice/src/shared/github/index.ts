@@ -10,3 +10,4 @@ export {
 } from './handlers';
 export { ALLOWED_LABELS } from './issue';
 export * from './types';
+export { isAdminRequest } from './auth';

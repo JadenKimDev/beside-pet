@@ -28,7 +28,7 @@ description: "대화 기능의 품질을 지어낸 인물로 실측한다. `pnpm
 ```bash
 pnpm sandbox:up                      # sandbox DB(127.0.0.1:5433). pnpm db:up 도 같다
 git rev-parse --short HEAD           # 띄울 커밋을 확인해 적어 둔다
-cd apps/server && APP_ENV=sandbox ../../dev-tools/scripts/cargo.sh run -p beside-pet-server
+cd apps/server && APP_ENV=sandbox LLM_PROVIDER=claude-code LLM_MODEL=claude-haiku-5-5 ../../dev-tools/scripts/cargo.sh run -p beside-pet-server
 ```
 
 - 서버 명령은 루트 `CLAUDE.md` "명령"의 것이다. `apps/server/.env.sandbox` 의 `DATABASE_URL` 이 5433 을 가리켜야 한다(값은 읽지 않는다. 뜨지 않으면 오류 문구만 본다).

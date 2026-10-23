@@ -2,7 +2,7 @@
 
 Beside Pet 는 반려동물을 떠나보낸 보호자를 위한 AI 감정 지원(emotional support) 웹서비스다. 사용자에게 보이는 글에서는 상담, 치료라고 부르지 않는다(ADR-0003). 사용자 본인의 제품이고, 같은 레포에서 실제 제품과 포트폴리오용 구현을 함께 관리한다. 모바일 앱은 접었고 웹으로만 운영한다.
 
-모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, 서버(`apps/server`)는 Rust(axum, sqlx)와 PostgreSQL 이고, TS(NestJS) API 는 2026-10-16 에 지웠다(ADR-0019). AI 엔진은 Claude Haiku 에서 Ollama 모델로 바꿀 예정이다(세부는 미정, ADR-0010). 운영 화면(`apps/backoffice`)은 Next.js 이고 이 머신에서만 띄우며 서버의 관리자 API 만 부른다(ADR-0024). 포트폴리오용 자료(`showcase/`)는 대화 웹의 공개 화면 `/showcase` 가 보인다(ADR-0029).
+모노레포다(pnpm 워크스페이스, Node.js 24). 대화 웹(`apps/web`)은 Next.js, 서버(`apps/server`)는 Rust(axum, sqlx)와 PostgreSQL 이고, TS(NestJS) API 는 2026-10-16 에 지웠다(ADR-0019). AI 모델은 Claude Haiku 5.5 다. production 은 Anthropic API, 개발·실측은 이 Mac 의 Claude Code 구독(`claude-code` 공급자)이다(ADR-0038). 운영 화면(`apps/backoffice`)은 Next.js 이고 이 머신에서만 띄우며 서버의 관리자 API 만 부른다(ADR-0024). 포트폴리오용 자료(`showcase/`)는 대화 웹의 공개 화면 `/showcase` 가 보인다(ADR-0029).
 
 조사 근거는 `docs/research/` 에 있다(로컬 전용, gitignore. 커밋하지 않는다). 제품과 구조의 결정과 그 이유는 `docs/adr/`, 해 봤는데 안 된 일은 `docs/devlog/` 에 적는다(추적 대상, 안내는 `docs/adr/README.md`). 매번 읽지 않고, PRD 를 쓰기 전과 결정이 갈릴 때 `pnpm docs:search` 로 찾아 나온 것만 읽는다.
 

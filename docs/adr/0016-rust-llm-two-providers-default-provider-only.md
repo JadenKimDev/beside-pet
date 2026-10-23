@@ -1,7 +1,7 @@
 ---
 id: ADR-0016
 date: 2026-10-16
-status: accepted
+status: superseded
 tags: [llm, provider, ollama, anthropic, rust, server, safety]
 related: [ADR-0004, ADR-0010, ADR-0015]
 ---

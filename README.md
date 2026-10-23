@@ -17,7 +17,7 @@ production 은 AWS 의 EC2 한 대(앞에 CloudFront)에 떠 있고, 배포된 �
 - **공개 쇼케이스.** 로그인 없이 `/showcase` 에서 지어낸 반려견과의 대화 한 사이클과 쉬운 말로 쓴 개발 기록을 본다(ADR-0029).
 - **운영 화면.** `apps/backoffice` 는 이 머신에서만 띄우고 서버의 관리자 API 만 부른다. 대화 본문은 보이지 않는다(ADR-0024).
 
-AI 모델은 Anthropic Claude Haiku 다. 개발과 실측은 API 키 대신 Claude Code 구독을 셈(`dev-tools/scripts/claude-shim.py`)으로 쓴다.
+AI 모델은 Claude Haiku 5.5 다. production 은 Anthropic API 로 부르고, 개발과 실측은 API 키 대신 이 Mac 의 Claude Code 구독으로 부른다(서버의 `claude-code` 공급자, ADR-0038).
 
 ## 구조
 

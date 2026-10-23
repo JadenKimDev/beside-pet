@@ -7,6 +7,7 @@ export const KNOWN_LABELS: Record<string, { color: string; description: string }
   "run:again": { color: "5319e7", description: "같은 워크트리에서 러너를 한 번 더 돌린다" },
   "run:blocked": { color: "b60205", description: "러너가 막혀 사람이 이어 해야 한다" },
   "review:ready": { color: "0e8a16", description: "러너가 끝냈다. 댓글을 보고 닫는다" },
+  "prd:draft": { color: "fbca04", description: "승인 전의 PRD 초안. 번호만 먼저 받았다" },
 };
 
 export interface LabelPlan {

@@ -2,7 +2,7 @@
 //
 // PRD 의 이름은 GitHub 이슈 번호다. 작업 ID 는 그 PRD 안의 짧은 이름(S1, S2)이다.
 //
-//   pnpm prd:push docs/prd/<파일>.md        이슈를 만들거나 본문을 갱신하고 보드에 올린다
+//   pnpm prd:push docs/prd/<파일>.md [--draft]   이슈를 만들거나 본문을 갱신하고 보드에 올린다. --draft 는 초안 라벨(prd:draft)을 붙여 번호부터 받는다
 //   pnpm prd:pull <이슈>                    이슈 본문을 docs/prd/ 캐시로 받는다
 //   pnpm ledger:new docs/prd/<파일>.md      PRD 에서 원장을 만든다
 //   pnpm work <이슈> <작업>                 작업을 집는다
@@ -89,13 +89,25 @@ function board(root: string, issue: number, status: BoardStatus | null): void {
   }
 }
 
+/** 초안 이슈의 라벨. 초안도 이슈를 먼저 만들어 번호를 받고, 승인된 push 가 이 라벨을 뗀다. */
+const DRAFT_LABEL = "prd:draft";
+
 function prdPush(root: string, args: string[]): void {
-  const file = resolve(need(args[0], "pnpm prd:push docs/prd/<파일>.md"));
+  const draft = args.includes("--draft");
+  const file = resolve(
+    need(
+      args.find((arg) => !arg.startsWith("--")),
+      "pnpm prd:push docs/prd/<파일>.md [--draft]",
+    ),
+  );
   const text = readFileSync(file, "utf8");
   const prd = parsePrd(text);
   if (prd.issue !== null) {
     gh(root, ["issue", "edit", String(prd.issue), "--title", prd.title, "--body-file", file]);
     console.log(`이슈 #${prd.issue} 본문을 갱신했습니다 — ${prd.title}`);
+    if (!draft) {
+      issueLabel(root, [String(prd.issue), "--remove", DRAFT_LABEL]);
+    }
     board(root, prd.issue, null);
     return;
   }
@@ -113,7 +125,12 @@ function prdPush(root: string, args: string[]): void {
   writeFileSync(file, numbered);
   renameSync(file, target);
   gh(root, ["issue", "edit", String(issue), "--body-file", target]);
-  console.log(`이슈 #${issue} 를 만들었습니다 — ${prd.title}\n${url}\n캐시: ${relative(root, target)}`);
+  if (draft) {
+    issueLabel(root, [String(issue), "--add", DRAFT_LABEL]);
+  }
+  console.log(
+    `${draft ? "초안 " : ""}이슈 #${issue} 를 만들었습니다 — ${prd.title}\n${url}\n캐시: ${relative(root, target)}`,
+  );
   board(root, issue, "backlog");
 }
 

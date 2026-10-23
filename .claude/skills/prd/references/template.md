@@ -1,6 +1,6 @@
 # PRD 틀
 
-`issue` 와 `file` 은 적지 않는다. `pnpm prd:push` 가 이슈를 만들며 채운다. `depends_on` 에는 먼저 닫혀야 할 이슈 번호를 적는다.
+`issue` 와 `file` 은 손으로 적지 않는다. `pnpm prd:push --draft` 가 초안 이슈를 만들며 머리말 첫 줄에 채운다. `depends_on` 에는 먼저 닫혀야 할 이슈 번호를 적는다.
 
 ## 기능
 

@@ -74,7 +74,7 @@ export function asList(data: Frontmatter, key: string): string[] {
   return Array.isArray(value) ? value : [value];
 }
 
-/** 머리말의 값 하나를 바꾸거나, 없으면 끝에 더한다. 나머지 줄은 그대로 둔다. */
+/** 머리말의 값 하나를 바꾸거나, 없으면 머리말의 첫 줄에 더한다(이슈 번호가 맨 위에 보이게). 나머지 줄은 그대로 둔다. */
 export function setFrontmatter(text: string, key: string, value: string): string {
   const lines = text.split("\n");
   if (lines[0]?.trim() !== "---") {
@@ -86,7 +86,7 @@ export function setFrontmatter(text: string, key: string, value: string): string
   }
   const at = lines.findIndex((line, i) => i > 0 && i < end && line.startsWith(`${key}:`));
   if (at === -1) {
-    lines.splice(end, 0, `${key}: ${value}`);
+    lines.splice(1, 0, `${key}: ${value}`);
   } else {
     lines[at] = `${key}: ${value}`;
   }

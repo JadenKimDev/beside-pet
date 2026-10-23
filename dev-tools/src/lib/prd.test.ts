@@ -108,7 +108,8 @@ test("머리말의 값 하나를 바꾸거나 더한다", () => {
   const numbered = setFrontmatter(draft, "issue", "40");
   assert.equal(parsePrd(numbered).issue, 40);
   assert.equal(parsePrd(setFrontmatter(numbered, "issue", "41")).issue, 41);
-  // 본문과 다른 줄은 그대로다.
+  // 새 키는 머리말의 첫 줄에 들어가고, 본문과 다른 줄은 그대로다.
+  assert.equal(numbered.split("\n")[1], "issue: 40");
   assert.equal(numbered.replace("issue: 40\n", ""), draft);
   assert.throws(() => setFrontmatter("본문", "issue", "1"), /머리말이 없습니다/);
 });

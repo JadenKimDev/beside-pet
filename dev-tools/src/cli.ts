@@ -120,7 +120,7 @@ function prdPush(root: string, args: string[]): void {
     throw new Error(`만든 이슈의 번호를 읽지 못했습니다: ${url}`);
   }
   const name = `${issue}-${basename(file).replace(/^\d+-/, "")}`;
-  const numbered = setFrontmatter(setFrontmatter(text, "issue", String(issue)), "file", name);
+  const numbered = setFrontmatter(setFrontmatter(text, "file", name), "issue", String(issue));
   const target = join(dirname(file), name);
   writeFileSync(file, numbered);
   renameSync(file, target);

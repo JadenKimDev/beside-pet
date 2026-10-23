@@ -2,10 +2,11 @@
 //
 // 추정 값은 "작업 15분, 전체 30분" 처럼 작업 합계와 전체(리드 타임)를 따로 적을 수 있고,
 // 하나만 적으면 작업 합계로 본다. 단위는 분, 시간, 일(= 8시간), 반나절(= 4시간)이다.
+// "작성 K분" 을 더 적으면 PRD 작성 시간의 추정으로 읽는다(머리말의 drafted_at→submitted_at 과 맞댄다).
 
-import type { Outcome } from "./ledger.ts";
+import { type Outcome, prdTimesOf } from "./ledger.ts";
 
-export type Estimate = { work_ms: number; lead_ms: number | null };
+export type Estimate = { work_ms: number; lead_ms: number | null; write_ms: number | null };
 export type EstimateRow = { optimistic: Estimate; realistic: Estimate; pessimistic: Estimate };
 
 const HOUR = 60 * 60 * 1000;
@@ -29,19 +30,21 @@ export function parseDuration(text: string): number | null {
   return found ? total : null;
 }
 
-/** "작업 15분, 전체 30분" 또는 "40분" 을 추정 하나로. */
+/** "작업 15분, 전체 30분, 작성 20분" 또는 "40분" 을 추정 하나로. */
 export function parseEstimate(cell: string): Estimate | null {
   const work = /작업\s*([^,]+)/.exec(cell);
   const lead = /전체\s*([^,]+)/.exec(cell);
+  const write = /작성\s*([^,]+)/.exec(cell);
+  const write_ms = write ? parseDuration(write[1]) : null;
   if (work || lead) {
     const work_ms = work ? parseDuration(work[1]) : null;
     if (work_ms === null) {
       return null;
     }
-    return { work_ms, lead_ms: lead ? parseDuration(lead[1]) : null };
+    return { work_ms, lead_ms: lead ? parseDuration(lead[1]) : null, write_ms };
   }
   const work_ms = parseDuration(cell);
-  return work_ms === null ? null : { work_ms, lead_ms: null };
+  return work_ms === null ? null : { work_ms, lead_ms: null, write_ms: null };
 }
 
 /** PRD 본문의 `## 추정` 표에서 세 값을 읽는다. 표가 없거나 셋이 다 없으면 null. */
@@ -65,6 +68,33 @@ export function parseEstimateSection(body: string): EstimateRow | null {
   return found.optimistic && found.realistic && found.pessimistic ? (found as EstimateRow) : null;
 }
 
+export type Phases = {
+  /** PRD 작성: drafted_at→submitted_at(초안 없이 올렸으면 drafted_at→approved_at). */
+  write_ms: number | null;
+  /** 승인 대기: submitted_at→approved_at. */
+  wait_ms: number | null;
+  /** 구현: 첫 `pnpm work` 부터 `pnpm finish` 까지(실측의 lead_time_ms). */
+  build_ms: number;
+};
+
+function between(from: string | null, to: string | null): number | null {
+  if (from === null || to === null) {
+    return null;
+  }
+  const ms = Date.parse(to) - Date.parse(from);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+/** 실측 행의 세 구간. 시각이 없는 구간은 null. */
+export function phasesOf(outcome: Outcome): Phases {
+  const times = prdTimesOf(outcome);
+  return {
+    write_ms: between(times.drafted_at, times.submitted_at ?? times.approved_at),
+    wait_ms: between(times.submitted_at, times.approved_at),
+    build_ms: outcome.lead_time_ms,
+  };
+}
+
 export type Comparison = {
   issue: number;
   title: string;
@@ -75,6 +105,11 @@ export type Comparison = {
   work_ratio: number;
   /** 실측 전체 ÷ 현실 추정의 전체(없으면 작업 합계). */
   lead_ratio: number;
+  /** 실측 작성 시간과 승인 대기. 시각이 없으면 null. */
+  write_ms: number | null;
+  wait_ms: number | null;
+  /** 실측 작성 ÷ 현실 작성 추정. 어느 쪽이 없으면 null. */
+  write_ratio: number | null;
   /** 작업 합계가 낙관~비관 안에 들었는가. */
   verdict: "안" | "낙관보다 짧음" | "비관 초과";
 };
@@ -82,6 +117,8 @@ export type Comparison = {
 export function compare(outcome: Outcome, estimate: EstimateRow): Comparison {
   const realisticLead = estimate.realistic.lead_ms ?? estimate.realistic.work_ms;
   const work = outcome.active_ms;
+  const phases = phasesOf(outcome);
+  const realisticWrite = estimate.realistic.write_ms;
   const verdict =
     work < estimate.optimistic.work_ms ? "낙관보다 짧음" : work > estimate.pessimistic.work_ms ? "비관 초과" : "안";
   return {
@@ -92,6 +129,9 @@ export function compare(outcome: Outcome, estimate: EstimateRow): Comparison {
     actual_lead_ms: outcome.lead_time_ms,
     work_ratio: work / estimate.realistic.work_ms,
     lead_ratio: outcome.lead_time_ms / realisticLead,
+    write_ms: phases.write_ms,
+    wait_ms: phases.wait_ms,
+    write_ratio: phases.write_ms === null || !realisticWrite ? null : phases.write_ms / realisticWrite,
     verdict,
   };
 }
@@ -109,6 +149,7 @@ export type Summary = {
   count: number;
   work_ratio_median: number | null;
   lead_ratio_median: number | null;
+  write_ratio_median: number | null;
   inside: number;
   under: number;
   over: number;
@@ -119,6 +160,7 @@ export function summarize(rows: Comparison[]): Summary {
     count: rows.length,
     work_ratio_median: median(rows.map((row) => row.work_ratio)),
     lead_ratio_median: median(rows.map((row) => row.lead_ratio)),
+    write_ratio_median: median(rows.flatMap((row) => (row.write_ratio === null ? [] : [row.write_ratio]))),
     inside: rows.filter((row) => row.verdict === "안").length,
     under: rows.filter((row) => row.verdict === "낙관보다 짧음").length,
     over: rows.filter((row) => row.verdict === "비관 초과").length,

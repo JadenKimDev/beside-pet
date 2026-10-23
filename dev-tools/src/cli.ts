@@ -276,16 +276,19 @@ function accuracy(root: string): void {
     console.log("추정과 실측을 맞댈 이슈가 없습니다(docs/prd/ 캐시에 `## 추정` 이 있는 끝난 이슈가 없음).");
     return;
   }
-  console.log("이슈  낙관 / 현실 / 비관(작업)  |  실측 작업  실측 전체  |  작업÷현실  전체÷현실  판정");
+  const span = (ms: number | null) => (ms === null ? "—" : formatDuration(ms));
+  console.log(
+    "이슈  낙관 / 현실 / 비관(작업)  |  실측 작업  실측 전체  |  작업÷현실  전체÷현실  판정  |  작성  승인 대기  구현  작성÷현실",
+  );
   for (const row of rows) {
     const e = row.estimate;
     console.log(
-      `#${String(row.issue).padEnd(4)} ${formatDuration(e.optimistic.work_ms)} / ${formatDuration(e.realistic.work_ms)} / ${formatDuration(e.pessimistic.work_ms)}  |  ${formatDuration(row.actual_work_ms)}  ${formatDuration(row.actual_lead_ms)}  |  ${formatRatio(row.work_ratio)}  ${formatRatio(row.lead_ratio)}  ${row.verdict}`,
+      `#${String(row.issue).padEnd(4)} ${formatDuration(e.optimistic.work_ms)} / ${formatDuration(e.realistic.work_ms)} / ${formatDuration(e.pessimistic.work_ms)}  |  ${formatDuration(row.actual_work_ms)}  ${formatDuration(row.actual_lead_ms)}  |  ${formatRatio(row.work_ratio)}  ${formatRatio(row.lead_ratio)}  ${row.verdict}  |  ${span(row.write_ms)}  ${span(row.wait_ms)}  ${span(row.actual_lead_ms)}  ${formatRatio(row.write_ratio)}`,
     );
   }
   const s = summarize(rows);
   console.log(
-    `\n이슈 ${s.count}개. 작업÷현실 중앙값 ${formatRatio(s.work_ratio_median)}, 전체÷현실 중앙값 ${formatRatio(s.lead_ratio_median)}. 낙관~비관 안 ${s.inside}, 낙관보다 짧음 ${s.under}, 비관 초과 ${s.over}.`,
+    `\n이슈 ${s.count}개. 작업÷현실 중앙값 ${formatRatio(s.work_ratio_median)}, 전체÷현실 중앙값 ${formatRatio(s.lead_ratio_median)}, 작성÷현실 중앙값 ${formatRatio(s.write_ratio_median)}. 낙관~비관 안 ${s.inside}, 낙관보다 짧음 ${s.under}, 비관 초과 ${s.over}.`,
   );
   console.log(
     "다음 PRD 의 현실 값은 비슷한 이슈의 실측 작업 합계에 이 중앙값을 곱하지 말고, 실측 자체를 그대로 기준으로 삼는다.",

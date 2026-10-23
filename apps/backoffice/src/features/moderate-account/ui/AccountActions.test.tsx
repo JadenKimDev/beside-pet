@@ -152,13 +152,14 @@ describe('완전 삭제', () => {
     expect(onChanged).toHaveBeenCalledWith({ kind: 'purged', id: 'acc-7' });
   });
 
-  it('keeps the button off with the days left as its title within three months of suspension', async () => {
+  it('keeps the button off and shows the days left as text within three months of suspension', async () => {
     const deletedAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
     render(account({ status: 'deleted', deletedAt }));
 
     const purge = button('완전 삭제');
     expect(purge.disabled).toBe(true);
-    expect(purge.title).toMatch(/\d+/);
+    expect(purge.hasAttribute('title')).toBe(false);
+    expect(container.textContent).toMatch(/\d+일 남았어요/);
     await click(purge);
     expect(container.querySelector('dialog')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();

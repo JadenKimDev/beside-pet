@@ -17,11 +17,11 @@
         "dev-tools/scripts/cargo.sh test -p beside-pet-server -- support::store"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
+      "red_at": "2026-10-23T02:33:14.844Z",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-23T02:31:26.253Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -39,11 +39,11 @@
         "pnpm -F @beside-pet/web typecheck && pnpm -F @beside-pet/web test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
+      "red_at": "2026-10-23T02:33:48.747Z",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-23T02:31:33.113Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -52,7 +52,8 @@
       "id": "S3",
       "title": "완전 삭제가 막힌 이유를 `title` 대신 글로 그린다",
       "scope": [
-        "apps/backoffice/src/features/moderate-account/ui/AccountActions.tsx"
+        "apps/backoffice/src/features/moderate-account/ui/AccountActions.tsx",
+        "apps/backoffice/src/features/moderate-account/ui/AccountActions.test.tsx"
       ],
       "depends_on": [],
       "verify": [
@@ -60,13 +61,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-23T02:31:33.445Z",
+      "finished_at": "2026-10-23T02:33:42.123Z",
+      "active_ms": 128678,
+      "verify_ms": 4771
     },
     {
       "id": "S4",
@@ -82,10 +83,10 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-23T02:31:33.764Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null

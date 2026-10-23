@@ -77,7 +77,6 @@ export function AccountActions({ account, onChanged, onError }: AccountActionsPr
             size="sm"
             variant={VARIANTS[action]}
             disabled={busy !== null || blocked}
-            title={action === 'purge' && !purge.allowed ? purge.reason : undefined}
             busy={busy !== null && DIRECT[action]?.kind === busy}
             onClick={() => press(action)}
           >
@@ -87,6 +86,9 @@ export function AccountActions({ account, onChanged, onError }: AccountActionsPr
       })}
       {suspendedAt !== undefined && (
         <span className="text-xs whitespace-nowrap text-fg-muted">{suspendedAt}</span>
+      )}
+      {actions.includes('purge') && !purge.allowed && (
+        <span className="text-xs text-fg-muted">{purge.reason}</span>
       )}
       {(dialog === 'revoke' || dialog === 'softDelete') && (
         <ConfirmDialog

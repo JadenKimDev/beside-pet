@@ -84,7 +84,7 @@ pnpm chat:eval run --persona <이름>  # QA 계정으로 인물 대본의 대화
 ```
 
 ```bash
-pnpm dev            # Rust 서버(3000)와 대화 웹(3001)과 운영 화면(3002)을 sandbox 로 띄운다(APP_ENV=sandbox). 서버는 apps/server/.env.sandbox 와 sandbox PostgreSQL 이 필요하다
+pnpm dev            # Rust 서버(3000)와 대화 웹(3001)과 운영 화면(3002)을 sandbox 로 띄운다(APP_ENV=sandbox). 서버는 apps/server/.env.sandbox 와 sandbox PostgreSQL 이 필요하다. 워크트리(브랜치 prd/<이슈>)에서는 <이슈>10·<이슈>11·<이슈>12 와 호스트 <이슈>.localhost 로 떠서 본 체크아웃과 겹치지 않는다. 브랜치가 prd/<숫자> 가 아닌 워크트리에서는 멈춘다
 APP_ENV=sandbox dev-tools/scripts/cargo.sh run -p beside-pet-server   # Rust 서버(3000)만. cargo 는 이 머신의 PATH 에 없어 래퍼로 부른다. APP_ENV 와 DATABASE_URL 이 없으면 뜨지 않는다
 ```
 

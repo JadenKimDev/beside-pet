@@ -22,10 +22,10 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
+      "status": "doing",
       "passes": false,
       "retries": 0,
-      "started_at": null,
+      "started_at": "2026-10-23T06:38:26.756Z",
       "finished_at": null,
       "active_ms": null,
       "verify_ms": null
@@ -44,13 +44,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-23T06:38:34.061Z",
+      "finished_at": "2026-10-23T06:39:21.730Z",
+      "active_ms": 47669,
+      "verify_ms": 1470
     }
   ]
 }

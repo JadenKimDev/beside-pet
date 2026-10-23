@@ -59,7 +59,7 @@ const PLAIN_TEXT: &str = "I miss walking Bori in the park every morning.";
 async fn 키워드가_걸리면_모델에_묻지_않고_위기다() {
     let model = FixedModel::answering("NO");
     assert_eq!(
-        assess_risk_verdict(KEYWORD_TEXT, SESSION, &model)
+        assess_risk_verdict(KEYWORD_TEXT, None, SESSION, &model)
             .await
             .level,
         RiskLevel::Crisis
@@ -71,7 +71,7 @@ async fn 키워드가_걸리면_모델에_묻지_않고_위기다() {
 async fn 키워드가_걸리면_모델이_실패해도_위기다() {
     let model = FixedModel::failing();
     assert_eq!(
-        assess_risk_verdict(KEYWORD_TEXT, SESSION, &model)
+        assess_risk_verdict(KEYWORD_TEXT, None, SESSION, &model)
             .await
             .level,
         RiskLevel::Crisis
@@ -83,7 +83,7 @@ async fn 키워드가_없어도_모델이_yes_면_위기다() {
     for answer in ["YES", " yes\n", "Yes."] {
         let model = FixedModel::answering(answer);
         assert_eq!(
-            assess_risk_verdict("사라지고 싶다는 생각만 든다", SESSION, &model)
+            assess_risk_verdict("사라지고 싶다는 생각만 든다", None, SESSION, &model)
                 .await
                 .level,
             RiskLevel::Crisis,
@@ -96,7 +96,9 @@ async fn 키워드가_없어도_모델이_yes_면_위기다() {
 async fn 키워드도_없고_모델이_no_면_안전하다() {
     let model = FixedModel::answering("NO");
     assert_eq!(
-        assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await.level,
+        assess_risk_verdict(PLAIN_TEXT, None, SESSION, &model)
+            .await
+            .level,
         RiskLevel::Safe
     );
 }
@@ -105,7 +107,9 @@ async fn 키워드도_없고_모델이_no_면_안전하다() {
 async fn 모델이_실패하면_키워드_결과를_쓴다() {
     let model = FixedModel::failing();
     assert_eq!(
-        assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await.level,
+        assess_risk_verdict(PLAIN_TEXT, None, SESSION, &model)
+            .await
+            .level,
         RiskLevel::Safe
     );
     assert_eq!(model.requests().len(), 1);
@@ -114,14 +118,14 @@ async fn 모델이_실패하면_키워드_결과를_쓴다() {
 #[tokio::test]
 async fn 모델에는_판정_프롬프트와_사용자_글_하나를_작은_상한으로_보낸다() {
     let model = FixedModel::answering("NO");
-    assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await;
+    assess_risk_verdict(PLAIN_TEXT, None, SESSION, &model).await;
     assert_eq!(
         model.requests(),
         vec![GenerationRequest {
             system: Some(RISK_SYSTEM_PROMPT.to_owned()),
             messages: vec![PromptMessage {
                 role: PromptRole::User,
-                text: PLAIN_TEXT.to_owned(),
+                text: format!("User message: {PLAIN_TEXT}"),
             }],
             max_tokens: 5,
             context: CallContext {
@@ -146,14 +150,14 @@ fn 판정_프롬프트는_ts_의_risk_prompt_와_같다() {
 }
 
 #[test]
-fn 판정_프롬프트의_버전은_0_1_0_이다() {
-    assert_eq!(PROMPT_VERSION, "0.1.0");
+fn 판정_프롬프트의_버전은_1_0_0_이다() {
+    assert_eq!(PROMPT_VERSION, "1.0.0");
 }
 
 #[tokio::test]
 async fn 세션이_없는_판정은_세션_없이_묻는다() {
     let model = FixedModel::answering("NO");
-    assess_risk_verdict(PLAIN_TEXT, None, &model).await;
+    assess_risk_verdict(PLAIN_TEXT, None, None, &model).await;
     assert_eq!(model.requests()[0].context.session_id, None);
 }
 
@@ -167,7 +171,7 @@ fn verdict(level: RiskLevel, detector: RiskDetector) -> RiskVerdict {
 async fn 키워드가_걸리면_주체는_키워드이고_모델에_묻지_않는다() {
     let model = FixedModel::answering("YES");
     assert_eq!(
-        assess_risk_verdict(KEYWORD_TEXT, SESSION, &model).await,
+        assess_risk_verdict(KEYWORD_TEXT, None, SESSION, &model).await,
         verdict(RiskLevel::Crisis, RiskDetector::Keyword)
     );
     assert!(model.requests().is_empty());
@@ -177,7 +181,7 @@ async fn 키워드가_걸리면_주체는_키워드이고_모델에_묻지_않�
 async fn 키워드가_없고_모델이_yes_면_주체는_모델이다() {
     let model = FixedModel::answering(" yes\n");
     assert_eq!(
-        assess_risk_verdict("사라지고 싶다는 생각만 든다", SESSION, &model).await,
+        assess_risk_verdict("사라지고 싶다는 생각만 든다", None, SESSION, &model).await,
         verdict(RiskLevel::Crisis, RiskDetector::Model)
     );
     assert_eq!(model.requests().len(), 1);
@@ -187,7 +191,7 @@ async fn 키워드가_없고_모델이_yes_면_주체는_모델이다() {
 async fn 키워드도_모델도_아니면_안전하고_주체는_없다() {
     let model = FixedModel::answering("NO");
     assert_eq!(
-        assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await,
+        assess_risk_verdict(PLAIN_TEXT, None, SESSION, &model).await,
         verdict(RiskLevel::Safe, RiskDetector::None)
     );
 }
@@ -196,7 +200,7 @@ async fn 키워드도_모델도_아니면_안전하고_주체는_없다() {
 async fn 모델이_실패하면_키워드_결과로_대신하고_주체는_없다() {
     let model = FixedModel::failing();
     assert_eq!(
-        assess_risk_verdict(PLAIN_TEXT, SESSION, &model).await,
+        assess_risk_verdict(PLAIN_TEXT, None, SESSION, &model).await,
         verdict(RiskLevel::Safe, RiskDetector::None)
     );
     assert_eq!(model.requests().len(), 1);
@@ -206,7 +210,100 @@ async fn 모델이_실패하면_키워드_결과로_대신하고_주체는_없�
 async fn 키워드가_걸리면_모델이_실패해도_주체는_키워드다() {
     let model = FixedModel::failing();
     assert_eq!(
-        assess_risk_verdict(KEYWORD_TEXT, SESSION, &model).await,
+        assess_risk_verdict(KEYWORD_TEXT, None, SESSION, &model).await,
         verdict(RiskLevel::Crisis, RiskDetector::Keyword)
     );
+}
+
+// 판정 입력의 직전 동반자 답(#48): 맥락 한 줄을 사용자 메시지 앞에 둔다. 판정 대상은 사용자 메시지다.
+
+const PREVIOUS_REPLY: &str = "Bori sounds like she loved those mornings with you.";
+
+#[tokio::test]
+async fn 직전_답이_있으면_그_한_줄을_사용자_메시지_앞에_둔다() {
+    let model = FixedModel::answering("NO");
+    assess_risk_verdict(PLAIN_TEXT, Some(PREVIOUS_REPLY), SESSION, &model).await;
+    let requests = model.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(
+        requests[0].messages,
+        vec![PromptMessage {
+            role: PromptRole::User,
+            text: format!(
+                "Previous companion message: {PREVIOUS_REPLY}\nUser message: {PLAIN_TEXT}"
+            ),
+        }]
+    );
+}
+
+#[tokio::test]
+async fn 첫_턴이면_직전_답_줄_없이_사용자_메시지만_보낸다() {
+    let model = FixedModel::answering("NO");
+    assess_risk_verdict(PLAIN_TEXT, None, SESSION, &model).await;
+    let text = &model.requests()[0].messages[0].text;
+    assert_eq!(text, &format!("User message: {PLAIN_TEXT}"));
+    assert!(!text.contains("Previous companion message"));
+}
+
+#[tokio::test]
+async fn 여러_줄의_직전_답은_한_줄로_접는다() {
+    let model = FixedModel::answering("NO");
+    assess_risk_verdict(
+        PLAIN_TEXT,
+        Some("I'm here.\n\nTell me  more."),
+        SESSION,
+        &model,
+    )
+    .await;
+    assert_eq!(
+        model.requests()[0].messages[0].text,
+        format!("Previous companion message: I'm here. Tell me more.\nUser message: {PLAIN_TEXT}")
+    );
+}
+
+#[tokio::test]
+async fn 직전_답이_있어도_키워드가_걸리면_모델에_묻지_않는다() {
+    let model = FixedModel::answering("NO");
+    assert_eq!(
+        assess_risk_verdict(KEYWORD_TEXT, Some(PREVIOUS_REPLY), SESSION, &model).await,
+        verdict(RiskLevel::Crisis, RiskDetector::Keyword)
+    );
+    assert!(model.requests().is_empty());
+}
+
+#[tokio::test]
+async fn 직전_답이_있어도_모델이_실패하면_키워드_결과로_대신한다() {
+    let model = FixedModel::failing();
+    assert_eq!(
+        assess_risk_verdict(PLAIN_TEXT, Some(PREVIOUS_REPLY), SESSION, &model).await,
+        verdict(RiskLevel::Safe, RiskDetector::None)
+    );
+}
+
+#[test]
+fn 지시문은_직전_답을_맥락으로만_쓰고_판정_대상은_사용자_메시지라고_말한다() {
+    assert!(RISK_SYSTEM_PROMPT.contains("Previous companion message"));
+    assert!(RISK_SYSTEM_PROMPT.contains("context only"));
+    assert!(RISK_SYSTEM_PROMPT.contains("Judge only the User message"));
+}
+
+#[test]
+fn 지시문은_대화를_끝내려는_말이_위기가_아니라고_예시와_함께_말한다() {
+    assert!(RISK_SYSTEM_PROMPT.contains("ending the conversation"));
+    for example in ["그만할래", "여기까지 할게요", "이제 갈게요", "I need to go"] {
+        assert!(RISK_SYSTEM_PROMPT.contains(example), "{example}");
+    }
+}
+
+#[test]
+fn 지시문은_한국어_위기_예시와_애도_관용구_예시를_담는다() {
+    for example in [
+        "따라가고 싶다",
+        "죽고 싶다",
+        "살 이유가 없다",
+        "사라지고 싶다",
+    ] {
+        assert!(RISK_SYSTEM_PROMPT.contains(example), "{example}");
+    }
+    assert!(RISK_SYSTEM_PROMPT.contains("죽을 만큼 보고 싶다"));
 }

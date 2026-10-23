@@ -15,10 +15,10 @@ fn expected(purpose: CallPurpose, prompt_version: &'static str) -> CallContext {
 }
 
 #[test]
-fn 역할별_프롬프트_버전은_발화_0_6_0_리포트와_위기_판정_0_1_0_이다() {
+fn 역할별_프롬프트_버전은_발화_0_6_0_리포트_0_1_0_위기_판정_1_0_0_이다() {
     assert_eq!(prompt::REPLY_PROMPT_VERSION, "0.6.0");
     assert_eq!(prompt::REPORT_PROMPT_VERSION, "0.1.0");
-    assert_eq!(safety::RISK_PROMPT_VERSION, "0.1.0");
+    assert_eq!(safety::RISK_PROMPT_VERSION, "1.0.0");
 }
 
 #[tokio::test]

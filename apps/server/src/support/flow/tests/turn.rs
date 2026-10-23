@@ -21,7 +21,7 @@ async fn 턴은_판정_뒤_발화하고_전사와_분석을_순서대로_저장�
     let calls = h.model.calls();
     let tail: Vec<&Call> = calls.iter().skip(1).collect();
     assert!(
-        matches!(tail[0], Call::Risk(text) if text == ENGAGED),
+        matches!(tail[0], Call::Risk(text) if text.ends_with(&format!("\nUser message: {ENGAGED}"))),
         "{calls:?}"
     );
     let Call::Reply(request) = tail[1] else {

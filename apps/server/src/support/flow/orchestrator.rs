@@ -122,7 +122,13 @@ pub async fn handle(
     let conflict = |session: &Session, error| session_conflict(session.id(), error);
     // 1) 안전 확인: 키워드 ∪ 모델 판정. 누가 잡았는지도 턴 분석까지 싣는다.
     let risk = RiskAssessment::from(
-        assess_risk_verdict(text, Some(session.id()), parts.model.as_ref()).await,
+        assess_risk_verdict(
+            text,
+            last_companion_reply(&session),
+            Some(session.id()),
+            parts.model.as_ref(),
+        )
+        .await,
     );
     // 위기는 받자마자 닫고 고정 문구로 끝낸다(저장 한 번).
     if risk.level.is_crisis() {
@@ -167,7 +173,13 @@ pub async fn retry(
         .map(|message| message.text.clone())
         .ok_or_else(not_failed)?;
     let risk = RiskAssessment::from(
-        assess_risk_verdict(&text, Some(session.id()), parts.model.as_ref()).await,
+        assess_risk_verdict(
+            &text,
+            last_companion_reply(&session),
+            Some(session.id()),
+            parts.model.as_ref(),
+        )
+        .await,
     );
     if risk.level.is_crisis() {
         let reply = crisis_reply(language_code(session.grief_profile().language()));
@@ -393,6 +405,16 @@ fn turn_trace(blocks: Vec<PromptBlock>, turn_style: &TurnStyle, system: &str) ->
         turn_style: turn_style.decisions(),
         system_prompt: system.to_owned(),
     }
+}
+
+/// 위기 판정의 맥락으로 넘기는 직전 동반자 답: 이 세션 기록(실패·중단한 턴은 빠진 사본, ADR-0030)의 마지막 동반자 메시지.
+fn last_companion_reply(session: &Session) -> Option<&str> {
+    session
+        .history()
+        .iter()
+        .rev()
+        .find(|message| message.role == MessageRole::Assistant)
+        .map(|message| message.text.as_str())
 }
 
 /// 이 세션의 기록(재개 인사의 직전 세션은 넣지 않는다)을 동반자 답과 사용자 말로 갈라 이번 턴의 화법을 정한다.

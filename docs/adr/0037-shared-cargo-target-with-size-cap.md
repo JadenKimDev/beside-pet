@@ -1,9 +1,9 @@
 ---
 id: ADR-0037
 date: 2026-10-22
-status: accepted
+status: superseded
 tags: [harness, rust, build, disk, worktree, process]
-related: [ADR-0032, DEV-2026-10-22-cargo-sweep-breaks-cache]
+related: [ADR-0032, DEV-2026-10-22-cargo-sweep-breaks-cache, ADR-0039]
 ---
 # Rust 의 `target/` 은 워크트리끼리 본 체크아웃의 것 하나를 같이 쓰고, 4G 를 넘으면 `cargo.sh` 가 통째로 비운다
 

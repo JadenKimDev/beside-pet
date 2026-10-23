@@ -41,6 +41,7 @@
     "finish": "node dev-tools/src/cli.ts finish",
     "ledger:status": "node dev-tools/src/cli.ts ledger:status",
     "ledger:outcomes": "node dev-tools/src/cli.ts ledger:outcomes",
+    "ledger:accuracy": "node dev-tools/src/cli.ts ledger:accuracy",
     "docs:index": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:index",
     "docs:search": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:search",
     "docs:list": "node --no-warnings=ExperimentalWarning dev-tools/src/cli.ts docs:list",

@@ -108,6 +108,7 @@ pnpm ledger:verify <이슈> <작업>  # 검증을 돌려 판정을 적는다
 pnpm finish <이슈>                # 실측을 기록하고 원장을 지운다
 pnpm ledger:status [이슈]
 pnpm ledger:outcomes              # 끝난 이슈의 실측
+pnpm ledger:accuracy              # PRD 의 추정과 실측을 맞댄 정확도
 pnpm docs:search "<낱말>"         # 결정 기록(ADR, 개발 일지)을 찾는다. 색인이 낡았으면 먼저 다시 만든다
 pnpm docs:index                   # 결정 기록 색인(docs/docs.db)을 다시 만든다
 ```

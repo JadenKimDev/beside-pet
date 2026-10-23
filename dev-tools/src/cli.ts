@@ -11,6 +11,7 @@
 //   pnpm finish <이슈>                      마감: 결과를 기록하고 원장을 지운다
 //   pnpm ledger:status [이슈]               진행 중인 원장
 //   pnpm ledger:outcomes                    끝난 이슈의 실측
+//   pnpm ledger:accuracy                    PRD 의 추정(낙관·현실·비관)과 실측을 맞대어 정확도를 잰다
 //   pnpm docs:index                         결정 기록 색인(docs/docs.db)을 다시 만든다
 //   pnpm docs:search "<낱말>"               결정 기록을 찾는다 (색인이 낡았으면 먼저 다시 만든다)
 //   pnpm docs:list [--type adr|devlog] [--status <s>] [--tag <t>]   결정 기록 목록
@@ -22,12 +23,13 @@
 //   pnpm chat:eval run (--persona <이름> | --all) [--interactive] [--stream] [--baseline <날짜>]   대화 실측
 //   pnpm chat:eval arc --arc <이름> [--stream] [--out-label <라벨>] [--reset-qa]   장기기억 실측(세션 여럿, 날짜를 과거로 민다)
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 
 import { chatEval } from "./lib/chat-eval/command.ts";
 import type { DocKind } from "./lib/docs.ts";
 import type { BuildResult } from "./lib/docs-db.ts";
+import { compare, formatRatio, parseEstimateSection, summarize } from "./lib/estimate.ts";
 import { asString, setFrontmatter, splitFrontmatter } from "./lib/frontmatter.ts";
 import {
   DIAGNOSE_AFTER,
@@ -329,6 +331,42 @@ function status(root: string, args: string[]): void {
   }
 }
 
+function accuracy(root: string): void {
+  const records = readOutcomes(root);
+  const rows = [];
+  const missing: number[] = [];
+  for (const record of records) {
+    const file = readdirSync(prdDir(root)).find((name) => name.startsWith(`${record.issue}-`));
+    const estimate = file ? parseEstimateSection(readFileSync(join(prdDir(root), file), "utf8")) : null;
+    if (!estimate) {
+      missing.push(record.issue);
+      continue;
+    }
+    rows.push(compare(record, estimate));
+  }
+  if (rows.length === 0) {
+    console.log("추정과 실측을 맞댈 이슈가 없습니다(docs/prd/ 캐시에 `## 추정` 이 있는 끝난 이슈가 없음).");
+    return;
+  }
+  console.log("이슈  낙관 / 현실 / 비관(작업)  |  실측 작업  실측 전체  |  작업÷현실  전체÷현실  판정");
+  for (const row of rows) {
+    const e = row.estimate;
+    console.log(
+      `#${String(row.issue).padEnd(4)} ${formatDuration(e.optimistic.work_ms)} / ${formatDuration(e.realistic.work_ms)} / ${formatDuration(e.pessimistic.work_ms)}  |  ${formatDuration(row.actual_work_ms)}  ${formatDuration(row.actual_lead_ms)}  |  ${formatRatio(row.work_ratio)}  ${formatRatio(row.lead_ratio)}  ${row.verdict}`,
+    );
+  }
+  const s = summarize(rows);
+  console.log(
+    `\n이슈 ${s.count}개. 작업÷현실 중앙값 ${formatRatio(s.work_ratio_median)}, 전체÷현실 중앙값 ${formatRatio(s.lead_ratio_median)}. 낙관~비관 안 ${s.inside}, 낙관보다 짧음 ${s.under}, 비관 초과 ${s.over}.`,
+  );
+  console.log(
+    "다음 PRD 의 현실 값은 비슷한 이슈의 실측 작업 합계에 이 중앙값을 곱하지 말고, 실측 자체를 그대로 기준으로 삼는다.",
+  );
+  if (missing.length > 0) {
+    console.log(`추정이 없거나 캐시가 없는 이슈: ${missing.map((n) => `#${n}`).join(", ")}`);
+  }
+}
+
 function outcomes(root: string): void {
   const records = readOutcomes(root);
   if (records.length === 0) {
@@ -515,6 +553,7 @@ const COMMANDS: Record<string, (root: string, args: string[]) => void | Promise<
   finish,
   "ledger:status": status,
   "ledger:outcomes": outcomes,
+  "ledger:accuracy": accuracy,
   "docs:index": docsIndex,
   "docs:search": docsSearch,
   "docs:list": docsList,

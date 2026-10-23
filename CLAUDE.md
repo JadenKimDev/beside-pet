@@ -93,6 +93,7 @@ APP_ENV=sandbox dev-tools/scripts/cargo.sh run -p beside-pet-server   # Rust 서
 작업 대장:
 
 ```bash
+pnpm prd:new <kebab-설명> [--fix]  # 틀을 docs/prd/<kebab-설명>.md 로 복사하고 머리말에 drafted_at 을 적는다. --fix 는 수정 틀
 pnpm prd:push docs/prd/<파일>.md [--draft]  # PRD 를 GitHub 이슈로 올리거나 갱신하고 보드에 올린다. --draft 는 초안 라벨을 붙여 번호부터 받는다
 pnpm prd:pull <이슈>              # 이슈 본문을 docs/prd/ 캐시로 받는다
 pnpm prd:pane docs/prd/<파일>.md  # herdr 오른쪽 pane 에 초안을 vi 로 연다 (herdr 가 없으면 경로만 알린다)

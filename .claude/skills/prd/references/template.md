@@ -1,6 +1,6 @@
 # PRD 틀
 
-`issue` 와 `file` 은 손으로 적지 않는다. `pnpm prd:push --draft` 가 초안 이슈를 만들며 머리말 첫 줄에 채운다. `depends_on` 에는 먼저 닫혀야 할 이슈 번호를 적는다.
+초안은 `pnpm prd:new <kebab-설명>` (수정 틀은 `--fix`) 이 아래 틀을 복사해 만든다. `issue`, `file` 과 시각(`drafted_at`, `submitted_at`, `approved_at`)은 손으로 적지 않는다. `prd:new` 가 `drafted_at` 을, `pnpm prd:push --draft` 가 초안 이슈를 만들며 머리말 첫 줄에 `issue` 와 `submitted_at` 을, 승인 푸시가 `approved_at` 을 채운다. `depends_on` 에는 먼저 닫혀야 할 이슈 번호를 적는다.
 
 ## 기능
 
@@ -60,9 +60,9 @@ scope_paths:
 
 | 구분 | 값 | 근거 |
 |---|---|---|
-| 낙관 | 작업 N분, 전체 M분 | 기준 이슈 중 가장 짧은 실측 |
-| 현실 | 작업 N분, 전체 M분 | 기준 이슈와 표본 수(`pnpm ledger:outcomes`), 실측 작업 합계의 중앙값 |
-| 비관 | 작업 N분, 전체 M분 | 기준 이슈 중 가장 긴 실측의 두 배 |
+| 낙관 | 작업 N분, 전체 M분, 작성 K분 | 기준 이슈 중 가장 짧은 실측 |
+| 현실 | 작업 N분, 전체 M분, 작성 K분 | 기준 이슈와 표본 수(`pnpm ledger:outcomes`), 실측 작업 합계의 중앙값. 작성은 `pnpm ledger:accuracy` 의 작성 구간 중앙값 |
+| 비관 | 작업 N분, 전체 M분, 작성 K분 | 기준 이슈 중 가장 긴 실측의 두 배 |
 ```
 
 ## 수정

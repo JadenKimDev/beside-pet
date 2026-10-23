@@ -7,8 +7,9 @@
  *
  * 로그인 없이 연 경우와 서버가 세션을 거절한 경우의 첫 화면 이동은 레이아웃과 auth 의 처리기가 맡는다.
  * 상태: 불러오는 중(스켈레톤) / 실패(다시 불러오기, 온보딩으로 보내지 않는다: 대화가 있는 사람에게
- * 프로필을 다시 만들게 하지 않으려고) / 빈 목록(온보딩으로. "처음 온 사람"과 "다 지운 사람"을 가르지 않는다.
- * 목록은 살아 있는 대화만 받으므로 둘을 가를 값이 없다, ADR-0020) / 목록. 목록 바닥에 지운 대화 보관함 링크.
+ * 프로필을 다시 만들게 하지 않으려고) / 빈 목록(목록은 살아 있는 대화만 받으므로(ADR-0020) 보관함을 더 묻는다.
+ * 보관함에 남아 있으면 머물러 빈 상태와 보관함 버튼을, 보관함도 비었으면 온보딩으로. 판정은 스토어의 homeView)
+ * / 목록. 목록 바닥에 지운 대화 보관함 링크.
  *
  * 다른 화면에서 한 일의 알림은 주소의 `?notice=` 로 받아 토스트로 보이고 주소에서 지운다
  * (리포트 화면에서 리포트를 지우고 돌아온 경우).
@@ -32,7 +33,7 @@ import { useSessionStore } from '@/features/session/session.store';
 import { useLocale, useTranslations } from '@/i18n/I18nProvider';
 import type { SessionListItem, TaskId } from '@/lib/api';
 import { lastActiveLabel, monthDay, todayLabel } from '../list-dates';
-import { useSessionArchiveStore } from '../session-archive.store';
+import { homeView, useSessionArchiveStore } from '../session-archive.store';
 import { HomeCard, HomeCardActions } from './HomeCard';
 import { PastSessionItem } from './PastSessionItem';
 import { SessionsSkeleton } from './SessionsSkeleton';
@@ -55,12 +56,16 @@ export function SessionsScreen() {
   const resumeSession = useSessionStore((state) => state.resumeSession);
   const startSession = useSessionStore((state) => state.startSession);
   const loadList = useSessionArchiveStore((state) => state.loadList);
+  const loadTrash = useSessionArchiveStore((state) => state.loadTrash);
   const endSession = useSessionArchiveStore((state) => state.endSession);
   const removeSession = useSessionArchiveStore((state) => state.removeSession);
   const restoreReport = useSessionArchiveStore((state) => state.restoreReport);
   const items = useSessionArchiveStore((state) => state.items);
   const status = useSessionArchiveStore((state) => state.listStatus);
   const busy = useSessionArchiveStore((state) => state.busy);
+  const view = useSessionArchiveStore(homeView);
+  const listEmpty = status === 'ready' && items?.length === 0;
+  const trashStatus = useSessionArchiveStore((state) => state.trashStatus);
 
   const [confirmingNew, setConfirmingNew] = useState(false);
   /** 지우려는 대화. 확인창이 열려 있는 동안 든다. */
@@ -83,10 +88,19 @@ export function SessionsScreen() {
     if (!principal && !authReady) void initAuth();
   }, [principal, authReady, initAuth]);
 
-  // 처음 온 사람은 온보딩에서 시작한다. 불러오기 실패는 여기서 실패 화면을 보인다.
+  // 목록이 비면 보관함을 묻는다. 둘 다 비었으면(처음 온 사람) 온보딩에서 시작한다.
   useEffect(() => {
-    if (status === 'ready' && items?.length === 0) router.replace('/onboarding');
-  }, [status, items, router]);
+    if (listEmpty && trashStatus === 'idle') void loadTrash();
+  }, [listEmpty, trashStatus, loadTrash]);
+  useEffect(() => {
+    if (view === 'onboarding') router.replace('/onboarding');
+  }, [view, router]);
+
+  // 실패 화면의 다시 불러오기: 보관함에서 실패했으면 그것도 다시 묻는다.
+  const reload = () => {
+    if (trashStatus === 'failed') useSessionArchiveStore.setState({ trashStatus: 'idle' });
+    void loadList();
+  };
 
   const openSession = items?.find((item) => !item.closed);
   const past = items?.filter((item) => item !== openSession) ?? [];
@@ -135,20 +149,40 @@ export function SessionsScreen() {
   };
 
   let body: ReactNode;
-  if (status === 'failed') {
+  if (view === 'failed') {
     body = (
       <EmptyState
         icon={<Icon name="refresh" />}
         title={t.sessionList.failedTitle}
         description={t.sessionList.failedBody}
         action={
-          <Button iconStart={<Icon name="refresh" />} onClick={() => void loadList()}>
+          <Button iconStart={<Icon name="refresh" />} onClick={reload}>
             {t.common.reload}
           </Button>
         }
       />
     );
-  } else if (!items || items.length === 0) {
+  } else if (view === 'emptyWithTrash') {
+    // 지운 대화는 앞으로 참고하지 않으므로 이을 여정이 없다: 새 대화는 온보딩에서 시작한다.
+    body = (
+      <EmptyState
+        icon={<Icon name="trash" />}
+        title={t.sessionList.emptyWithTrashTitle}
+        description={t.sessionList.emptyWithTrashBody}
+        action={
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/sessions/trash" className={buttonClass({ variant: 'secondary' })}>
+              <Icon name="trash" />
+              {t.sessionList.emptyWithTrashCta}
+            </Link>
+            <Button iconStart={<Icon name="plus" />} onClick={() => router.push('/onboarding')}>
+              {t.sessionList.noOpenCta}
+            </Button>
+          </div>
+        }
+      />
+    );
+  } else if (view !== 'list' || !items) {
     body = <SessionsSkeleton label={t.sessionList.loading} />;
   } else {
     const furthest = items.reduce<TaskId>(

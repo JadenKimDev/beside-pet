@@ -236,6 +236,10 @@ export const ko: Messages = {
     emptyTitle: '아직 나눈 이야기가 없어요',
     emptyBody: '준비가 되었을 때 시작하면 돼요. 몇 가지만 여쭤본 뒤 천천히 이야기를 나눠요.',
     emptyCta: '첫 이야기 시작하기',
+    emptyWithTrashTitle: '지금 이어 갈 대화가 없어요',
+    emptyWithTrashBody:
+      '지운 대화는 보관함에 3개월 동안 두어요. 그동안 되살리면 목록에 다시 보여요.',
+    emptyWithTrashCta: '보관함 보기',
     failedTitle: '목록을 불러오지 못했어요',
     failedBody: '연결이 잠시 끊긴 것 같아요. 대화는 그대로 안전하게 남아 있어요.',
   },

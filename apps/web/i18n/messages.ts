@@ -216,6 +216,10 @@ export interface Messages {
     emptyTitle: string;
     emptyBody: string;
     emptyCta: string;
+    /** Every conversation deleted but the trash still holds some: stay on /sessions with a way back. */
+    emptyWithTrashTitle: string;
+    emptyWithTrashBody: string;
+    emptyWithTrashCta: string;
     failedTitle: string;
     failedBody: string;
   };

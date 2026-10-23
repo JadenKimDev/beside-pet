@@ -240,6 +240,10 @@ export const en: Messages = {
     emptyTitle: 'No conversations yet',
     emptyBody: 'Start whenever you are ready. We will ask a few things, then talk slowly.',
     emptyCta: 'Start your first conversation',
+    emptyWithTrashTitle: 'No conversations to continue right now',
+    emptyWithTrashBody:
+      'Deleted conversations stay in the trash for three months. Restore one and it returns to your list.',
+    emptyWithTrashCta: 'Open the trash',
     failedTitle: 'We could not load your list',
     failedBody: 'The connection seems to have dropped. Your conversations are still safe.',
   },

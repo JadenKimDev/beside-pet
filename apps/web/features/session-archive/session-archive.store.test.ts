@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DeletedSessionItem, MindReport, SessionListItem, SessionStateView } from '@/lib/api';
 import { fakeServer } from '@/lib/data/test-server';
-import { useSessionArchiveStore } from './session-archive.store';
+import { homeView, useSessionArchiveStore } from './session-archive.store';
 
 const item: SessionListItem = {
   sessionId: 'sess-a',
@@ -206,5 +206,32 @@ describe('리포트 되살리기', () => {
     await expect(useSessionArchiveStore.getState().restoreReport('sess-c')).rejects.toThrow();
     expect(useSessionArchiveStore.getState().busy).toBe(false);
     expect(useSessionArchiveStore.getState().report).toBeUndefined();
+  });
+});
+
+describe('첫 화면 판정 homeView', () => {
+  const ready = { listStatus: 'ready', trashStatus: 'ready' } as const;
+
+  it('목록 0·보관함 1 이면 emptyWithTrash 다', () => {
+    expect(homeView({ ...ready, items: [], trash: [trashed] })).toBe('emptyWithTrash');
+  });
+
+  it('목록 0·보관함 0 이면 onboarding 이다', () => {
+    expect(homeView({ ...ready, items: [], trash: [] })).toBe('onboarding');
+  });
+
+  it('목록이 있으면 보관함과 상관없이 list 다', () => {
+    expect(homeView({ listStatus: 'ready', items: [item], trashStatus: 'idle' })).toBe('list');
+  });
+
+  it('목록이 비었고 보관함을 아직 모르면 loading 이다', () => {
+    expect(homeView({ listStatus: 'ready', items: [], trashStatus: 'idle' })).toBe('loading');
+    expect(homeView({ listStatus: 'ready', items: [], trashStatus: 'loading' })).toBe('loading');
+    expect(homeView({ listStatus: 'loading', trashStatus: 'idle' })).toBe('loading');
+  });
+
+  it('목록이나 보관함을 불러오지 못하면 failed 다(온보딩으로 보내지 않는다)', () => {
+    expect(homeView({ listStatus: 'failed', trashStatus: 'idle' })).toBe('failed');
+    expect(homeView({ listStatus: 'ready', items: [], trashStatus: 'failed' })).toBe('failed');
   });
 });

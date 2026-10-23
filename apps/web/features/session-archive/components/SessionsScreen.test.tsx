@@ -80,7 +80,12 @@ beforeEach(() => {
   router.replace.mockReset();
   router.push.mockReset();
   vi.stubGlobal('fetch', fakeFetch);
-  useSessionArchiveStore.setState({ items: undefined, listStatus: 'idle' });
+  useSessionArchiveStore.setState({
+    items: undefined,
+    listStatus: 'idle',
+    trash: undefined,
+    trashStatus: 'idle',
+  });
   useAuthStore.setState({
     ready: true,
     principal: { id: 'u-1', username: '하늘', company: '지어낸 회사', role: 'viewer' },
@@ -126,7 +131,40 @@ describe('SessionsScreen 상태', () => {
     if (reload) click(reload);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     await answer(200, []);
+    expect(router.replace).not.toHaveBeenCalled();
+    await answer(200, [], /\/v1\/sessions\/deleted$/);
     expect(router.replace).toHaveBeenCalledWith('/onboarding');
+  });
+
+  it('대화를 모두 지웠고 보관함에 남아 있으면 머물러 빈 상태와 보관함 버튼을 보인다', async () => {
+    const container = render();
+    await answer(200, []);
+    await answer(
+      200,
+      [
+        {
+          sessionId: 'sess-gone-1',
+          startedAt: '2026-10-10T08:00:00Z',
+          deletedAt: '2026-10-20T09:00:00Z',
+          purgeAt: '2027-01-20T09:00:00Z',
+          petName: '콩이',
+          preferredLanguage: 'ko',
+        },
+      ],
+      /\/v1\/sessions\/deleted$/,
+    );
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(container.textContent).toContain(ko.sessionList.emptyWithTrashTitle);
+    expect(container.textContent).toContain(ko.sessionList.emptyWithTrashBody);
+    const trashLink = Array.from(container.querySelectorAll('a')).find(
+      (a) => a.textContent === ko.sessionList.emptyWithTrashCta,
+    );
+    expect(trashLink?.getAttribute('href')).toBe('/sessions/trash');
+    // 지운 대화는 앞으로 참고하지 않으므로 이을 여정이 없다: 새 대화는 온보딩에서 시작한다.
+    const start = buttonNamed(container, ko.sessionList.noOpenCta);
+    expect(start).toBeDefined();
+    if (start) click(start);
+    expect(router.push).toHaveBeenCalledWith('/onboarding');
   });
 
   it('목록이 오면 인사, 이어지는 대화 카드, 지난 대화가 보인다', async () => {

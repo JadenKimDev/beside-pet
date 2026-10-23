@@ -9,3 +9,6 @@ export type LoadStatus = 'idle' | 'loading' | 'ready' | 'failed';
 
 /** The report adds a phase of its own: the session exists but carries no report yet. */
 export type ReportStatus = LoadStatus | 'unavailable';
+
+/** What /sessions renders, decided from the list and (when the list is empty) the trash. */
+export type HomeView = 'loading' | 'failed' | 'list' | 'emptyWithTrash' | 'onboarding';

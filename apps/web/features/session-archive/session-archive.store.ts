@@ -25,7 +25,7 @@ import type {
   SessionStateView,
 } from '@/lib/api';
 import * as data from '@/lib/data';
-import type { LoadStatus, ReportStatus } from './session-archive.types';
+import type { HomeView, LoadStatus, ReportStatus } from './session-archive.types';
 
 interface SessionArchiveState {
   items?: SessionListItem[];
@@ -63,6 +63,23 @@ interface SessionArchiveState {
   removeReport: (sessionId: string) => Promise<void>;
   /** Brings a deleted report back into the report slot, then reloads the list. */
   restoreReport: (sessionId: string) => Promise<void>;
+}
+
+/**
+ * What /sessions shows. An empty list alone cannot tell a first visit from someone who
+ * deleted every conversation (the list carries only live ones, ADR-0020), so the trash
+ * decides: something in it keeps the person here with a way back to it, nothing sends
+ * them to onboarding. A failed read of either never sends to onboarding.
+ */
+export function homeView(
+  state: Pick<SessionArchiveState, 'items' | 'listStatus' | 'trash' | 'trashStatus'>,
+): HomeView {
+  if (state.listStatus === 'failed') return 'failed';
+  if (state.listStatus !== 'ready' || !state.items) return 'loading';
+  if (state.items.length > 0) return 'list';
+  if (state.trashStatus === 'failed') return 'failed';
+  if (state.trashStatus !== 'ready' || !state.trash) return 'loading';
+  return state.trash.length > 0 ? 'emptyWithTrash' : 'onboarding';
 }
 
 /** Load tokens: only the newest request for each slot may write its result. */

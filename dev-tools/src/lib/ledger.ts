@@ -5,7 +5,7 @@
 // 되는 것은 작업의 정의(`title`, `scope`, `verify`)다.
 
 import { deriveVerify, type RepoProbe, wantsTdd } from "./actions.ts";
-import type { Prd } from "./prd.ts";
+import type { Prd, PrdTimes } from "./prd.ts";
 
 export type TaskStatus = "todo" | "doing" | "done" | "parked" | "needs_spec";
 
@@ -41,6 +41,8 @@ export interface Ledger {
   prd: string;
   depends_on: number[];
   created_at: string;
+  /** PRD 머리말의 초안 시작·초안 올림·승인 시각. 이 칸이 생기기 전의 원장에는 없다: `prdTimesOf` 로 읽는다. */
+  prd_times?: PrdTimes;
   tasks: LedgerTask[];
 }
 
@@ -51,6 +53,8 @@ export interface Outcome {
   /** 첫 작업을 집은 때부터 마감까지. */
   lead_time_ms: number;
   active_ms: number;
+  /** 원장의 `prd_times` 를 그대로 옮긴 것. 이 칸이 생기기 전의 행에는 없다: `prdTimesOf` 로 읽는다. */
+  prd_times?: PrdTimes;
   tasks: {
     id: string;
     title: string;
@@ -86,6 +90,16 @@ export function extend(before: Ledger, fresh: Ledger): Ledger {
   };
 }
 
+/** 원장이나 실측 행의 세 시각. 칸이 없는 옛 파일은 세 값 모두 `null` 로 본다. */
+export function prdTimesOf(record: { prd_times?: Partial<PrdTimes> | null }): PrdTimes {
+  const times = record.prd_times ?? {};
+  return {
+    drafted_at: times.drafted_at ?? null,
+    submitted_at: times.submitted_at ?? null,
+    approved_at: times.approved_at ?? null,
+  };
+}
+
 export function scaffold(
   prd: Prd,
   options: { prdFile: string; now: Date; probe: RepoProbe; tddAreas: readonly string[] },
@@ -99,6 +113,7 @@ export function scaffold(
     prd: options.prdFile,
     depends_on: prd.dependsOn,
     created_at: options.now.toISOString(),
+    prd_times: { ...prd.times },
     tasks: prd.tasks.map((task) => {
       const verify = task.verify.length > 0 ? task.verify : deriveVerify(task.scope, options.probe);
       return {
@@ -232,6 +247,7 @@ export function outcome(ledger: Ledger, now: Date): Outcome {
     finished_at: now.toISOString(),
     lead_time_ms: now.getTime() - first,
     active_ms: ledger.tasks.reduce((sum, task) => sum + (task.active_ms ?? 0), 0),
+    prd_times: prdTimesOf(ledger),
     tasks: ledger.tasks.map((task) => ({
       id: task.id,
       title: task.title,

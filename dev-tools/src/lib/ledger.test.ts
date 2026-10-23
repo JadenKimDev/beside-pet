@@ -13,8 +13,10 @@ import {
   formatDuration,
   type Ledger,
   nextTask,
+  type Outcome,
   outcome,
   PARK_AFTER,
+  prdTimesOf,
   recordRed,
   recordVerdict,
   scaffold,
@@ -49,6 +51,11 @@ const prd: Prd = {
     { id: "S2", title: "둘째", scope: ["apps/api/src/jobs.ts"], dependsOn: ["S1"], verify: [], tdd: false },
     { id: "S3", title: "문서", scope: ["docs/notes.md"], dependsOn: [], verify: [], tdd: null },
   ],
+  times: {
+    drafted_at: "2026-10-12T01:00:00Z",
+    submitted_at: "2026-10-12T01:40:00Z",
+    approved_at: "2026-10-12T02:30:00Z",
+  },
 };
 
 const at = (minute: number) => new Date(Date.UTC(2026, 9, 12, 3, minute));
@@ -162,6 +169,37 @@ test("끝나지 않은 작업이 있으면 마감을 막는다", () => {
   assert.equal(record.active_ms, 3 * 4 * 60_000);
   assert.equal(record.lead_time_ms, 30 * 60_000);
   assert.equal(record.tasks.length, 3);
+});
+
+test("원장은 PRD 머리말의 세 시각을 싣고, 마감한 실측이 그대로 옮긴다", () => {
+  const ledger = fresh();
+  assert.deepEqual(ledger.prd_times, prd.times);
+  const record = outcome(ledger, at(30));
+  assert.deepEqual(record.prd_times, prd.times);
+  // 일부만 있는 시각도 그대로 옮긴다(초안 없이 바로 올린 PRD).
+  const direct = scaffold(
+    { ...prd, times: { drafted_at: "2026-10-12T01:00:00Z", submitted_at: null, approved_at: "2026-10-12T02:00:00Z" } },
+    { prdFile: "x.md", now: at(0), probe, tddAreas },
+  );
+  assert.deepEqual(outcome(direct, at(5)).prd_times, {
+    drafted_at: "2026-10-12T01:00:00Z",
+    submitted_at: null,
+    approved_at: "2026-10-12T02:00:00Z",
+  });
+});
+
+test("세 시각이 없는 옛 원장과 옛 실측 행은 모두 null 로 읽는다", () => {
+  const none = { drafted_at: null, submitted_at: null, approved_at: null };
+  const { prd_times: _dropped, ...old } = fresh();
+  const oldLedger = JSON.parse(JSON.stringify(old)) as Ledger;
+  assert.deepEqual(prdTimesOf(oldLedger), none);
+  assert.deepEqual(outcome(oldLedger, at(30)).prd_times, none);
+  const oldRow = JSON.parse(
+    '{"issue":3,"title":"옛 이슈","finished_at":"2026-10-01T00:00:00.000Z","lead_time_ms":1,"active_ms":1,"tasks":[]}',
+  ) as Outcome;
+  assert.deepEqual(prdTimesOf(oldRow), none);
+  // 있는 칸은 그대로 읽는다.
+  assert.deepEqual(prdTimesOf(outcome(fresh(), at(30))), prd.times);
 });
 
 test("시간 표기", () => {

@@ -6,6 +6,7 @@ use super::super::super::memory::{NewNote, NewPet, NoteKind, PetStatus};
 use super::super::purge::TRASH_RETENTION_MONTHS;
 use super::super::{PgMemoryStore, TrashPurge};
 use super::{SessionsSchema, closed_with_report, minute, snapshot};
+use crate::identity::AccountActivity;
 
 impl SessionsSchema {
     /// 그 세션의 `deleted_at`·`report_deleted_at`, 그리고 `report` 칸이 차 있는가(본문은 읽지 않는다).
@@ -400,5 +401,60 @@ async fn 주인별_삭제는_그_사람의_대화와_기억을_모두_지운다(
     assert_eq!(db.owner_rows("owner-a").await, (0, 0, 0, 0, 0, 0, 0));
     assert_eq!(db.owner_rows("owner-b").await, other_before);
     assert_eq!(store.delete_by_owner("owner-a").await.unwrap(), 0);
+    db.close().await;
+}
+
+#[tokio::test]
+async fn 계정별_활동은_보관함의_세션을_세지_않는다() {
+    let db = SessionsSchema::open().await;
+    let store = db.store();
+    // owner-a: 0·1·2 분의 세션과 30·31·32 분의 세션. 뒤의 것을 보관함으로 보낸다.
+    store.save(&snapshot("s-a1", "owner-a", 0)).await.unwrap();
+    store.save(&snapshot("s-a2", "owner-a", 30)).await.unwrap();
+    let owners = ["owner-a".to_owned()];
+    let both = AccountActivity {
+        session_count: 2,
+        last_active_at: Some(minute(32)),
+    };
+    assert_eq!(
+        store
+            .activity_by_owner(&owners)
+            .await
+            .unwrap()
+            .get("owner-a"),
+        Some(&both)
+    );
+
+    assert!(store.soft_delete("s-a2").await.unwrap());
+    assert_eq!(
+        store
+            .activity_by_owner(&owners)
+            .await
+            .unwrap()
+            .get("owner-a"),
+        Some(&AccountActivity {
+            session_count: 1,
+            last_active_at: Some(minute(2)),
+        }),
+        "지운 세션의 수와 메시지 시각은 빠진다"
+    );
+
+    assert!(store.restore("s-a2").await.unwrap());
+    assert_eq!(
+        store
+            .activity_by_owner(&owners)
+            .await
+            .unwrap()
+            .get("owner-a"),
+        Some(&both),
+        "되살리면 다시 센다"
+    );
+
+    assert!(store.soft_delete("s-a1").await.unwrap());
+    assert!(store.soft_delete("s-a2").await.unwrap());
+    assert!(
+        store.activity_by_owner(&owners).await.unwrap().is_empty(),
+        "살아 있는 세션이 없으면 빠진다"
+    );
     db.close().await;
 }

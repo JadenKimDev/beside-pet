@@ -239,7 +239,7 @@ impl SessionStore {
             .collect()
     }
 
-    /// 소유자마다 지금 남아 있는 세션의 수와 그 세션들의 마지막 메시지 시각. 세션이 없는 소유자는 빠진다.
+    /// 소유자마다 살아 있는(보관함에 없는) 세션의 수와 그 세션들의 마지막 메시지 시각. 살아 있는 세션이 없는 소유자는 빠진다.
     pub async fn activity_by_owner(
         &self,
         owner_ids: &[String],
@@ -251,7 +251,7 @@ impl SessionStore {
             "SELECT s.owner_id, count(*)::int4 AS session_count, max(m.last_at) AS last_active_at \
              FROM sessions s \
              LEFT JOIN LATERAL (SELECT max(at) AS last_at FROM messages WHERE session_id = s.id) m ON true \
-             WHERE s.owner_id = ANY($1) GROUP BY s.owner_id",
+             WHERE s.owner_id = ANY($1) AND s.deleted_at IS NULL GROUP BY s.owner_id",
         )
         .bind(owner_ids)
         .fetch_all(&self.pool)

@@ -1,0 +1,78 @@
+{
+  "issue": 50,
+  "title": "서버에 Claude Code 공급자(`claude-code`)를 두어 개발·실측은 이 Mac 의 구독으로 Haiku 5.5 를 바로 부르고, Ollama 공급자와 claude-shim 을 지운다",
+  "prd": "docs/prd/50-claude-code-provider.md",
+  "depends_on": [],
+  "created_at": "2026-10-23T03:22:25.940Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "`claude-code` 공급자(생성·스트림·스키마, 가짜 실행 파일 테스트), `LlmProvider` 와 설정·등록의 교체, Ollama 공급자와 설정 삭제, 기억 추출 경로 테스트의 교체, `.env.example`",
+      "scope": [
+        "apps/server/src/llm/",
+        "apps/server/src/shared/config.rs",
+        "apps/server/src/shared/config/",
+        "apps/server/src/support/flow/tests/doubles.rs",
+        "apps/server/src/metrics/store/tests.rs",
+        "apps/server/.env.example"
+      ],
+      "depends_on": [],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server && dev-tools/scripts/cargo.sh clippy -p beside-pet-server --all-targets -- -D warnings"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "`claude-shim.py` 와 `llm:shim` 삭제",
+      "scope": [
+        "dev-tools/scripts/claude-shim.py",
+        "package.json"
+      ],
+      "depends_on": [],
+      "verify": [
+        "test ! -f dev-tools/scripts/claude-shim.py && ! grep -q \"llm:shim\" package.json"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S3",
+      "title": "새 ADR, ADR-0016 superseded, 루트 `CLAUDE.md` 의 모델 문장 교정, `README.md` 와 `chat-eval` 스킬의 셈 문장 교체",
+      "scope": [
+        "docs/adr/",
+        "README.md",
+        "CLAUDE.md",
+        ".claude/skills/chat-eval/SKILL.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test && ! grep -rq \"claude-shim|LLM_PROVIDER=ollama\" README.md CLAUDE.md .claude/skills/chat-eval/SKILL.md"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

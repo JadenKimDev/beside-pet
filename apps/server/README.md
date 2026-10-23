@@ -48,7 +48,7 @@ pnpm prod:down
 ```
 
 - compose 파일은 `infra/docker/compose.yaml` 하나이고 프로젝트 이름으로 두 환경을 가른다(`beside-production`, `beside-sandbox`). 서비스와 포트는 [`infra/docker/README.md`](../../infra/docker/README.md) 에 있다.
-- 컨테이너의 서버는 `APP_ENV=production` 이다. `APP_ENV`, `PORT`, `DATABASE_URL`(compose 안의 `db`), `COOKIE_SECURE`(기본 `false`), `OLLAMA_BASE_URL`(기본 `http://host.docker.internal:11434`)은 compose 가 고정하고, 나머지(`JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` 등)는 `env_file` 로 `apps/server/.env.production` 에서 받는다. 비밀 값은 compose 파일에 쓰지 않는다.
+- 컨테이너의 서버는 `APP_ENV=production` 이다. `APP_ENV`, `PORT`, `DATABASE_URL`(compose 안의 `db`), `COOKIE_SECURE`(기본 `false`)는 compose 가 고정하고, 나머지(`JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` 등)는 `env_file` 로 `apps/server/.env.production` 에서 받는다. 비밀 값은 compose 파일에 쓰지 않는다.
 - 로그인 쿠키의 `Secure` 는 `COOKIE_SECURE` 가 정하고, 없으면 `APP_ENV=production` 일 때 붙는다. compose 는 http 루프백에서 로그인이 유지되도록 `COOKIE_SECURE=false` 를 둔다. HTTPS 앞단 뒤에 올릴 때는 이 값을 빼거나 `true` 로 둔다.
 
 ## 엔드포인트
@@ -111,7 +111,7 @@ pnpm prod:down
 
 ### 모델
 
-모든 모델 호출은 `llm` 의 `TextModel` 관문 하나를 지나고, 요청마다 공급자와 모델을 함께 싣는다. 공급자는 Anthropic 과 Ollama 이고 기본 공급자의 설정만 필수다(ADR-0016, `.env.example`). 대화가 부르는 모든 호출에는 시간 제한이 있다(생성 전체 120초, 스트림 조각 사이 60초, ADR-0018). 관측(예: Langfuse)을 붙일 때도 이 관문 하나에 얹으면 된다. 모델의 실패는 오류로 올리고, 위기 판정만 키워드로 대신한다.
+모든 모델 호출은 `llm` 의 `TextModel` 관문 하나를 지나고, 요청마다 공급자와 모델을 함께 싣는다. 공급자는 Anthropic(production)과 Claude Code(개발·실측, 이 머신의 `claude -p` 를 구독으로 띄운다)이고 기본 공급자의 설정만 필수다(ADR-0038, `.env.example`). 대화가 부르는 모든 호출에는 시간 제한이 있다(생성 전체 120초, 스트림 조각 사이 60초, ADR-0018). 관측(예: Langfuse)을 붙일 때도 이 관문 하나에 얹으면 된다. 모델의 실패는 오류로 올리고, 위기 판정만 키워드로 대신한다.
 
 ### 인증
 

@@ -14,21 +14,24 @@
         "apps/server/src/shared/config/",
         "apps/server/src/support/flow/tests/doubles.rs",
         "apps/server/src/metrics/store/tests.rs",
-        "apps/server/.env.example"
+        "apps/server/.env.example",
+        "apps/server/tests/routes/remembering.rs",
+        "apps/server/README.md",
+        "apps/server/Cargo.toml"
       ],
       "depends_on": [],
       "verify": [
         "dev-tools/scripts/cargo.sh test -p beside-pet-server && dev-tools/scripts/cargo.sh clippy -p beside-pet-server --all-targets -- -D warnings"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "doing",
-      "passes": false,
-      "retries": 0,
+      "red_at": "2026-10-23T03:30:48.212Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
       "started_at": "2026-10-23T03:23:10.404Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "finished_at": "2026-10-23T03:35:54.633Z",
+      "active_ms": 764229,
+      "verify_ms": 30530
     },
     {
       "id": "S2",

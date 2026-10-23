@@ -32,7 +32,7 @@ const BLANKET: &str = "They keep the blue blanket on the sofa.";
 const PUT_AWAY: &str = "In the end we put the blanket away.";
 const START: &str = r#"{ "griefPath": "afterLoss", "petName": "Pebble" }"#;
 
-/// 위기 판정은 NO, 발화는 고정 글, 기억 추출은 정해 둔 JSON(펜스를 두른 Ollama 모양). `fail_extract` 면 추출 호출만 실패한다.
+/// 위기 판정은 NO, 발화는 고정 글, 기억 추출은 정해 둔 JSON(스키마로 묶인 답처럼 펜스 없는 JSON object 하나). `fail_extract` 면 추출 호출만 실패한다.
 #[derive(Default)]
 struct Scripted {
     extraction: Mutex<String>,
@@ -42,7 +42,7 @@ struct Scripted {
 impl Scripted {
     fn answer(&self, facts: Value, do_not_remember: bool) {
         let body = json!({ "facts": facts, "do_not_remember": do_not_remember });
-        *self.extraction.lock().unwrap() = format!("```json\n{body}\n```");
+        *self.extraction.lock().unwrap() = body.to_string();
     }
 }
 
@@ -50,7 +50,7 @@ struct Provider(Arc<Scripted>);
 
 impl TextModelProvider for Provider {
     fn provider(&self) -> LlmProvider {
-        LlmProvider::Ollama
+        LlmProvider::ClaudeCode
     }
 
     fn generate(
@@ -102,7 +102,7 @@ async fn fixture() -> Fixture {
     let usage = Arc::new(PostgresUsageSink::spawn(schema.pool.clone()));
     let router: SharedTextModel = Arc::new(ModelRouter::new(
         ModelRef {
-            provider: LlmProvider::Ollama,
+            provider: LlmProvider::ClaudeCode,
             model: "scripted".to_owned(),
         },
         vec![Box::new(Provider(model.clone()))],

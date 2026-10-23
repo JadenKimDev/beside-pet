@@ -4,7 +4,7 @@
 //! 사용량으로 적는 것은 라우터의 몫이다. 요청 모양(HTTP 본문)은 공급자 파일만 안다.
 
 mod anthropic;
-mod ollama;
+mod claude_code;
 mod wire;
 
 use futures_util::future::BoxFuture;
@@ -14,13 +14,14 @@ use super::{GenerationRequest, OutputSchema};
 use crate::shared::ApiError;
 
 pub use anthropic::AnthropicProvider;
-pub use ollama::OllamaProvider;
+pub use claude_code::ClaudeCodeProvider;
 
 /// 연결된 모델 공급자.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LlmProvider {
     Anthropic,
-    Ollama,
+    /// 이 Mac 의 Claude Code 구독(`claude -p`). 개발과 실측에만 쓴다.
+    ClaudeCode,
 }
 
 impl LlmProvider {
@@ -28,7 +29,7 @@ impl LlmProvider {
     pub fn as_str(self) -> &'static str {
         match self {
             LlmProvider::Anthropic => "anthropic",
-            LlmProvider::Ollama => "ollama",
+            LlmProvider::ClaudeCode => "claude-code",
         }
     }
 
@@ -36,7 +37,7 @@ impl LlmProvider {
     pub fn parse(name: &str) -> Option<LlmProvider> {
         match name {
             "anthropic" => Some(LlmProvider::Anthropic),
-            "ollama" => Some(LlmProvider::Ollama),
+            "claude-code" => Some(LlmProvider::ClaudeCode),
             _ => None,
         }
     }
@@ -89,4 +90,4 @@ pub trait TextModelProvider: Send + Sync {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

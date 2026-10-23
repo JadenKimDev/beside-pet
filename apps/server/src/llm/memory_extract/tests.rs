@@ -1,5 +1,5 @@
-//! 기억 추출 테스트. 글 모델은 정해 둔 글(또는 오류)을 돌려주는 더블이고, 두 경로(Anthropic, Ollama)의 요청 모양은
-//! 테스트 안에서 띄운 가짜 HTTP 서버(127.0.0.1 임의 포트)에 라우터와 실제 공급자를 붙여 본다. 본문은 지어냈다.
+//! 기억 추출 테스트. 글 모델은 정해 둔 글(또는 오류)을 돌려주는 더블이고, 두 경로(Anthropic, Claude Code)의 요청 모양은
+//! 라우터와 실제 공급자를 테스트 안의 가짜 HTTP 서버(127.0.0.1 임의 포트)와 가짜 `claude` 실행 파일에 붙여 본다. 본문은 지어냈다.
 
 mod fake_http;
 mod paths;
@@ -10,7 +10,7 @@ use futures_util::future::BoxFuture;
 use futures_util::stream;
 use serde_json::Value;
 
-use super::parse::{parse_extraction, strip_fences};
+use super::parse::parse_extraction;
 use super::prompt::{SYSTEM_PROMPT, output_schema, user_prompt};
 use super::{
     ExtractFailure, ExtractedMemory, KnownFact, KnownPet, MEMORY_EXTRACT_PROMPT_VERSION,
@@ -136,24 +136,8 @@ async fn extract_with(reply: Result<&str, ApiError>) -> Result<ExtractedMemory, 
 }
 
 #[test]
-fn 펜스와_군말을_벗긴다() {
-    assert_eq!(strip_fences("```json\n{\"a\":1}\n```"), "{\"a\":1}");
-    assert_eq!(strip_fences("```\n{\"a\":1}\n```\n"), "{\"a\":1}");
-    assert_eq!(strip_fences("  {\"a\":1}  "), "{\"a\":1}");
-    assert_eq!(
-        strip_fences("Here is the JSON:\n```json\n{\"a\":{\"b\":2}}\n```\nDone."),
-        "{\"a\":{\"b\":2}}"
-    );
-    assert_eq!(strip_fences("no json here"), "no json here");
-}
-
-#[test]
 fn 정상인_답을_읽는다() {
     assert_eq!(parse_extraction(GOOD_JSON), Some(good_extraction()));
-    assert_eq!(
-        parse_extraction(&format!("```json\n{GOOD_JSON}\n```")),
-        Some(good_extraction())
-    );
     assert_eq!(
         parse_extraction(r#"{"facts":[],"do_not_remember":true}"#),
         Some(ExtractedMemory {
@@ -177,14 +161,6 @@ fn 읽지_못하는_답은_none_이다() {
     ] {
         assert_eq!(parse_extraction(text), None, "{text:?}");
     }
-}
-
-#[tokio::test]
-async fn 펜스에_싸인_답에서_사실을_낸다() {
-    assert_eq!(
-        extract_with(Ok(&format!("```json\n{GOOD_JSON}\n```"))).await,
-        Ok(good_extraction())
-    );
 }
 
 #[tokio::test]

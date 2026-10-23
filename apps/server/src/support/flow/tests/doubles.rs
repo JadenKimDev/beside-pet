@@ -331,7 +331,7 @@ struct ScriptedProvider(Arc<ScriptedModel>);
 
 impl TextModelProvider for ScriptedProvider {
     fn provider(&self) -> LlmProvider {
-        LlmProvider::Ollama
+        LlmProvider::ClaudeCode
     }
 
     fn generate(
@@ -872,7 +872,7 @@ impl Harness {
         let calls = Arc::new(InMemoryUsageSink::default());
         let router = ModelRouter::new(
             ModelRef {
-                provider: LlmProvider::Ollama,
+                provider: LlmProvider::ClaudeCode,
                 model: "scripted".to_owned(),
             },
             vec![Box::new(ScriptedProvider(model.clone()))],

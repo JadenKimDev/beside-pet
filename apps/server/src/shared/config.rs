@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 /// 이 서버가 읽는 환경 변수의 이름. TS API(`apps/api`)와 같은 이름이고, 환경을 고르는 `APP_ENV` 만 예외다
 /// (TS API 의 `NODE_ENV` 는 더 읽지 않는다). 모델 쪽 이름의 해석은 `llm` 이, `JWT_*` 는 identity 가 맡는다.
-pub const ENV_NAMES: [&str; 19] = [
+pub const ENV_NAMES: [&str; 17] = [
     "PORT",
     "DATABASE_URL",
     "DATABASE_SSL",
@@ -17,8 +17,6 @@ pub const ENV_NAMES: [&str; 19] = [
     "LLM_PROVIDER",
     "LLM_MODEL",
     "ANTHROPIC_BASE_URL",
-    "OLLAMA_BASE_URL",
-    "OLLAMA_THINK",
     "APP_ENV",
     "COOKIE_SECURE",
     "ALLOWED_ORIGINS",
@@ -33,7 +31,7 @@ const DEFAULT_PORT: u16 = 3000;
 const DEV_JWT_SECRET: &str = "dev-insecure-secret-change-me";
 
 /// `LLM_PROVIDER` 가 받는 값.
-const KNOWN_PROVIDERS: [&str; 2] = ["anthropic", "ollama"];
+const KNOWN_PROVIDERS: [&str; 2] = ["anthropic", "claude-code"];
 
 /// 서버가 도는 환경. `APP_ENV` 가 고르고, 없거나 모르는 값이면 기동하지 않는다.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -160,7 +158,7 @@ impl JudgeEnv {
 }
 
 /// 모델 쪽 환경 변수의 값(앞뒤 공백을 걷고, 빈 값은 없는 것으로 본다). 기본값과 해석은 `llm` 의 설정이 맡는다.
-/// `provider` 는 `anthropic` 또는 `ollama` 만 들어온다(`from_lookup` 이 검사한다).
+/// `provider` 는 `anthropic` 또는 `claude-code` 만 들어온다(`from_lookup` 이 검사한다).
 #[derive(Clone)]
 pub struct ModelEnv {
     pub provider: Option<String>,
@@ -168,8 +166,6 @@ pub struct ModelEnv {
     pub claude_model: Option<String>,
     pub anthropic_api_key: Option<String>,
     pub anthropic_base_url: Option<String>,
-    pub ollama_base_url: Option<String>,
-    pub ollama_think: bool,
 }
 
 /// 설정을 만들지 못한 이유. 문구에는 이름만 싣고 값은 싣지 않는다.
@@ -212,8 +208,6 @@ impl fmt::Debug for ModelEnv {
                 &self.anthropic_api_key.as_ref().map(|_| "<hidden>"),
             )
             .field("anthropic_base_url", &self.anthropic_base_url)
-            .field("ollama_base_url", &self.ollama_base_url)
-            .field("ollama_think", &self.ollama_think)
             .finish()
     }
 }
@@ -252,14 +246,12 @@ impl Config {
             claude_model: trimmed(lookup("CLAUDE_MODEL")),
             anthropic_api_key: trimmed(lookup("ANTHROPIC_API_KEY")),
             anthropic_base_url: trimmed(lookup("ANTHROPIC_BASE_URL")),
-            ollama_base_url: trimmed(lookup("OLLAMA_BASE_URL")),
-            ollama_think: lookup("OLLAMA_THINK").is_some_and(|v| v == "true"),
         };
         if let Some(provider) = &model.provider
             && !KNOWN_PROVIDERS.contains(&provider.as_str())
         {
             return Err(ConfigError(
-                "LLM_PROVIDER must be anthropic or ollama".to_owned(),
+                "LLM_PROVIDER must be anthropic or claude-code".to_owned(),
             ));
         }
         let judge = JudgeEnv::from_lookup(&lookup)?;
@@ -313,19 +305,23 @@ impl Config {
     /// 기동 조건: 기본 공급자(`LLM_PROVIDER`, 없으면 anthropic)의 설정이 있는가. 다른 공급자의 설정은 요구하지 않는다.
     pub fn require_default_model(&self) -> Result<(), ConfigError> {
         match self.model.provider.as_deref() {
-            Some("ollama") if self.model.model.is_none() => Err(ConfigError(
-                "LLM_MODEL is not set — LLM_PROVIDER=ollama needs the model name \
-                 (an installed Ollama model; CLAUDE_MODEL is not used for ollama)"
-                    .to_owned(),
-            )),
-            Some("ollama") => Ok(()),
+            // 이 머신의 `claude`(구독)를 부르므로 요구하는 설정이 없다. `claude` 가 없으면 첫 호출의 오류로 드러난다.
+            Some("claude-code") => Ok(()),
             _ if self.model.anthropic_api_key.is_none() => Err(ConfigError(
                 "ANTHROPIC_API_KEY is not set — the default model provider is anthropic \
-                 (set the key, or LLM_PROVIDER=ollama with LLM_MODEL)"
+                 (set the key, or LLM_PROVIDER=claude-code)"
                     .to_owned(),
             )),
             _ => Ok(()),
         }
+    }
+
+    /// 이 프로세스 환경에 있는 이름들. 값은 읽지 않는다. 자식 프로세스에 넘기지 않을 이름을 고르는 쪽
+    /// (`llm` 의 Claude Code 공급자, ADR-0035 의 6)이 쓴다.
+    pub fn inherited_env_names() -> Vec<String> {
+        std::env::vars_os()
+            .filter_map(|(name, _)| name.into_string().ok())
+            .collect()
     }
 
     /// 듣는 주소들. sandbox 에서는 두 루프백(127.0.0.1, ::1)에만 연다. `localhost` 가 어느 쪽으로 먼저 풀려도 붙게

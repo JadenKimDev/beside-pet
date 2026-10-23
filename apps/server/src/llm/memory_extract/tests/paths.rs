@@ -1,5 +1,5 @@
-//! 두 경로의 요청 모양: 라우터에 실제 공급자를 붙여 가짜 서버로 보낸다. Anthropic 은 스키마로 답을 묶고,
-//! Ollama(개발 실측의 claude-shim 포함)는 스키마 없이 지시문만 보내고 펜스에 싸인 답을 읽는다.
+//! 두 경로의 요청 모양: 라우터에 실제 공급자를 붙인다. Anthropic 은 가짜 서버로 보내 `output_config` 의 스키마로 묶고,
+//! Claude Code 는 가짜 `claude` 실행 파일에 `--json-schema` 로 묶어 `structured_output` 을 읽는다.
 
 use std::sync::Arc;
 
@@ -8,15 +8,16 @@ use serde_json::{Value, json};
 use super::fake_http::ModelServer;
 use super::{KINDS, good_extraction, sample_request};
 use crate::llm::memory_extract::MemoryExtract;
-use crate::llm::memory_extract::prompt::output_schema;
+use crate::llm::memory_extract::prompt::{SYSTEM_PROMPT, output_schema, user_prompt};
+use crate::llm::provider::tests::fake_claude::FakeClaude;
 use crate::llm::{
-    AnthropicProvider, CallPurpose, InMemoryUsageSink, LlmProvider, ModelRef, ModelRouter,
-    OllamaProvider, TextModelProvider,
+    AnthropicProvider, CallPurpose, ClaudeCodeProvider, InMemoryUsageSink, LlmProvider, ModelRef,
+    ModelRouter, TextModelProvider,
 };
 
 const ANTHROPIC_ANSWER: &str = r#"{"id":"msg_fake","type":"message","role":"assistant","model":"claude-test","content":[{"type":"text","text":"{\"facts\":[{\"kind\":\"object\",\"pet_name\":\"보리\",\"text\":\"보리는 빨간 공을 좋아했다\",\"seq\":9,\"supersedes\":[1]},{\"kind\":\"place\",\"pet_name\":null,\"text\":\"매일 저녁 한강에 갔다\",\"seq\":9,\"supersedes\":[]}],\"do_not_remember\":false}"}],"stop_reason":"end_turn","usage":{"input_tokens":40,"output_tokens":20}}"#;
 
-const OLLAMA_ANSWER: &str = r#"{"model":"shim-test","message":{"role":"assistant","content":"```json\n{\"facts\":[{\"kind\":\"object\",\"pet_name\":\"보리\",\"text\":\"보리는 빨간 공을 좋아했다\",\"seq\":9,\"supersedes\":[1]},{\"kind\":\"place\",\"pet_name\":null,\"text\":\"매일 저녁 한강에 갔다\",\"seq\":9,\"supersedes\":[]}],\"do_not_remember\":false}\n```"},"done":true,"prompt_eval_count":40,"eval_count":20}"#;
+const CLAUDE_CODE_ANSWER: &str = r#"{"type":"result","subtype":"success","is_error":false,"result":"","structured_output":{"facts":[{"kind":"object","pet_name":"보리","text":"보리는 빨간 공을 좋아했다","seq":9,"supersedes":[1]},{"kind":"place","pet_name":null,"text":"매일 저녁 한강에 갔다","seq":9,"supersedes":[]}],"do_not_remember":false},"usage":{"input_tokens":40,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":20}}"#;
 
 fn router(
     provider: LlmProvider,
@@ -68,12 +69,12 @@ async fn anthropic_경로는_output_config_의_json_schema_로_묶는다() {
 }
 
 #[tokio::test]
-async fn ollama_경로는_스키마_없이_보내고_펜스를_벗겨_읽는다() {
-    let server = ModelServer::answering(OLLAMA_ANSWER).await;
+async fn claude_code_경로는_json_schema_로_묶고_structured_output_을_읽는다() {
+    let fake = FakeClaude::answering(CLAUDE_CODE_ANSWER);
     let usage = Arc::new(InMemoryUsageSink::default());
     let model = router(
-        LlmProvider::Ollama,
-        Box::new(OllamaProvider::new(server.base_url.clone(), false)),
+        LlmProvider::ClaudeCode,
+        Box::new(ClaudeCodeProvider::new(fake.program())),
         usage.clone(),
     );
 
@@ -83,15 +84,21 @@ async fn ollama_경로는_스키마_없이_보내고_펜스를_벗겨_읽는다(
         .unwrap();
     assert_eq!(extracted, good_extraction());
 
-    let body = server.only_body();
-    assert!(body.get("output_config").is_none(), "{body}");
-    assert!(body.get("format").is_none(), "{body}");
-    let messages = body["messages"].as_array().unwrap();
-    assert_eq!(messages.len(), 2, "시스템과 사용자 글 하나씩");
-    assert_eq!(messages[0]["role"], "system");
-    assert!(
-        messages[0]["content"].as_str().unwrap().contains("JSON"),
-        "지시문이 JSON 만 요구해야 한다"
+    assert_eq!(fake.calls(), 1);
+    let args = fake.args(1);
+    let after = |flag: &str| {
+        let at = args.iter().position(|arg| arg == flag).expect(flag);
+        args[at + 1].clone()
+    };
+    let sent: Value = serde_json::from_str(&after("--json-schema")).unwrap();
+    let schema: Value = serde_json::from_str(&output_schema(&KINDS)).unwrap();
+    assert_eq!(sent, schema);
+    assert_eq!(after("--system-prompt"), SYSTEM_PROMPT);
+    assert_eq!(after("--output-format"), "json");
+    assert_eq!(
+        fake.stdin(1),
+        user_prompt(&sample_request()),
+        "사용자 글 하나는 그대로 간다"
     );
 
     let records = usage.list();

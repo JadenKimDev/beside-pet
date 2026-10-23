@@ -68,8 +68,8 @@ pub struct GenerationRequest {
     pub context: CallContext,
 }
 
-/// 답이 따라야 할 JSON 스키마(JSON 글 그대로). 지원하는 공급자(Anthropic)만 요청에 싣고, 나머지는 보지 않는다.
-/// 그래서 부르는 쪽은 지시문으로도 JSON 만 달라고 하고 받은 글을 스스로 읽어야 한다.
+/// 답이 따라야 할 JSON 스키마(JSON 글 그대로). 공급자(Anthropic, Claude Code)가 답을 이것으로 묶는다.
+/// 부르는 쪽은 지시문으로도 JSON 만 달라고 하고 받은 글을 스스로 읽는다.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputSchema(pub String);
 

@@ -272,17 +272,15 @@ const DB: (&str, &str) = ("DATABASE_URL", "postgres://u:p@h/db");
 fn 모델_값을_읽어_다듬는다() {
     let config = Config::from_lookup(lookup(&[
         DB,
-        ("LLM_PROVIDER", " ollama "),
-        ("LLM_MODEL", "gemma4"),
+        ("LLM_PROVIDER", " claude-code "),
+        ("LLM_MODEL", "claude-haiku-5-5"),
         ("CLAUDE_MODEL", "  "),
         ("ANTHROPIC_API_KEY", "sk-test-fake"),
         ("ANTHROPIC_BASE_URL", "http://127.0.0.1:9"),
-        ("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-        ("OLLAMA_THINK", "true"),
     ]))
     .unwrap();
-    assert_eq!(config.model.provider.as_deref(), Some("ollama"));
-    assert_eq!(config.model.model.as_deref(), Some("gemma4"));
+    assert_eq!(config.model.provider.as_deref(), Some("claude-code"));
+    assert_eq!(config.model.model.as_deref(), Some("claude-haiku-5-5"));
     assert_eq!(config.model.claude_model, None);
     assert_eq!(
         config.model.anthropic_api_key.as_deref(),
@@ -292,19 +290,6 @@ fn 모델_값을_읽어_다듬는다() {
         config.model.anthropic_base_url.as_deref(),
         Some("http://127.0.0.1:9")
     );
-    assert_eq!(
-        config.model.ollama_base_url.as_deref(),
-        Some("http://127.0.0.1:11434")
-    );
-    assert!(config.model.ollama_think);
-}
-
-#[test]
-fn ollama_think_은_정확히_true_일_때만_켠다() {
-    for value in ["TRUE", "1", "yes", "false", ""] {
-        let config = Config::from_lookup(lookup(&[DB, ("OLLAMA_THINK", value)])).unwrap();
-        assert!(!config.model.ollama_think, "{value}");
-    }
 }
 
 #[test]
@@ -312,6 +297,18 @@ fn 모르는_llm_provider_는_이름만_적고_실패한다() {
     let err = Config::from_lookup(lookup(&[DB, ("LLM_PROVIDER", "secret-vendor")])).unwrap_err();
     assert!(err.to_string().contains("LLM_PROVIDER"), "{err}");
     assert!(!err.to_string().contains("secret"), "{err}");
+}
+
+#[test]
+fn ollama_공급자는_더_받지_않는다() {
+    let err = Config::from_lookup(lookup(&[
+        DB,
+        ("LLM_PROVIDER", "ollama"),
+        ("LLM_MODEL", "x"),
+    ]))
+    .unwrap_err();
+    assert!(err.to_string().contains("LLM_PROVIDER"), "{err}");
+    assert!(err.to_string().contains("claude-code"), "{err}");
 }
 
 #[test]
@@ -330,27 +327,18 @@ fn 기본_공급자가_anthropic_이면_키가_있어야_기동한다() {
 }
 
 #[test]
-fn 기본_공급자가_ollama_면_llm_model_만_있으면_기동한다() {
-    let missing = [
-        vec![DB, ("LLM_PROVIDER", "ollama")],
+fn 기본_공급자가_claude_code_면_요구하는_설정_없이_기동한다() {
+    for pairs in [
+        vec![DB, ("LLM_PROVIDER", "claude-code")],
         vec![
             DB,
-            ("LLM_PROVIDER", "ollama"),
-            ("CLAUDE_MODEL", "claude-haiku-4-5"),
+            ("LLM_PROVIDER", "claude-code"),
+            ("LLM_MODEL", "claude-haiku-5-5"),
         ],
-    ];
-    for pairs in missing {
+    ] {
         let config = Config::from_lookup(lookup(&pairs)).unwrap();
-        let err = config.require_default_model().unwrap_err();
-        assert!(err.to_string().contains("LLM_MODEL"), "{err}");
+        assert!(config.require_default_model().is_ok(), "{pairs:?}");
     }
-    let config = Config::from_lookup(lookup(&[
-        DB,
-        ("LLM_PROVIDER", "ollama"),
-        ("LLM_MODEL", "gemma4"),
-    ]))
-    .unwrap();
-    assert!(config.require_default_model().is_ok());
 }
 
 #[test]

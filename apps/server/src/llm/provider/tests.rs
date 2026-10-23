@@ -1,9 +1,10 @@
-//! 공급자 테스트. 공급자마다 테스트 안에서 띄운 가짜 HTTP 서버(axum, 127.0.0.1 임의 포트)에 붙여
-//! 보내는 요청의 모양, 응답과 스트림의 해석, 실패를 본다. 실제 네트워크에는 나가지 않고 값은 지어냈다.
+//! 공급자 테스트. Anthropic 은 테스트 안에서 띄운 가짜 HTTP 서버(axum, 127.0.0.1 임의 포트)에, Claude Code 는 가짜 `claude`
+//! 실행 파일에 붙여 보내는 요청의 모양, 응답과 스트림의 해석, 실패를 본다. 실제 네트워크와 `claude` 에는 닿지 않고 값은 지어냈다.
 
 mod anthropic;
+mod claude_code;
+pub(crate) mod fake_claude;
 mod fake_server;
-mod ollama;
 
 use futures_util::StreamExt;
 

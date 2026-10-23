@@ -178,8 +178,8 @@ fn calls() -> Vec<Call> {
         // 단가가 없는 공급자.
         Call {
             at: "2026-10-19T12:00:00Z",
-            provider: "ollama",
-            model: "gemma4",
+            provider: "claude-code",
+            model: "claude-haiku-5-5",
             duration_ms: 700,
             first_token_ms: Some(90),
             input_tokens: 700,
@@ -274,8 +274,8 @@ async fn 모델별_묶음은_호출_수_토큰_시간_백분위_비용을_센다
             ..row("reply", "0.2.0")
         },
         ModelUsage {
-            provider: "ollama".to_owned(),
-            model: "gemma4".to_owned(),
+            provider: "claude-code".to_owned(),
+            model: "claude-haiku-5-5".to_owned(),
             calls: 1,
             input_tokens: 700,
             output_tokens: 70,
@@ -348,8 +348,8 @@ async fn 날짜별_모델_집계는_기간이_걸친_날짜만_낸다() {
         haiku("2026-10-18", 3, 0, 3300, 302),
         haiku("2026-10-19", 3, 1, 2010, 320),
         DailyUsage {
-            provider: "ollama".to_owned(),
-            model: "gemma4".to_owned(),
+            provider: "claude-code".to_owned(),
+            model: "claude-haiku-5-5".to_owned(),
             input_tokens: 700,
             output_tokens: 70,
             calls: 1,

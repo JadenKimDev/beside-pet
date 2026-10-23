@@ -81,7 +81,7 @@ fn ok_record() -> CallRecord {
 
 fn error_record() -> CallRecord {
     CallRecord {
-        provider: LlmProvider::Ollama,
+        provider: LlmProvider::ClaudeCode,
         model: "fake-local-model".to_owned(),
         purpose: CallPurpose::Crisis,
         prompt_version: "0.2.1".to_owned(),
@@ -175,7 +175,7 @@ async fn 성공과_실패_기록이_칸_그대로_들어간다() {
         rows[1].1,
         Row13 {
             at: at(),
-            provider: "ollama".to_owned(),
+            provider: "claude-code".to_owned(),
             model: "fake-local-model".to_owned(),
             purpose: "crisis".to_owned(),
             prompt_version: "0.2.1".to_owned(),

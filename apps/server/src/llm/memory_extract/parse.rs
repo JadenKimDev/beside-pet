@@ -1,4 +1,4 @@
-//! 모델의 답 글을 `ExtractedMemory` 로 읽는다. 코드 펜스와 앞뒤 군말을 벗기고, 모양이 다르면 `None`.
+//! 모델의 답 글을 `ExtractedMemory` 로 읽는다. 답은 스키마로 묶인 JSON object 하나이고, 모양이 다르면 `None`.
 
 use serde::Deserialize;
 
@@ -21,7 +21,7 @@ struct WireFact {
 
 /// 답 글에서 JSON object 하나를 읽는다.
 pub(super) fn parse_extraction(text: &str) -> Option<ExtractedMemory> {
-    let wire: WireExtraction = serde_json::from_str(strip_fences(text)).ok()?;
+    let wire: WireExtraction = serde_json::from_str(text.trim()).ok()?;
     Some(ExtractedMemory {
         facts: wire
             .facts
@@ -36,13 +36,4 @@ pub(super) fn parse_extraction(text: &str) -> Option<ExtractedMemory> {
             .collect(),
         do_not_remember: wire.do_not_remember,
     })
-}
-
-/// 코드 펜스(```json … ```)와 object 밖의 글을 벗긴다: 첫 `{` 부터 마지막 `}` 까지. 없으면 다듬은 글 그대로.
-pub(super) fn strip_fences(text: &str) -> &str {
-    let trimmed = text.trim();
-    match (trimmed.find('{'), trimmed.rfind('}')) {
-        (Some(start), Some(end)) if start < end => &trimmed[start..=end],
-        _ => trimmed,
-    }
 }

@@ -1,4 +1,4 @@
-use super::{AnthropicSettings, ModelRef, ModelSettings, OllamaSettings};
+use super::{AnthropicSettings, ModelRef, ModelSettings};
 use crate::llm::LlmProvider;
 use crate::shared::Config;
 
@@ -33,10 +33,6 @@ fn 아무것도_없으면_anthropic_의_claude_haiku_4_5_와_기본_주소다() 
                 base_url: "https://api.anthropic.com".to_owned(),
                 api_key: "sk-test-fake".to_owned(),
             }),
-            ollama: OllamaSettings {
-                base_url: "http://127.0.0.1:11434".to_owned(),
-                think: false,
-            },
         }
     );
 }
@@ -54,34 +50,40 @@ fn llm_model_이_claude_model_보다_먼저다() {
 }
 
 #[test]
-fn llm_provider_가_ollama_면_ollama_의_모델이다() {
-    let settings = settings(&[("LLM_PROVIDER", "ollama"), ("LLM_MODEL", "gemma4")]);
+fn llm_provider_가_claude_code_면_claude_code_의_모델이다() {
+    let settings = settings(&[
+        ("LLM_PROVIDER", "claude-code"),
+        ("LLM_MODEL", "claude-sonnet-5"),
+    ]);
     assert_eq!(
         settings.default_model,
         ModelRef {
-            provider: LlmProvider::Ollama,
-            model: "gemma4".to_owned(),
+            provider: LlmProvider::ClaudeCode,
+            model: "claude-sonnet-5".to_owned(),
         }
     );
     assert_eq!(settings.anthropic, None);
 }
 
 #[test]
-fn 주소와_생각_켜기를_설정에서_받는다() {
+fn claude_code_에_모델이_없으면_claude_haiku_5_5_다() {
+    let settings = settings(&[("LLM_PROVIDER", "claude-code")]);
+    assert_eq!(
+        settings.default_model,
+        ModelRef {
+            provider: LlmProvider::ClaudeCode,
+            model: "claude-haiku-5-5".to_owned(),
+        }
+    );
+}
+
+#[test]
+fn 주소를_설정에서_받는다() {
     let settings = settings(&[
         ("ANTHROPIC_API_KEY", "sk-test-fake"),
         ("ANTHROPIC_BASE_URL", "http://127.0.0.1:9"),
-        ("OLLAMA_BASE_URL", "http://127.0.0.1:8"),
-        ("OLLAMA_THINK", "true"),
     ]);
     assert_eq!(settings.anthropic.unwrap().base_url, "http://127.0.0.1:9");
-    assert_eq!(
-        settings.ollama,
-        OllamaSettings {
-            base_url: "http://127.0.0.1:8".to_owned(),
-            think: true,
-        }
-    );
 }
 
 #[test]

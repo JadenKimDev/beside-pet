@@ -1,7 +1,7 @@
 //! 기억 추출의 구현: 사용자 발화 하나에서 오래 남길 사실을 기존 `TextModel` 에 JSON 으로 묻고 그 답을 읽는다(ADR-0034).
 //!
 //! `support` 의 trait 와 게이트는 모른다. 받은 값은 걸러지지 않은 그대로 내고, 거르기는 `support` 의 게이트가 한다.
-//! Anthropic 은 스키마로 답을 묶고(structured outputs), 그 밖의 공급자는 지시문만 보고 답하므로 펜스를 벗겨 읽는다.
+//! 두 공급자(Anthropic 의 structured outputs, Claude Code 의 `--json-schema`) 모두 답을 스키마로 묶는다.
 //! 읽지 못한 답은 추출 없음이다. 본문은 로그와 오류에 싣지 않는다.
 
 mod parse;

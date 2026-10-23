@@ -16,9 +16,9 @@ use self::limits::log_timeout;
 pub use self::limits::{CallLimits, GENERATE_LIMIT, STREAM_IDLE_LIMIT};
 use self::meter::CallMeter;
 use super::{
-    AnthropicProvider, CallContext, CallErrorKind, Generation, GenerationRequest, LlmProvider,
-    ModelRef, ModelSettings, OllamaProvider, OutputSchema, SharedUsageSink, StreamEvent, TextModel,
-    TextModelProvider, TextStream,
+    AnthropicProvider, CallContext, CallErrorKind, ClaudeCodeProvider, Generation,
+    GenerationRequest, LlmProvider, ModelRef, ModelSettings, OutputSchema, SharedUsageSink,
+    StreamEvent, TextModel, TextModelProvider, TextStream,
 };
 use crate::shared::ApiError;
 
@@ -57,12 +57,11 @@ impl ModelRouter {
         self.limits
     }
 
-    /// 설정이 있는 공급자만 등록한다: Anthropic 은 키가 있을 때, Ollama 는 늘.
+    /// 설정이 있는 공급자만 등록한다: Anthropic 은 키가 있을 때, Claude Code(PATH 의 `claude`)는 늘.
+    /// `claude` 가 없으면 기동이 아니라 첫 호출의 오류로 드러난다.
     pub fn from_settings(settings: &ModelSettings, usage: SharedUsageSink) -> ModelRouter {
-        let mut providers: Vec<Box<dyn TextModelProvider>> = vec![Box::new(OllamaProvider::new(
-            settings.ollama.base_url.clone(),
-            settings.ollama.think,
-        ))];
+        let mut providers: Vec<Box<dyn TextModelProvider>> =
+            vec![Box::new(ClaudeCodeProvider::new("claude"))];
         if let Some(anthropic) = &settings.anthropic {
             providers.push(Box::new(AnthropicProvider::new(
                 anthropic.base_url.clone(),

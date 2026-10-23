@@ -14,7 +14,7 @@ futures-util = { version = "0.3.34", default-features = false, features = ["std"
 getrandom = "0.4.3" # setup 토큰의 16바이트 난수
 jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto"] } # 로그인 토큰(HS256)
 regex = "1.13.1"
-reqwest = { version = "0.12.28", default-features = false, features = ["json", "stream", "rustls-tls"] } # 모델 공급자(Anthropic, Ollama) 호출. TLS 는 sqlx 와 같은 rustls+ring+webpki 루트
+reqwest = { version = "0.12.28", default-features = false, features = ["json", "stream", "rustls-tls"] } # 모델 공급자(Anthropic) 호출. TLS 는 sqlx 와 같은 rustls+ring+webpki 루트
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154", features = ["preserve_order"] } # 모르는 칸의 오류를 본문에 온 순서대로 낸다(class-validator 와 같게)
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "migrate", "macros", "chrono", "json"] }

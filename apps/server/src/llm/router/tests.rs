@@ -13,8 +13,8 @@ use super::{CallLimits, ModelRouter};
 use crate::llm::{
     AnthropicSettings, CallContext, CallErrorKind, CallOutcome, CallPurpose, CallRecord,
     Generation, GenerationRequest, InMemoryUsageSink, LlmProvider, ModelRef, ModelSettings,
-    OllamaSettings, PromptMessage, PromptRole, ProviderStream, StreamEvent, TextModel,
-    TextModelProvider, TokenUsage,
+    PromptMessage, PromptRole, ProviderStream, StreamEvent, TextModel, TextModelProvider,
+    TokenUsage,
 };
 use crate::shared::ApiError;
 
@@ -167,16 +167,16 @@ fn only_record(sink: &InMemoryUsageSink) -> CallRecord {
 async fn generate_는_기본_모델의_공급자를_불러_글을_돌려주고_맥락과_토큰과_시간을_적는다() {
     let anthropic = FakeProvider::new(LlmProvider::Anthropic);
     let anthropic_models = anthropic.models.clone();
-    let ollama = FakeProvider::new(LlmProvider::Ollama);
-    let ollama_models = ollama.models.clone();
-    let (router, sink) = router_with(haiku(), vec![ollama, anthropic]);
+    let claude_code = FakeProvider::new(LlmProvider::ClaudeCode);
+    let claude_code_models = claude_code.models.clone();
+    let (router, sink) = router_with(haiku(), vec![claude_code, anthropic]);
 
     let before = Utc::now();
     assert_eq!(router.generate(request()).await, Ok("가짜 답".to_owned()));
     let after = Utc::now();
 
     assert_eq!(*anthropic_models.lock().unwrap(), vec!["claude-haiku-4-5"]);
-    assert!(ollama_models.lock().unwrap().is_empty());
+    assert!(claude_code_models.lock().unwrap().is_empty());
     let CallRecord {
         provider,
         model,
@@ -222,16 +222,19 @@ async fn stream_은_글_조각만_순서대로_흘리고_끝날_때_기록을_�
 }
 
 #[tokio::test]
-async fn ollama_의_호출도_공급자와_모델을_그대로_적는다() {
-    let gemma = ModelRef {
-        provider: LlmProvider::Ollama,
-        model: "gemma4".to_owned(),
+async fn claude_code_의_호출도_공급자와_모델을_그대로_적는다() {
+    let subscription = ModelRef {
+        provider: LlmProvider::ClaudeCode,
+        model: "claude-haiku-5-5".to_owned(),
     };
-    let (router, sink) = router_with(gemma, vec![FakeProvider::new(LlmProvider::Ollama)]);
+    let (router, sink) = router_with(
+        subscription,
+        vec![FakeProvider::new(LlmProvider::ClaudeCode)],
+    );
     router.generate(request()).await.unwrap();
     let record = only_record(&sink);
-    assert_eq!(record.provider, LlmProvider::Ollama);
-    assert_eq!(record.model, "gemma4");
+    assert_eq!(record.provider, LlmProvider::ClaudeCode);
+    assert_eq!(record.model, "claude-haiku-5-5");
 }
 
 #[tokio::test]
@@ -302,7 +305,7 @@ async fn 부른_쪽이_stream_을_중간에_버리면_취소로_한_번_적는�
 
 #[tokio::test]
 async fn 기본_공급자가_등록되지_않았으면_500_이고_없는_공급자로_적는다() {
-    let (router, sink) = router_with(haiku(), vec![FakeProvider::new(LlmProvider::Ollama)]);
+    let (router, sink) = router_with(haiku(), vec![FakeProvider::new(LlmProvider::ClaudeCode)]);
     assert_eq!(router.generate(request()).await, Err(ApiError::Internal));
     let items: Vec<_> = router.stream(request()).collect().await;
     assert_eq!(items, vec![Err(ApiError::Internal)]);
@@ -447,25 +450,24 @@ fn settings(default_model: ModelRef, with_key: bool) -> ModelSettings {
             base_url: "http://127.0.0.1:9".to_owned(),
             api_key: "sk-test-fake".to_owned(),
         }),
-        ollama: OllamaSettings {
-            base_url: "http://127.0.0.1:9".to_owned(),
-            think: false,
-        },
     }
 }
 
 #[test]
-fn 설정에서_키가_있으면_anthropic_을_늘_ollama_를_등록한다() {
+fn 설정에서_키가_있으면_anthropic_을_늘_claude_code_를_등록한다() {
     let sink = Arc::new(InMemoryUsageSink::default());
     let mut with_key =
         ModelRouter::from_settings(&settings(haiku(), true), sink.clone()).registered();
     with_key.sort_by_key(|p| p.as_str());
-    assert_eq!(with_key, vec![LlmProvider::Anthropic, LlmProvider::Ollama]);
+    assert_eq!(
+        with_key,
+        vec![LlmProvider::Anthropic, LlmProvider::ClaudeCode]
+    );
 
-    let gemma = ModelRef {
-        provider: LlmProvider::Ollama,
-        model: "gemma4".to_owned(),
+    let subscription = ModelRef {
+        provider: LlmProvider::ClaudeCode,
+        model: "claude-haiku-5-5".to_owned(),
     };
-    let without_key = ModelRouter::from_settings(&settings(gemma, false), sink).registered();
-    assert_eq!(without_key, vec![LlmProvider::Ollama]);
+    let without_key = ModelRouter::from_settings(&settings(subscription, false), sink).registered();
+    assert_eq!(without_key, vec![LlmProvider::ClaudeCode]);
 }

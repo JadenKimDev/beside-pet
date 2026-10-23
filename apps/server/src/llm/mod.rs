@@ -19,11 +19,11 @@ pub use memory_extract::{
     MemoryExtract, MemoryExtractRequest, MemoryFact,
 };
 pub use provider::{
-    AnthropicProvider, Generation, LlmProvider, OllamaProvider, ProviderStream, StreamEvent,
+    AnthropicProvider, ClaudeCodeProvider, Generation, LlmProvider, ProviderStream, StreamEvent,
     TextModelProvider, TokenUsage,
 };
 pub use router::{CallLimits, GENERATE_LIMIT, ModelRouter, STREAM_IDLE_LIMIT};
-pub use settings::{AnthropicSettings, ModelRef, ModelSettings, OllamaSettings};
+pub use settings::{AnthropicSettings, ModelRef, ModelSettings};
 pub use text_model::{
     CallContext, CallPurpose, GenerationRequest, OutputSchema, PromptMessage, PromptRole,
     SharedTextModel, TextModel, TextStream, Unimplemented,

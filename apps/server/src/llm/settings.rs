@@ -8,11 +8,11 @@ use std::fmt;
 use super::LlmProvider;
 use crate::shared::Config;
 
-/// 아무 모델도 적지 않았을 때의 기본(ADR-0010 의 Claude Haiku 4.5).
+/// Anthropic 에 아무 모델도 적지 않았을 때의 기본(ADR-0010 의 Claude Haiku 4.5). production 의 모델은 `LLM_MODEL` 이 정한다.
 const DEFAULT_MODEL: &str = "claude-haiku-4-5";
+/// Claude Code 에 아무 모델도 적지 않았을 때의 기본(ADR-0038).
+const DEFAULT_CLAUDE_CODE_MODEL: &str = "claude-haiku-5-5";
 const DEFAULT_ANTHROPIC_BASE_URL: &str = "https://api.anthropic.com";
-/// 루프백의 Ollama. 컨테이너 안에서는 `OLLAMA_BASE_URL` 로 바꾼다.
-const DEFAULT_OLLAMA_BASE_URL: &str = "http://127.0.0.1:11434";
 
 /// 공급자와 모델을 함께 고른 것.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,27 +37,19 @@ impl fmt::Debug for AnthropicSettings {
     }
 }
 
-/// Ollama 에 붙는 값.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OllamaSettings {
-    pub base_url: String,
-    pub think: bool,
-}
-
 /// 기본 모델과 공급자마다의 연결 값.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelSettings {
     pub default_model: ModelRef,
     pub anthropic: Option<AnthropicSettings>,
-    pub ollama: OllamaSettings,
 }
 
 impl ModelSettings {
     /// 우선순위는 TS 와 같다: 공급자는 `LLM_PROVIDER`(없으면 anthropic), 모델은 `LLM_MODEL`, `CLAUDE_MODEL`,
-    /// `claude-haiku-4-5` 순. Anthropic 은 키가 있을 때만 설정을 갖는다.
+    /// 공급자의 기본(anthropic 은 `claude-haiku-4-5`, claude-code 는 `claude-haiku-5-5`) 순. Anthropic 은 키가 있을 때만 설정을 갖는다.
     pub fn from_config(config: &Config) -> ModelSettings {
         let env = &config.model;
-        // `Config::from_lookup` 이 `LLM_PROVIDER` 를 anthropic, ollama 만 받으므로 없을 때만 기본으로 간다.
+        // `Config::from_lookup` 이 `LLM_PROVIDER` 를 anthropic, claude-code 만 받으므로 없을 때만 기본으로 간다.
         let provider = env
             .provider
             .as_deref()
@@ -67,7 +59,10 @@ impl ModelSettings {
             .model
             .clone()
             .or_else(|| env.claude_model.clone())
-            .unwrap_or_else(|| DEFAULT_MODEL.to_owned());
+            .unwrap_or_else(|| match provider {
+                LlmProvider::Anthropic => DEFAULT_MODEL.to_owned(),
+                LlmProvider::ClaudeCode => DEFAULT_CLAUDE_CODE_MODEL.to_owned(),
+            });
         ModelSettings {
             default_model: ModelRef { provider, model },
             anthropic: env
@@ -80,13 +75,6 @@ impl ModelSettings {
                         .unwrap_or_else(|| DEFAULT_ANTHROPIC_BASE_URL.to_owned()),
                     api_key,
                 }),
-            ollama: OllamaSettings {
-                base_url: env
-                    .ollama_base_url
-                    .clone()
-                    .unwrap_or_else(|| DEFAULT_OLLAMA_BASE_URL.to_owned()),
-                think: env.ollama_think,
-            },
         }
     }
 }

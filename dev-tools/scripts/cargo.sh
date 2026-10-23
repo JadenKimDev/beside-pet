@@ -3,10 +3,10 @@
 # /opt/homebrew/opt/rustup/bin 에만 있다) package.json 과 원장의 검증 명령은 이 래퍼를 쓴다.
 # 찾는 순서: PATH, ~/.cargo/bin, /opt/homebrew/opt/rustup/bin.
 #
-# 빌드 폴더(target/)는 두 가지를 더 한다.
-# - 워크트리에서 돌려도 본 체크아웃의 target/ 하나를 같이 쓴다(CARGO_TARGET_DIR). 워크트리마다 7G 급이
-#   생기는 것을 막는다. cargo 가 잠금으로 동시 빌드를 직렬화하므로 안전하다. 환경에 CARGO_TARGET_DIR 이
-#   이미 있으면 그것을 따른다.
+# 빌드 폴더(target/)는 한 가지를 더 한다.
+# - 워크트리는 cargo 기본대로 자기 target/ 을 쓴다. 본 체크아웃의 것을 같이 쓰지 않는다(ADR-0039). 같은
+#   target/ 을 쓰면 두 소스 트리가 같은 이름의 바이너리를 서로 덮고, 잠금을 기다린 쪽이 Compiling 0 으로
+#   남의 바이너리를 그대로 쓴다(2026-10-23 실측). 환경에 CARGO_TARGET_DIR 이 이미 있으면 그것을 따른다.
 # - target/ 이 CARGO_TARGET_MAX_GB(기본 4)를 넘으면 돌리기 전에 `cargo clean` 으로 비운다. cargo 는 옛
 #   버전의 산출물을 지우지 않고 옆에 쌓으므로(의존성, rustc, feature 가 바뀔 때마다 한 벌) 그대로 두면
 #   끝없이 큰다. 2026-10-22 실측: 쌓인 7.5G 를 비우고 전부 다시 빌드(--all-targets)하는 데 20초, 1.9G.
@@ -32,14 +32,6 @@ if [ -z "$CARGO" ]; then
   exit 127
 fi
 
-# --- 워크트리면 본 체크아웃의 target/ 을 쓴다 ---
-if [ -z "${CARGO_TARGET_DIR:-}" ] && common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
-  main_root="$(dirname "$common")"
-  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-  if [ -n "$top" ] && [ "$main_root" != "$top" ]; then
-    export CARGO_TARGET_DIR="$main_root/target"
-  fi
-fi
 target_dir="${CARGO_TARGET_DIR:-target}"
 
 # --- 너무 크면 비운다 ---

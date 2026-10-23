@@ -5,6 +5,7 @@
 mod access;
 mod active;
 mod adapters;
+mod archive;
 mod cancel;
 mod judge;
 mod judging;

@@ -84,13 +84,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "doing",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 1,
       "started_at": "2026-10-23T02:31:33.764Z",
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": 19221
+      "finished_at": "2026-10-23T02:35:59.224Z",
+      "active_ms": 265460,
+      "verify_ms": 9200
     }
   ]
 }

@@ -1,0 +1,56 @@
+{
+  "issue": 52,
+  "title": "워크트리의 `pnpm dev` 는 이슈 번호 포트와 `<이슈>.localhost` 로 뜬다 — 서버 `<이슈>10`, 웹 `<이슈>11`, 운영 화면 `<이슈>12`, 웹의 API 주소를 같은 호스트로 맞춰 워크트리 QA 의 로그인 401 과 포트 충돌을 없앤다",
+  "prd": "docs/prd/52-worktree-dev-ports.md",
+  "depends_on": [],
+  "created_at": "2026-10-23T06:37:55.275Z",
+  "prd_times": {
+    "drafted_at": "2026-10-23T06:32:41Z",
+    "submitted_at": "2026-10-23T06:33:48Z",
+    "approved_at": "2026-10-23T06:37:48Z"
+  },
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "`dev.sh` 가 워크트리면 이슈 번호 포트와 `<이슈>.localhost` 로 서버·웹·운영 화면을 띄운다",
+      "scope": [
+        "dev-tools/scripts/dev.sh"
+      ],
+      "depends_on": [],
+      "verify": [
+        "bash -n dev-tools/scripts/dev.sh && pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "`open-web` 스킬, `qa.md`, 루트 `CLAUDE.md` 의 `pnpm dev` 줄에 워크트리 포트 규칙을 적는다",
+      "scope": [
+        ".claude/skills/open-web/SKILL.md",
+        ".claude/agents/qa.md",
+        "CLAUDE.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

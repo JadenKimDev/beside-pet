@@ -44,6 +44,14 @@ test("forbiddenWord: 금지어는 오류, 부정형은 경고", () => {
   assert.deepEqual(en("He slept securely and waited patiently by the door."), []);
 });
 
+test("forbiddenWord: 전문 자원 이름은 금지어로 보지 않는다", () => {
+  assert.deepEqual(ids(ko("자살예방상담전화 109 로 연락해 보세요.")), []);
+  assert.deepEqual(ids(ko("정신건강위기상담전화나 다누리콜센터 1577-1366으로 연락할 수 있어요.")), []);
+  assert.deepEqual(ids(ko("상담을 이어 가요.")), ["forbiddenWord:error"]);
+  // 자원 이름과 금지어가 한 문장에 함께 있으면 금지어는 그대로 잡는다.
+  assert.deepEqual(ids(ko("자살예방상담전화 109 에서 상담을 받아 보세요.")), ["forbiddenWord:error"]);
+});
+
 test("forbiddenWord: 문장마다 따로 본다", () => {
   const flags = ko("치료는 아니에요. 그래도 상담처럼 느껴질 수 있어요.");
   assert.deepEqual(ids(flags), ["forbiddenWord:warn", "forbiddenWord:error"]);

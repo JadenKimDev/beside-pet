@@ -46,6 +46,12 @@ const FORBIDDEN_EN = [
   "patient",
 ] as const;
 
+/**
+ * 전문 자원의 이름. 제품을 가리키는 말이 아니므로 금지어를 보기 전에 문장에서 지운다(#48).
+ * 서버 `safety/resources.rs` 의 위기 고정 안내에 쓰는 이름과, PRD 가 정한 정신건강위기상담전화다.
+ */
+export const RESOURCE_NAMES = ["자살예방상담전화", "정신건강위기상담전화", "다누리콜센터"] as const;
+
 /** 한국어 금지어 바로 뒤(열 글자 안)의 부정("치료사는 아니지만", "상담을 하지 않아요")이면 경고로 낮춘다. */
 const NEGATION_AFTER_KO = /^[^.!?。？！\n]{0,10}?(아니|않)/;
 /** 영어 금지어 바로 앞(두 낱말 안)의 부정("not a therapist", "isn't treatment")이면 경고로 낮춘다. */
@@ -102,7 +108,9 @@ function sentences(answer: string): string[] {
 /** 문장 안의 금지어와, 그것이 부정형으로 쓰였는지. */
 type ForbiddenHit = { word: string; negated: boolean };
 
-function forbiddenIn(sentence: string): ForbiddenHit[] {
+function forbiddenIn(original: string): ForbiddenHit[] {
+  let sentence = original;
+  for (const name of RESOURCE_NAMES) sentence = sentence.split(name).join(" ");
   const hits: ForbiddenHit[] = [];
   for (const word of FORBIDDEN_KO) {
     const at = sentence.indexOf(word);

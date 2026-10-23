@@ -18,7 +18,7 @@ if [ ! -f "$env_file" ]; then
   {
     echo "production 서버 설정이 없다: apps/server/.env.production"
     echo "  cp apps/server/.env.example apps/server/.env.production   # 만든 뒤 JWT_SECRET 과 모델 설정(LLM_PROVIDER, LLM_MODEL 등)을 채운다"
-    echo "  (DATABASE_URL, PORT, APP_ENV, COOKIE_SECURE, OLLAMA_BASE_URL 은 compose 가 정하므로 채우지 않아도 된다)"
+    echo "  (DATABASE_URL, PORT, APP_ENV, COOKIE_SECURE 는 compose 가 정하므로 채우지 않아도 된다)"
   } >&2
   exit 1
 fi

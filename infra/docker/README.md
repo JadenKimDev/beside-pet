@@ -50,7 +50,7 @@ user-data(`infra/` 의 호스트 정의)가 `compose.host.yaml` 과 `host-deploy
 
 ### 서버 설정
 
-compose 가 `api` 에 `APP_ENV=production`, `PORT`, `DATABASE_URL`(compose 안의 `db`), `COOKIE_SECURE`(기본 `false`, http 루프백에서 로그인을 유지하려고), `OLLAMA_BASE_URL`(기본 `http://host.docker.internal:11434`)을 준다. 나머지 비밀과 모델 설정(`JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` 등)은 `apps/server/.env.production`(gitignore)에서 받는다. 비밀 값은 compose 파일에 쓰지 않는다. `APP_ENV=production` 이라 `.env.production` 에 `ALLOWED_ORIGINS` 도 있어야 api 가 뜬다. 이 머신의 대화 웹은 `http://127.0.0.1:${WEB_PORT}`(기본 8001)에서 `http://127.0.0.1:${API_PORT}` 를 부르므로 그 출처(브라우저 주소창에 `localhost` 로 연다면 `http://localhost:8001` 도)를 넣는다.
+compose 가 `api` 에 `APP_ENV=production`, `PORT`, `DATABASE_URL`(compose 안의 `db`), `COOKIE_SECURE`(기본 `false`, http 루프백에서 로그인을 유지하려고)를 준다. 나머지 비밀과 모델 설정(`JWT_SECRET`, `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` 등)은 `apps/server/.env.production`(gitignore)에서 받는다. 비밀 값은 compose 파일에 쓰지 않는다. `APP_ENV=production` 이라 `.env.production` 에 `ALLOWED_ORIGINS` 도 있어야 api 가 뜬다. 이 머신의 대화 웹은 `http://127.0.0.1:${WEB_PORT}`(기본 8001)에서 `http://127.0.0.1:${API_PORT}` 를 부르므로 그 출처(브라우저 주소창에 `localhost` 로 연다면 `http://localhost:8001` 도)를 넣는다.
 
 ### 명령
 

@@ -42,8 +42,7 @@ services:
       DATABASE_URL: postgres://beside:beside@db:5432/besidepet
       # http 루프백에서는 브라우저가 Secure 쿠키를 돌려보내지 않는다. 로그인을 유지하려고 기본으로 끈다.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-    # Linux 호스트에서도 host.docker.internal 로 호스트의 Ollama 에 닿게 한다.
+    # Linux 호스트에서도 host.docker.internal 로 호스트에 닿게 한다.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

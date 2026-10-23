@@ -278,12 +278,12 @@ function accuracy(root: string): void {
   }
   const span = (ms: number | null) => (ms === null ? "—" : formatDuration(ms));
   console.log(
-    "이슈  낙관 / 현실 / 비관(작업)  |  실측 작업  실측 전체  |  작업÷현실  전체÷현실  판정  |  작성  승인 대기  구현  작성÷현실",
+    "이슈  낙관 / 현실 / 비관(작업)  |  실측 작업  실측 전체  |  작업÷현실  전체÷현실  판정  |  작성  승인 대기  작성÷현실",
   );
   for (const row of rows) {
     const e = row.estimate;
     console.log(
-      `#${String(row.issue).padEnd(4)} ${formatDuration(e.optimistic.work_ms)} / ${formatDuration(e.realistic.work_ms)} / ${formatDuration(e.pessimistic.work_ms)}  |  ${formatDuration(row.actual_work_ms)}  ${formatDuration(row.actual_lead_ms)}  |  ${formatRatio(row.work_ratio)}  ${formatRatio(row.lead_ratio)}  ${row.verdict}  |  ${span(row.write_ms)}  ${span(row.wait_ms)}  ${span(row.actual_lead_ms)}  ${formatRatio(row.write_ratio)}`,
+      `#${String(row.issue).padEnd(4)} ${formatDuration(e.optimistic.work_ms)} / ${formatDuration(e.realistic.work_ms)} / ${formatDuration(e.pessimistic.work_ms)}  |  ${formatDuration(row.actual_work_ms)}  ${formatDuration(row.actual_lead_ms)}  |  ${formatRatio(row.work_ratio)}  ${formatRatio(row.lead_ratio)}  ${row.verdict}  |  ${span(row.write_ms)}  ${span(row.wait_ms)}  ${formatRatio(row.write_ratio)}`,
     );
   }
   const s = summarize(rows);

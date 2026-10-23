@@ -156,7 +156,7 @@ pnpm ledger:accuracy        # 지난 PRD 의 추정(낙관·현실·비관)과 �
 - 작성 시간도 적는다: "작업 N분, 전체 M분, 작성 K분". 작성은 `prd:new`(`drafted_at`)부터 `--draft` 푸시(`submitted_at`)까지이고, 기준은 `ledger:accuracy` 의 작성 구간 중앙값이다. 작성 표본이 없으면 `작성` 을 빼고 근거에 그렇게 적는다.
 - 마감 뒤 `ledger:accuracy` 를 다시 보고, 중앙값이 1 에서 멀어지면 이 절의 수치를 고친다.
 
-`ledger:accuracy` 는 이슈마다 세 구간을 보인다. 작성(`drafted_at`→`submitted_at`, 초안 없이 바로 올렸으면 `drafted_at`→`approved_at`), 승인 대기(`submitted_at`→`approved_at`), 구현(첫 `pnpm work` 부터 `pnpm finish` 까지). 시각이 없는 이슈(이 도구가 생기기 전의 것)는 그 칸이 `—` 다. `## 추정` 에 작성 값이 있는 이슈는 작성÷추정 비율과 그 중앙값도 보인다.
+`ledger:accuracy` 는 이슈마다 작성(`drafted_at`→`submitted_at`, 초안 없이 바로 올렸으면 `drafted_at`→`approved_at`)과 승인 대기(`submitted_at`→`approved_at`)를 더 보인다. 구현은 "실측 전체" 열(첫 `pnpm work` 부터 `pnpm finish` 까지)이다. 시각이 없는 이슈(이 도구가 생기기 전의 것)는 그 칸이 `—` 다. `## 추정` 에 작성 값이 있는 이슈는 작성÷추정 비율과 그 중앙값도 보인다.
 
 ## 5. 원장을 만든다
 

@@ -1,0 +1,55 @@
+{
+  "issue": 48,
+  "title": "위기 판정 오탐 — 판정 입력에 직전 동반자 답 한 줄을 넣고 대화 종료 의사와 한국어 예시를 지시문에 둔다, 실측 검사의 금지어가 전문 자원 안내를 잡지 않게 한다",
+  "prd": "docs/prd/48-crisis-judge-previous-reply.md",
+  "depends_on": [],
+  "created_at": "2026-10-23T02:30:18.165Z",
+  "tasks": [
+    {
+      "id": "S1",
+      "title": "판정 입력에 직전 동반자 답 한 줄, 지시문의 종료 의사 예외와 한국어 예시, 프롬프트 `1.0.0`, orchestrator 두 호출의 직전 답 전달, ADR-0004 결과 한 줄",
+      "scope": [
+        "apps/server/src/safety/risk.rs",
+        "apps/server/src/safety/risk/",
+        "apps/server/src/safety/mod.rs",
+        "apps/server/src/support/flow/orchestrator.rs",
+        "apps/server/src/support/flow/tests/",
+        "docs/adr/0004-crisis-two-layer-detection-fixed-handoff.md"
+      ],
+      "depends_on": [],
+      "verify": [
+        "dev-tools/scripts/cargo.sh test -p beside-pet-server -- safety::risk support::flow"
+      ],
+      "tdd": true,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    },
+    {
+      "id": "S2",
+      "title": "`forbiddenWord` 가 전문 자원 이름을 검사 전에 지운다, 자원 이름 상수와 테스트",
+      "scope": [
+        "dev-tools/src/lib/chat-eval/checks.ts",
+        "dev-tools/src/lib/chat-eval/checks.test.ts"
+      ],
+      "depends_on": [],
+      "verify": [
+        "pnpm -F @beside-pet/dev-tools test"
+      ],
+      "tdd": false,
+      "red_at": null,
+      "status": "todo",
+      "passes": false,
+      "retries": 0,
+      "started_at": null,
+      "finished_at": null,
+      "active_ms": null,
+      "verify_ms": null
+    }
+  ]
+}

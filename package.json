@@ -54,7 +54,6 @@
     "decision:synth": "cd dev-tools/decision && uv run python -m decision.synth",
     "decision:split": "cd dev-tools/decision && uv run python -m decision.split",
     "decision:eval": "cd dev-tools/decision && uv run python -m decision.eval",
-    "decision:train": "cd dev-tools/decision && uv run python -m decision.train",
-    "llm:shim": "python3 dev-tools/scripts/claude-shim.py"
+    "decision:train": "cd dev-tools/decision && uv run python -m decision.train"
   }
 }

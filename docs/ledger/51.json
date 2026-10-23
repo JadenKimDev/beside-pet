@@ -11,6 +11,7 @@
       "scope": [
         "dev-tools/src/cli.ts",
         "dev-tools/src/lib/prd.ts",
+        "dev-tools/src/lib/prd-commands.ts",
         "dev-tools/src/lib/prd.test.ts",
         "package.json"
       ],
@@ -19,14 +20,14 @@
         "pnpm -F @beside-pet/dev-tools test"
       ],
       "tdd": true,
-      "red_at": null,
-      "status": "todo",
-      "passes": false,
-      "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "red_at": "2026-10-23T05:55:51.421Z",
+      "status": "done",
+      "passes": true,
+      "retries": 1,
+      "started_at": "2026-10-23T05:54:29.869Z",
+      "finished_at": "2026-10-23T05:57:58.801Z",
+      "active_ms": 208932,
+      "verify_ms": 1621
     },
     {
       "id": "S2",
@@ -89,13 +90,13 @@
       ],
       "tdd": false,
       "red_at": null,
-      "status": "todo",
-      "passes": false,
+      "status": "done",
+      "passes": true,
       "retries": 0,
-      "started_at": null,
-      "finished_at": null,
-      "active_ms": null,
-      "verify_ms": null
+      "started_at": "2026-10-23T05:54:37.165Z",
+      "finished_at": "2026-10-23T05:58:32.713Z",
+      "active_ms": 235548,
+      "verify_ms": 1501
     }
   ]
 }

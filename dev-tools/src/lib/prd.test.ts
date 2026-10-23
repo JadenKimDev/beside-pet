@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { setFrontmatter, splitFrontmatter } from "./frontmatter.ts";
-import { issueNumber, parsePrd, splitRow } from "./prd.ts";
+import { issueNumber, newPrdDraft, parsePrd, prdTemplate, splitRow, stampPush } from "./prd.ts";
 
 const PRD = `---
 type: prd
@@ -112,4 +112,102 @@ test("머리말의 값 하나를 바꾸거나 더한다", () => {
   assert.equal(numbered.split("\n")[1], "issue: 40");
   assert.equal(numbered.replace("issue: 40\n", ""), draft);
   assert.throws(() => setFrontmatter("본문", "issue", "1"), /머리말이 없습니다/);
+});
+
+const NOW = new Date("2026-03-04T05:06:07.890Z");
+
+test("머리말의 세 시각을 읽고, 없으면 null 이다", () => {
+  assert.deepEqual(parsePrd(PRD).times, { drafted_at: null, submitted_at: null, approved_at: null });
+  const stamped = PRD.replace(
+    "type: prd\n",
+    "type: prd\ndrafted_at: 2026-03-01T01:00:00Z\nsubmitted_at: 2026-03-01T02:00:00Z\napproved_at: 2026-03-02T03:00:00Z\n",
+  );
+  assert.deepEqual(parsePrd(stamped).times, {
+    drafted_at: "2026-03-01T01:00:00Z",
+    submitted_at: "2026-03-01T02:00:00Z",
+    approved_at: "2026-03-02T03:00:00Z",
+  });
+  assert.throws(() => parsePrd(PRD.replace("type: prd\n", "type: prd\ndrafted_at: 어제\n")), /drafted_at/);
+});
+
+const TEMPLATE = [
+  "# PRD 틀",
+  "",
+  "설명 문단.",
+  "",
+  "## 기능",
+  "",
+  "```markdown",
+  "---",
+  "type: prd",
+  "title: 한 줄 제목",
+  "depends_on: []",
+  "scope_paths:",
+  "  - apps/api",
+  "---",
+  "",
+  "## 요약",
+  "",
+  "## 서브 티켓",
+  "```",
+  "",
+  "## 수정",
+  "",
+  "```markdown",
+  "---",
+  "type: prd",
+  "title: 한 줄 제목",
+  "depends_on: []",
+  "scope_paths:",
+  "  - apps/api",
+  "---",
+  "",
+  "## 증상",
+  "```",
+  "",
+].join("\n");
+
+test("틀 파일에서 기능 틀과 수정 틀을 자른다", () => {
+  const feature = prdTemplate(TEMPLATE, "feature");
+  assert.ok(feature.startsWith("---\ntype: prd\n"));
+  assert.ok(feature.includes("## 요약"));
+  assert.ok(!feature.includes("## 증상"));
+  assert.ok(!feature.includes("```"));
+  const fix = prdTemplate(TEMPLATE, "fix");
+  assert.ok(fix.includes("## 증상"));
+  assert.ok(!fix.includes("## 요약"));
+  assert.throws(() => prdTemplate("# 틀\n", "feature"), /기능/);
+});
+
+test("새 초안은 title 이 비고 drafted_at 이 지금이다", () => {
+  const draft = newPrdDraft(TEMPLATE, "feature", NOW);
+  const { data } = splitFrontmatter(draft);
+  assert.equal(data.drafted_at, "2026-03-04T05:06:07Z");
+  assert.ok(/^title:\s*$/m.test(draft));
+  assert.ok(!draft.includes("한 줄 제목"));
+  assert.ok(draft.endsWith("\n"));
+});
+
+test("초안으로 새 이슈를 만들면 submitted_at, 승인으로 올리면 approved_at 을 적는다", () => {
+  const draft = PRD.replace("issue: 12\n", "").replace("file: 12-order-state-rules.md\n", "");
+  const submitted = stampPush(draft, { draft: true, isNew: true }, NOW);
+  assert.equal(parsePrd(submitted).times.submitted_at, "2026-03-04T05:06:07Z");
+  assert.equal(parsePrd(submitted).times.approved_at, null);
+
+  // 이미 번호가 있는 초안을 다시 --draft 로 올리면 아무것도 적지 않는다.
+  assert.equal(stampPush(PRD, { draft: true, isNew: false }, NOW), PRD);
+
+  const approved = stampPush(PRD, { draft: false, isNew: false }, NOW);
+  assert.equal(parsePrd(approved).times.approved_at, "2026-03-04T05:06:07Z");
+  // 머리말 첫 줄 규칙: 이미 있던 줄의 순서는 그대로다.
+  assert.deepEqual(approved.split("\n").slice(0, 3), PRD.split("\n").slice(0, 3));
+
+  // 이미 값이 있으면 덮지 않는다.
+  const later = new Date("2026-05-01T00:00:00Z");
+  assert.equal(stampPush(approved, { draft: false, isNew: false }, later), approved);
+
+  // 초안 없이 바로 올린 새 이슈는 approved_at 만 생긴다.
+  const direct = parsePrd(stampPush(draft, { draft: false, isNew: true }, NOW)).times;
+  assert.equal(direct.submitted_at, null);
+  assert.equal(direct.approved_at, "2026-03-04T05:06:07Z");
 });

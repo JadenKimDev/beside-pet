@@ -6,7 +6,7 @@
 // 티켓 번호는 따로 두지 않는다. PRD 의 이름은 GitHub 이슈 번호이고, 작업 ID 는 그 PRD
 // 안에서만 통하는 짧은 이름(S1, S2)이다.
 
-import { asList, asString, splitFrontmatter } from "./frontmatter.ts";
+import { asList, asString, setFrontmatter, splitFrontmatter } from "./frontmatter.ts";
 
 export interface PrdTask {
   id: string;
@@ -19,6 +19,18 @@ export interface PrdTask {
   tdd: boolean | null;
 }
 
+/** PRD 의 생애에 도구가 찍는 시각(ISO 8601, UTC). 머리말에 없으면 `null`. */
+export interface PrdTimes {
+  /** `pnpm prd:new` 가 초안 파일을 만든 때. */
+  drafted_at: string | null;
+  /** `pnpm prd:push --draft` 가 초안 이슈를 만든 때. */
+  submitted_at: string | null;
+  /** `pnpm prd:push`(초안 없이)로 처음 승인돼 올라간 때. */
+  approved_at: string | null;
+}
+
+const TIME_KEYS = ["drafted_at", "submitted_at", "approved_at"] as const;
+
 export interface Prd {
   /** 이 PRD 의 GitHub 이슈 번호. 아직 올리지 않은 초안이면 `null`. */
   issue: number | null;
@@ -29,6 +41,7 @@ export interface Prd {
   dependsOn: number[];
   scopePaths: string[];
   tasks: PrdTask[];
+  times: PrdTimes;
 }
 
 /** `12` 나 `#12` 를 이슈 번호로 읽는다. 번호가 아니면 `null`. */
@@ -215,5 +228,90 @@ export function parsePrd(text: string): Prd {
     dependsOn,
     scopePaths,
     tasks: parseTaskTable(body, scopePaths),
+    times: parseTimes(data),
   };
+}
+
+function parseTimes(data: ReturnType<typeof splitFrontmatter>["data"]): PrdTimes {
+  const times: PrdTimes = { drafted_at: null, submitted_at: null, approved_at: null };
+  for (const key of TIME_KEYS) {
+    const value = asString(data, key);
+    if (value === undefined || value === "") {
+      continue;
+    }
+    if (Number.isNaN(Date.parse(value))) {
+      throw new Error(`머리말의 ${key} 는 ISO 8601 시각이어야 합니다: ${value}`);
+    }
+    times[key] = value;
+  }
+  return times;
+}
+
+/** 머리말에 적는 시각. 초 단위까지의 UTC ISO 8601. */
+export function stampTime(now: Date): string {
+  return now.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/**
+ * 머리말에 시각 하나를 적는다. 이미 값이 있으면 그대로 둔다.
+ * 새 키는 머리말의 끝(닫는 `---` 앞)에 넣어 첫 줄 `issue:`, 둘째 줄 `file:` 의 순서를 지킨다.
+ */
+function stampFrontmatter(text: string, key: (typeof TIME_KEYS)[number], now: Date): string {
+  const { data } = splitFrontmatter(text);
+  if (asString(data, key)) {
+    return text;
+  }
+  const lines = text.split("\n");
+  const end = lines.findIndex((line, i) => i > 0 && line.trim() === "---");
+  if (lines[0]?.trim() !== "---" || end === -1) {
+    throw new Error("머리말이 없습니다");
+  }
+  if (lines.some((line, i) => i > 0 && i < end && line.startsWith(`${key}:`))) {
+    // 빈 값으로 적힌 키는 그 자리에서 채운다.
+    return setFrontmatter(text, key, stampTime(now));
+  }
+  lines.splice(end, 0, `${key}: ${stampTime(now)}`);
+  return lines.join("\n");
+}
+
+/**
+ * `prd:push` 가 올리기 전에 머리말에 적는 시각. 초안으로 새 이슈를 만들면 `submitted_at`,
+ * 초안 없이 올리면 `approved_at`. 이미 번호가 있는 초안을 다시 `--draft` 로 올리면 아무것도 적지 않는다.
+ */
+export function stampPush(text: string, push: { draft: boolean; isNew: boolean }, now: Date): string {
+  if (push.draft) {
+    return push.isNew ? stampFrontmatter(text, "submitted_at", now) : text;
+  }
+  return stampFrontmatter(text, "approved_at", now);
+}
+
+export type PrdKind = "feature" | "fix";
+
+const TEMPLATE_HEADING: Record<PrdKind, string> = { feature: "기능", fix: "수정" };
+
+/**
+ * 틀 파일(`.claude/skills/prd/references/template.md`)에서 틀 하나를 자른다.
+ * 줄 전체가 `## 기능` / `## 수정` 인 제목 뒤의 첫 ```` ```markdown ```` 펜스 안이 틀이다.
+ */
+export function prdTemplate(templateText: string, kind: PrdKind): string {
+  const name = TEMPLATE_HEADING[kind];
+  const lines = templateText.split("\n");
+  const heading = lines.findIndex((line) => line.trim() === `## ${name}`);
+  const open = heading === -1 ? -1 : lines.findIndex((line, i) => i > heading && line.trim() === "```markdown");
+  const close = open === -1 ? -1 : lines.findIndex((line, i) => i > open && line.trim() === "```");
+  if (close === -1) {
+    throw new Error(`틀 파일에 '## ${name}' 제목 뒤의 \`\`\`markdown 틀이 없습니다`);
+  }
+  return `${lines.slice(open + 1, close).join("\n")}\n`;
+}
+
+/** `prd:new` 가 쓰는 초안. 틀의 title 은 비우고 `drafted_at` 에 지금 시각을 적는다. */
+export function newPrdDraft(templateText: string, kind: PrdKind, now: Date): string {
+  const template = prdTemplate(templateText, kind);
+  const { data } = splitFrontmatter(template);
+  if (!("title" in data)) {
+    throw new Error("틀의 머리말에 title 이 없습니다");
+  }
+  const untitled = setFrontmatter(template, "title", "").replace(/^title: $/m, "title:");
+  return stampFrontmatter(untitled, "drafted_at", now);
 }

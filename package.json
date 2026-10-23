@@ -26,6 +26,7 @@
     "sandbox:down": "infra/docker/scripts/sandbox-down.sh",
     "sandbox:reset": "infra/docker/scripts/sandbox-reset.sh",
     "browser:tab": "dev-tools/scripts/browser-tab.sh",
+    "prd:new": "node dev-tools/src/cli.ts prd:new",
     "prd:push": "node dev-tools/src/cli.ts prd:push",
     "prd:pull": "node dev-tools/src/cli.ts prd:pull",
     "prd:pane": "dev-tools/scripts/prd-pane.sh",

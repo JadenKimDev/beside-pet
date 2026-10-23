@@ -2,6 +2,7 @@
 //
 // PRD 의 이름은 GitHub 이슈 번호다. 작업 ID 는 그 PRD 안의 짧은 이름(S1, S2)이다.
 //
+//   pnpm prd:new <kebab-설명> [--fix]       틀(기능, --fix 면 수정)을 docs/prd/<kebab-설명>.md 로 복사하고 drafted_at 을 적는다
 //   pnpm prd:push docs/prd/<파일>.md [--draft]   이슈를 만들거나 본문을 갱신하고 보드에 올린다. --draft 는 초안 라벨(prd:draft)을 붙여 번호부터 받는다
 //   pnpm prd:pull <이슈>                    이슈 본문을 docs/prd/ 캐시로 받는다
 //   pnpm ledger:new docs/prd/<파일>.md      PRD 에서 원장을 만든다
@@ -23,14 +24,13 @@
 //   pnpm chat:eval run (--persona <이름> | --all) [--interactive] [--stream] [--baseline <날짜>]   대화 실측
 //   pnpm chat:eval arc --arc <이름> [--stream] [--out-label <라벨>] [--reset-qa]   장기기억 실측(세션 여럿, 날짜를 과거로 민다)
 
-import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 
 import { chatEval } from "./lib/chat-eval/command.ts";
 import type { DocKind } from "./lib/docs.ts";
 import type { BuildResult } from "./lib/docs-db.ts";
 import { compare, formatRatio, parseEstimateSection, summarize } from "./lib/estimate.ts";
-import { asString, setFrontmatter, splitFrontmatter } from "./lib/frontmatter.ts";
 import {
   DIAGNOSE_AFTER,
   extend,
@@ -46,12 +46,11 @@ import {
   scaffold,
   startTask,
 } from "./lib/ledger.ts";
-import { issueNumber, parsePrd } from "./lib/prd.ts";
-import { type BoardStatus, syncBoard } from "./lib/project.ts";
+import { parsePrd } from "./lib/prd.ts";
+import { board, need, needIssue, prdNew, prdPull, prdPush } from "./lib/prd-commands.ts";
 import {
   appendOutcome,
   fileProbe,
-  gh,
   listLedgers,
   placeLedger,
   prdDir,
@@ -65,94 +64,6 @@ import {
   withLedgerLock,
 } from "./lib/repo.ts";
 import { issueComment, issueLabel, runnerReport } from "./lib/runner/commands.ts";
-
-function need(value: string | undefined, usage: string): string {
-  if (!value) {
-    throw new Error(`사용법: ${usage}`);
-  }
-  return value;
-}
-
-function needIssue(value: string | undefined, usage: string): number {
-  const issue = issueNumber(need(value, usage));
-  if (issue === null) {
-    throw new Error(`이슈 번호가 아닙니다: ${value}\n사용법: ${usage}`);
-  }
-  return issue;
-}
-
-/** 보드를 옮기고, 못 했으면 이유만 알린다. 러너는 보드 때문에 멈추지 않는다. */
-function board(root: string, issue: number, status: BoardStatus | null): void {
-  const warning = syncBoard(root, issue, status);
-  if (warning) {
-    console.error(`⚠ ${warning}`);
-  }
-}
-
-/** 초안 이슈의 라벨. 초안도 이슈를 먼저 만들어 번호를 받고, 승인된 push 가 이 라벨을 뗀다. */
-const DRAFT_LABEL = "prd:draft";
-
-function prdPush(root: string, args: string[]): void {
-  const draft = args.includes("--draft");
-  const file = resolve(
-    need(
-      args.find((arg) => !arg.startsWith("--")),
-      "pnpm prd:push docs/prd/<파일>.md [--draft]",
-    ),
-  );
-  const text = readFileSync(file, "utf8");
-  const prd = parsePrd(text);
-  if (prd.issue !== null) {
-    gh(root, ["issue", "edit", String(prd.issue), "--title", prd.title, "--body-file", file]);
-    console.log(`이슈 #${prd.issue} 본문을 갱신했습니다 — ${prd.title}`);
-    if (!draft) {
-      issueLabel(root, [String(prd.issue), "--remove", DRAFT_LABEL]);
-    }
-    board(root, prd.issue, null);
-    return;
-  }
-
-  // 새 이슈다. 번호를 받은 뒤 머리말에 적고, 캐시 파일 이름 앞에 번호를 붙인다.
-  // 담당자는 늘 이슈를 만드는 계정이다.
-  const url = gh(root, ["issue", "create", "--title", prd.title, "--body-file", file, "--assignee", "@me"]).trim();
-  const issue = issueNumber(url.split("/").at(-1) ?? "");
-  if (issue === null) {
-    throw new Error(`만든 이슈의 번호를 읽지 못했습니다: ${url}`);
-  }
-  const name = `${issue}-${basename(file).replace(/^\d+-/, "")}`;
-  const numbered = setFrontmatter(setFrontmatter(text, "file", name), "issue", String(issue));
-  const target = join(dirname(file), name);
-  writeFileSync(file, numbered);
-  renameSync(file, target);
-  gh(root, ["issue", "edit", String(issue), "--body-file", target]);
-  if (draft) {
-    issueLabel(root, [String(issue), "--add", DRAFT_LABEL]);
-  }
-  console.log(
-    `${draft ? "초안 " : ""}이슈 #${issue} 를 만들었습니다 — ${prd.title}\n${url}\n캐시: ${relative(root, target)}`,
-  );
-  board(root, issue, "backlog");
-}
-
-function prdPull(root: string, args: string[]): void {
-  const number = needIssue(args[0], "pnpm prd:pull <이슈>");
-  const issue = JSON.parse(gh(root, ["issue", "view", String(number), "--json", "number,title,body"])) as {
-    number: number;
-    title: string;
-    body: string;
-  };
-  const { data } = splitFrontmatter(issue.body);
-  if (asString(data, "type") !== "prd") {
-    throw new Error(`이슈 #${number} 의 본문은 PRD 가 아닙니다 (머리말에 type: prd 가 없습니다)`);
-  }
-  // 이슈 본문이 정한 이름이라도 캐시 디렉터리 밖으로는 쓰지 않는다.
-  const name = basename(asString(data, "file") ?? `${number}.md`);
-  mkdirSync(prdDir(root), { recursive: true });
-  const path = join(prdDir(root), name);
-  const body = setFrontmatter(issue.body, "issue", String(number));
-  writeFileSync(path, body.endsWith("\n") ? body : `${body}\n`);
-  console.log(`#${number} → ${relative(root, path)}`);
-}
 
 function ledgerNew(root: string, args: string[]): void {
   const force = args.includes("--force");
@@ -561,6 +472,7 @@ function docsNeighbors(root: string, args: string[]): void {
 }
 
 const COMMANDS: Record<string, (root: string, args: string[]) => void | Promise<void>> = {
+  "prd:new": prdNew,
   "prd:push": prdPush,
   "prd:pull": prdPull,
   "ledger:new": ledgerNew,

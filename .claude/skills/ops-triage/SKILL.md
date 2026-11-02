@@ -30,7 +30,7 @@ auto 모드 분류기는 자격 증명 파일 읽기와 DB 명령을 막는다. 
 - 비밀번호는 **터미널에 찍지 않는다.** `jq` 의 결과는 바로 `curl -d @-` 로 넘기거나 파일로만 보낸다. `cat data/qa/account.json`, `jq . data/qa/account.json` 처럼 통째로 보는 명령은 쓰지 않는다.
 - `.env` 의 값은 읽지 않는다. DB 접속값은 `infra/docker/compose.yaml` 에 있는 고정값(`beside`/`beside`/`besidepet`, sandbox 컨테이너 `beside-sandbox-db-1`)만 쓴다.
 - DB 에서는 **행 수와 상태 칸만** 본다. `sessions.history`, `sessions.report`, `sessions.summary`, `messages` 의 본문, `accounts.password_hash` 는 `SELECT` 하지 않는다(루트 `CLAUDE.md` "읽지 않는 것"). 대화 내용이 필요하면 QA 계정의 세션을 API(`GET /v1/sessions/{id}/messages`)로 읽어 보고서에 싣는다. QA 계정의 대화는 지어낸 것이라 보고서에 그대로 실어도 된다.
-- sandbox DB 밖의 어떤 DB 에도 붙지 않는다. production DB(`beside-production-db-1`, 5434)에는 이 스킬로 붙지 않는다.
+- sandbox DB 밖의 어떤 DB 에도 붙지 않는다. 이 머신의 production DB(`beside-production-db-1`, 5434)에는 이 스킬로 붙지 않는다. AWS 의 실서버 조회는 `.claude/skills/prod-query/SKILL.md` 다.
 
 ## 권한 없이 되는 것
 
